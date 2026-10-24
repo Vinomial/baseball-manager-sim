@@ -1,0 +1,319 @@
+/**
+ * 試合シミュレーション.DOM に依存しない純粋なロジック.
+ * 1打席ずつ step() で進める.
+ */
+import { getChem } from '../growth/chemistry';
+import { eff } from '../growth/player';
+import { fit, getPlayer } from '../league/team';
+import type { Game, Player, Side, Tactic, Team } from '../types';
+import { clamp, pick, rand } from '../util/random';
+
+/** この球数を超えると能力が落ち始める */
+export const pitchLimit = (p: Player): number => 45 + p.stam * 0.9 - p.fatigue * 0.4;
+
+export function makeSide(t: Team): Side {
+  const lineup = t.lineup.map((e) => ({ p: getPlayer(t, e.pid), pos: e.pos }));
+  const F = lineup.filter((e) => e.pos !== '指');
+  const get = (x: string) => {
+    const e = lineup.find((y) => y.pos === x);
+    if (!e) throw new Error(`${t.name}: ${x} がいません`);
+    return e.p;
+  };
+  const sec = get('二'), ss = get('遊');
+  const D = F.reduce((s, e) => s + eff(e.p, 'field') + fit(e.p, e.pos), 0) / F.length + getChem(t, sec.id, ss.id) * 0.06;
+  let sp = getPlayer(t, t.pitchers[t.rotIdx % 3]);
+  if (sp.fatigue > 60) {
+    sp = t.pitchers.slice(0, 3).map((id) => getPlayer(t, id)).sort((a, b) => a.fatigue - b.fatigue)[0];
+  }
+  return {
+    team: t, lineup, D, catcher: get('捕'), sec, ss, bi: 0,
+    pitcher: sp, starter: sp, used: [sp], pc: 0, pr: 0, pcBy: { [sp.id]: 0 },
+    runs: 0, hits: 0, inn: [],
+  };
+}
+
+export function newGame(home: Team, away: Team, logOn = true): Game {
+  const g: Game = {
+    home: makeSide(home), away: makeSide(away),
+    inning: 1, half: 0, outs: 0, bases: [null, null, null], log: [], logOn, over: false,
+  };
+  g.away.inn.push(0);
+  return g;
+}
+
+export const offense = (g: Game): Side => (g.half ? g.home : g.away);
+export const defense = (g: Game): Side => (g.half ? g.away : g.home);
+/** プレイヤーのチームの側 */
+export const userSide = (g: Game): Side => (g.home.team.user ? g.home : g.away);
+
+function log(g: Game, t: string, hl = false): void {
+  if (!g.logOn) return;
+  g.log.unshift({ tag: `${g.inning}回${g.half ? '裏' : '表'}`, t, hl });
+  if (g.log.length > 120) g.log.length = 120;
+}
+
+function pitcherEff(def: Side): { V: number; C: number } {
+  const p = def.pitcher;
+  const tired = Math.max(0, def.pc - pitchLimit(p)) * 0.7;
+  return {
+    V: eff(p, 'velo') - tired,
+    C: eff(p, 'ctrl') - tired + getChem(def.team, p.id, def.catcher.id) * 0.1,
+  };
+}
+
+/** まだ登板していない,疲れていない中継ぎ */
+export function relievers(def: Side): Player[] {
+  return def.team.pitchers.slice(3)
+    .map((id) => getPlayer(def.team, id))
+    .filter((x) => !def.used.includes(x) && x.fatigue < 70);
+}
+
+export function changePitcher(g: Game, def: Side, np: Player): void {
+  log(g, `${def.team.name}: 投手交代 ${def.pitcher.name} → ${np.name}`);
+  def.pitcher = np;
+  def.used.push(np);
+  def.pc = 0;
+  def.pr = 0;
+  def.pcBy[np.id] = 0;
+}
+
+function autoPitch(g: Game, def: Side): void {
+  const p = def.pitcher;
+  if (def.pc > pitchLimit(p) + 6 || def.pr >= 6) {
+    const r = relievers(def).sort((a, b) => (b.velo * 1.2 + b.ctrl) - (a.velo * 1.2 + a.ctrl));
+    if (r.length) changePitcher(g, def, r[0]);
+  }
+}
+
+function addPitches(def: Side, n: number): void {
+  def.pc += n;
+  def.pcBy[def.pitcher.id] = (def.pcBy[def.pitcher.id] ?? 0) + n;
+}
+
+function scoreRun(off: Side, def: Side, batter: Player | null): void {
+  off.runs++;
+  off.inn[off.inn.length - 1]++;
+  def.pr++;
+  def.pitcher.stats.r++;
+  if (batter) batter.stats.rbi++;
+}
+
+function addOut(g: Game, def: Side, n: number): void {
+  g.outs += n;
+  def.pitcher.stats.outs += n;
+}
+
+function forceWalk(g: Game, off: Side, def: Side, b: Player): void {
+  const B = g.bases;
+  if (B[0]) {
+    if (B[1]) {
+      if (B[2]) scoreRun(off, def, b);
+      B[2] = B[1];
+    }
+    B[1] = B[0];
+  }
+  B[0] = b;
+}
+
+export const canSteal = (g: Game): boolean => {
+  const B = g.bases;
+  return (!!B[0] && !B[1]) || (!!B[1] && !B[2]);
+};
+export const canBunt = (g: Game): boolean => (!!g.bases[0] || !!g.bases[1]) && g.outs < 2;
+
+/** 1打席進める.tac はその打席だけ有効な作戦. */
+export function step(g: Game, tac: Tactic = 'none'): void {
+  if (g.over) return;
+  const off = offense(g), def = defense(g), B = g.bases;
+  autoPitch(g, def);
+  const b = off.lineup[off.bi].p, nm = b.name, before = off.runs;
+
+  if (tac === 'steal' && canSteal(g)) {
+    const from = B[0] && !B[1] ? 0 : 1;
+    const r = B[from] as Player;
+    const pr = clamp(0.6 + (eff(r, 'speed') - 50) * 0.012 - (eff(def.catcher, 'field') - 50) * 0.006, 0.1, 0.95);
+    addPitches(def, 1);
+    if (rand() < pr) {
+      B[from + 1] = r; B[from] = null; r.stats.sb++;
+      log(g, `${r.name},${from === 0 ? '二' : '三'}盗成功!`, true);
+    } else {
+      B[from] = null; addOut(g, def, 1);
+      log(g, `${r.name},盗塁失敗.`);
+    }
+    if (g.outs >= 3) { endHalf(g); return; }
+  }
+
+  const { V, C } = pitcherEff(def);
+  let M = eff(b, 'meet'), Pw = eff(b, 'power');
+  const Sp = eff(b, 'speed');
+  b.stats.pa++;
+  let text = '', hl = false;
+
+  if (tac === 'ibb') {
+    forceWalk(g, off, def, b); b.stats.bb++;
+    text = `${nm}を敬遠.`;
+  } else if (tac === 'bunt' && canBunt(g)) {
+    addPitches(def, 2);
+    if (rand() < clamp(0.75 + (M - 50) * 0.004, 0.4, 0.95)) {
+      addOut(g, def, 1);
+      if (B[2]) scoreRun(off, def, null);
+      B[2] = B[1]; B[1] = B[0]; B[0] = null;
+      text = `${nm},送りバント成功.`;
+    } else {
+      addOut(g, def, 1); b.stats.ab++;
+      text = `${nm},バント失敗(小フライ).`;
+    }
+  } else {
+    if (tac === 'swing') { Pw += 15; M -= 12; }
+    const pK = clamp(0.18 + (V - M) * 0.004 + (tac === 'swing' ? 0.05 : 0), 0.05, 0.42);
+    const pBB = clamp(0.085 + (55 - C) * 0.0025, 0.02, 0.2);
+    const r = rand();
+    if (r < pBB) {
+      addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++;
+      text = `${nm},四球.`;
+    } else if (r < pBB + pK) {
+      addPitches(def, 5); addOut(g, def, 1);
+      b.stats.ab++; b.stats.so++; def.pitcher.stats.k++;
+      text = `${nm},${pick(['空振り三振', '見逃し三振'])}.`;
+    } else {
+      addPitches(def, 3); b.stats.ab++;
+      const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - 50) * 0.0025, 0.15, 0.46);
+      if (rand() < 0.012 + Math.max(0, 50 - def.D) * 0.0006) {
+        if (B[2]) scoreRun(off, def, null);
+        g.bases = [b, B[0], B[1]];
+        text = `${nm}の打球をエラー!出塁.`;
+      } else if (rand() < pH) {
+        text = hit(g, off, def, b, Pw, Sp);
+        hl = true;
+      } else {
+        text = inPlayOut(g, off, def, b, Sp);
+      }
+    }
+  }
+
+  const d = off.runs - before;
+  if (d > 0) { text += ` ${d}点!`; hl = true; }
+  log(g, text, hl);
+  off.bi = (off.bi + 1) % 9;
+
+  if (g.half === 1 && g.inning >= 9 && g.home.runs > g.away.runs) {
+    log(g, 'サヨナラ!', true);
+    finish(g);
+    return;
+  }
+  if (g.outs >= 3) endHalf(g);
+}
+
+function hit(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): string {
+  const nm = b.name;
+  b.stats.h++; off.hits++;
+  const hr = clamp(0.06 + (Pw - 50) * 0.004, 0.01, 0.32);
+  const tr = clamp(0.02 + (Sp - 50) * 0.001, 0.005, 0.06);
+  const db = clamp(0.18 + (Pw - 50) * 0.002, 0.08, 0.3);
+  const x = rand();
+  const [r1, r2, r3] = g.bases;
+  if (x < hr) {
+    let n = 1;
+    for (const q of [r1, r2, r3]) if (q) { scoreRun(off, def, b); n++; }
+    scoreRun(off, def, b);
+    b.stats.hr++;
+    g.bases = [null, null, null];
+    return `${nm},${n === 4 ? '満塁' : n === 1 ? 'ソロ' : n + 'ラン'}ホームラン!`;
+  }
+  if (x < hr + tr) {
+    for (const q of [r1, r2, r3]) if (q) scoreRun(off, def, b);
+    g.bases = [null, null, b];
+    return `${nm},${pick(['右中間', '左中間'])}三塁打!`;
+  }
+  if (x < hr + tr + db) {
+    if (r3) scoreRun(off, def, b);
+    if (r2) scoreRun(off, def, b);
+    const nb: (Player | null)[] = [null, b, null];
+    if (r1) {
+      if (rand() < 0.4 + (eff(r1, 'speed') - 50) * 0.01) scoreRun(off, def, b);
+      else nb[2] = r1;
+    }
+    g.bases = nb;
+    return `${nm},${pick(['左中間', '右中間', 'レフト線', 'ライト線'])}二塁打!`;
+  }
+  if (r3) scoreRun(off, def, b);
+  const nb: (Player | null)[] = [b, null, null];
+  if (r2) {
+    if (rand() < 0.55 + (eff(r2, 'speed') - 50) * 0.008) scoreRun(off, def, b);
+    else nb[2] = r2;
+  }
+  if (r1) {
+    if (!nb[2] && rand() < 0.3 + (eff(r1, 'speed') - 50) * 0.006) nb[2] = r1;
+    else nb[1] = r1;
+  }
+  g.bases = nb;
+  return `${nm},${pick(['センター前ヒット', 'レフト前ヒット', 'ライト前ヒット', '内野安打'])}.`;
+}
+
+function inPlayOut(g: Game, off: Side, def: Side, b: Player, Sp: number): string {
+  const nm = b.name, B = g.bases;
+  if (rand() < 0.5) {
+    // ゴロ
+    const dpP = clamp(0.45 + getChem(def.team, def.sec.id, def.ss.id) * 0.002 - (Sp - 50) * 0.004, 0.1, 0.75);
+    if (B[0] && g.outs < 2 && rand() < dpP) {
+      addOut(g, def, 2); B[0] = null;
+      if (g.outs < 3) {
+        if (B[2]) { scoreRun(off, def, null); B[2] = null; }
+        if (B[1]) { B[2] = B[1]; B[1] = null; }
+      }
+      return `${nm},${pick(['ショート', 'セカンド', 'サード'])}ゴロ併殺打.`;
+    }
+    addOut(g, def, 1);
+    if (g.outs < 3) {
+      if (B[2] && rand() < 0.45) { scoreRun(off, def, b); B[2] = null; }
+      if (B[1] && !B[2]) { B[2] = B[1]; B[1] = null; }
+      if (B[0] && !B[1]) { B[1] = B[0]; B[0] = null; }
+    }
+    return `${nm},${pick(['ショートゴロ', 'セカンドゴロ', 'サードゴロ', 'ファーストゴロ', 'ピッチャーゴロ'])}.`;
+  }
+  // フライ
+  addOut(g, def, 1);
+  if (g.outs < 3 && B[2] && rand() < 0.55 + (eff(B[2], 'speed') - 50) * 0.006) {
+    scoreRun(off, def, b); B[2] = null;
+    return `${nm},犠牲フライ.`;
+  }
+  return `${nm},${pick(['センターフライ', 'レフトフライ', 'ライトフライ', 'セカンドフライ', 'ファウルフライ'])}.`;
+}
+
+function endHalf(g: Game): void {
+  g.outs = 0;
+  g.bases = [null, null, null];
+  const H = g.home.runs, A = g.away.runs;
+  if (g.half === 0) {
+    if (g.inning >= 9 && H > A) { finish(g); return; }
+    g.half = 1;
+    g.home.inn.push(0);
+  } else {
+    if (g.inning >= 9 && H !== A) { finish(g); return; }
+    if (g.inning >= 12) { finish(g); return; }
+    g.inning++;
+    g.half = 0;
+    g.away.inn.push(0);
+  }
+}
+
+export function finish(g: Game): void {
+  g.over = true;
+  log(g, `試合終了 ${g.away.team.name} ${g.away.runs} - ${g.home.runs} ${g.home.team.name}`, true);
+}
+
+/** 今のハーフイニングが終わるまで進める */
+export function stepInning(g: Game, firstTac: Tactic = 'none'): void {
+  const key = `${g.inning}-${g.half}`;
+  step(g, firstTac);
+  let n = 0;
+  while (!g.over && `${g.inning}-${g.half}` === key && n++ < 200) step(g);
+}
+
+/** 試合終了まで進める */
+export function stepToEnd(g: Game, firstTac: Tactic = 'none'): void {
+  step(g, firstTac);
+  let n = 0;
+  while (!g.over && n++ < 500) step(g);
+  if (!g.over) finish(g);
+}

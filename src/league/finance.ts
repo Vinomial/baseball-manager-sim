@@ -1,5 +1,5 @@
 /** 年俸,予算,監督の信頼度,予想勝率.DOM に依存しない. */
-import { DIFFS } from '../data/constants';
+import { DIFFS, MOVES } from '../data/constants';
 import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
 import { clamp, rand } from '../util/random';
@@ -57,10 +57,13 @@ export interface Forecast {
   playoff: number;
   /** 下位(降格圏)の確率 */
   down: number;
+  /** 昇格・降格するチーム数 */
+  upN: number;
+  downN: number;
 }
 
 /** 残りの試合を何度か作って,最終順位の見込みを出す. */
-export function forecast(c: Career, runs = 250, moves = 2): Forecast {
+export function forecast(c: Career, runs = 250): Forecast {
   const lg = c.leagues[c.level];
   const ids = lg.teamIds;
   const teams = new Map(c.teams.filter((t) => ids.includes(t.id)).map((t) => [t.id, t]));
@@ -79,10 +82,11 @@ export function forecast(c: Career, runs = 250, moves = 2): Forecast {
     rank[order.indexOf(c.userId)]++;
     wins += w.get(c.userId)!;
   }
+  const upN = c.level < MOVES.length ? MOVES[c.level] : 0, downN = c.level > 0 ? MOVES[c.level - 1] : 0;
   const pr = rank.map((n) => n / runs);
   const sum = (from: number, to: number) => pr.slice(from, to).reduce((s, v) => s + v, 0);
   return {
-    wins: wins / runs, rank: pr, up: sum(0, moves), playoff: sum(0, 4), down: sum(ids.length - moves, ids.length),
+    wins: wins / runs, rank: pr, up: sum(0, upN), playoff: sum(0, 4), down: downN ? sum(ids.length - downN, ids.length) : 0, upN, downN,
   };
 }
 

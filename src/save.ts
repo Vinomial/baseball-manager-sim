@@ -5,7 +5,7 @@ import { pickRival } from './league/awards';
 import { emptyFac, emptyMarket } from './league/economy';
 import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
-import { fillOtherLeagues } from './league/world';
+import { addMissingLeagues, fillOtherLeagues } from './league/world';
 import { genAbilities } from './growth/abilities';
 import { playerValue, salaryOf } from './growth/player';
 import type { Career } from './types';
@@ -110,6 +110,11 @@ export function migrate(raw: unknown): Career | null {
     Object.assign(c, { diff: 'normal', auto: { lineup: false, rest: false } });
     snapshotYear(c as unknown as Career);
     c.version = 15;
+  }
+  if (c.version === 15) {
+    // v16: メジャーリーグを追加
+    addMissingLeagues(c as unknown as Career);
+    c.version = 16;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

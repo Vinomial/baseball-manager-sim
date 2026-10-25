@@ -47,14 +47,14 @@ function starsHTML(c: Career): string {
 export function renderRecords(c: Career): string {
   const r = c.rec, unlocked = Object.keys(c.ach).length;
   let h = '';
-  if (c.ended) h += `<div class="card ending"><p class="result px" style="margin:0">殿堂入り!</p><p class="small" style="text-align:center;margin:4px 0 0">プロリーグで${r.titles[LEAGUES.length - 1]}回の優勝.草野球から頂点まで駆け上がった監督として,名を残しました.</p></div>`;
+  if (c.ended) h += `<div class="card ending"><p class="result px" style="margin:0">殿堂入り!</p><p class="small" style="text-align:center;margin:4px 0 0">メジャーリーグで${r.titles[LEAGUES.length - 1]}回の優勝.草野球から頂点まで駆け上がった監督として,名を残しました.</p></div>`;
   h += `<h2>目標</h2><div class="card">${goalsHTML(c)}</div>
   <h2>チームの記録</h2><div class="card"><table class="results"><tbody>
   <tr><td>通算成績</td><td class="num">${r.total.w}勝 ${r.total.l}敗 ${r.total.d}分</td></tr>
   <tr><td>最長連勝</td><td class="num">${r.bestStreak}連勝(いま ${r.streak})</td></tr>
   <tr><td>シーズン最多勝</td><td class="num">${r.bestWins}勝${r.bestSeason ? `(第${r.bestSeason}季)` : ''}</td></tr>
   <tr><td>優勝回数</td><td class="num">${LEAGUES.map((_, i) => `${lgShort(i)} ${r.titles[i]}`).join(' / ')}</td></tr>
-  <tr><td>プロの連覇</td><td class="num">${r.proStreak}</td></tr></tbody></table></div>
+  <tr><td>メジャーの連覇</td><td class="num">${r.proStreak}</td></tr></tbody></table></div>
   <h2>ライバル</h2>${rivalHTML(c)}
   <h2>名選手</h2>${starsHTML(c)}
   <h2>実績 <span class="small muted">${unlocked}/${ACHIEVEMENTS.length}</span></h2><div class="achs">${ACHIEVEMENTS.map((a) => {

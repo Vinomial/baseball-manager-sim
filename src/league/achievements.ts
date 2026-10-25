@@ -20,11 +20,13 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'up1', name: '社会人へ', desc: '社会人リーグに昇格する' },
   { id: 'up2', name: '独立リーグへ', desc: '独立リーグに昇格する' },
   { id: 'up3', name: 'プロ入り', desc: 'プロリーグに昇格する' },
+  { id: 'up4', name: 'メジャー入り', desc: 'メジャーリーグに昇格する' },
   { id: 'title0', name: '草野球の王者', desc: '草野球リーグで優勝する' },
   { id: 'title1', name: '社会人の王者', desc: '社会人リーグで優勝する' },
   { id: 'title2', name: '独立の王者', desc: '独立リーグで優勝する' },
   { id: 'title3', name: 'プロの王者', desc: 'プロリーグで優勝する' },
-  { id: 'threepeat', name: 'プロ3連覇', desc: 'プロリーグで3連覇する' },
+  { id: 'title4', name: 'メジャーの王者', desc: 'メジャーリーグで優勝する' },
+  { id: 'threepeat', name: 'メジャー3連覇', desc: 'メジャーリーグで3連覇する' },
   { id: 'perfect', name: '完全優勝', desc: '1シーズンを負けなしで終える' },
   { id: 'seasons10', name: '10シーズン', desc: '10シーズン指揮をとる' },
   { id: 'seasons25', name: '25シーズン', desc: '25シーズン指揮をとる' },
@@ -37,7 +39,7 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'cup', name: '全日本制覇', desc: '年末の全日本選手権で優勝する' },
   { id: 'giant', name: 'ジャイアントキリング', desc: '全日本選手権で上のリーグのチームに勝つ' },
   { id: 'cup3', name: '全日本ベスト4', desc: '全日本選手権で3勝以上する' },
-  { id: 'hall', name: '殿堂入り', desc: 'プロリーグで通算5回優勝する' },
+  { id: 'hall', name: '殿堂入り', desc: 'メジャーリーグで通算5回優勝する' },
 ];
 
 export const PRO_TITLES_FOR_HALL = 5;
@@ -78,7 +80,7 @@ export function checkSeason(c: Career, level: number, userTitle: boolean, perfec
   if (c.season >= 10) unlock(c, 'seasons10');
   if (c.season >= 25) unlock(c, 'seasons25');
   if (c.rec.proStreak >= 3) unlock(c, 'threepeat');
-  if (c.rec.titles[3] >= PRO_TITLES_FOR_HALL) unlock(c, 'hall');
+  if (c.rec.titles[c.rec.titles.length - 1] >= PRO_TITLES_FOR_HALL) unlock(c, 'hall');
   const u = c.teams.find((t) => t.user)!;
   let hr = 0, h = 0, w = 0, k = 0;
   for (const p of u.players) {
@@ -94,14 +96,15 @@ export function checkSeason(c: Career, level: number, userTitle: boolean, perfec
 
 export function checkFA(c: Career): void { unlock(c, 'fa'); }
 
-/** プロリーグでの目標.進み具合を返す. */
+/** 上のリーグでの目標.進み具合を返す. */
 export function goals(c: Career): { name: string; now: number; max: number; done: boolean }[] {
-  const t = c.rec.titles;
+  const t = c.rec.titles, top = t.length - 1;
   return [
-    { name: 'プロリーグに昇格する', now: c.level >= 3 || c.ach['up3'] ? 1 : 0, max: 1, done: !!c.ach['up3'] },
-    { name: 'プロリーグで初優勝', now: Math.min(1, t[3]), max: 1, done: t[3] >= 1 },
-    { name: 'プロリーグで3連覇', now: Math.min(3, c.rec.proStreak), max: 3, done: !!c.ach['threepeat'] },
-    { name: `プロリーグ通算${PRO_TITLES_FOR_HALL}回優勝で殿堂入り`, now: Math.min(PRO_TITLES_FOR_HALL, t[3]), max: PRO_TITLES_FOR_HALL, done: t[3] >= PRO_TITLES_FOR_HALL },
+    { name: 'プロリーグに昇格する', now: c.ach['up3'] || c.level >= 3 ? 1 : 0, max: 1, done: !!c.ach['up3'] },
+    { name: 'メジャーリーグに昇格する', now: c.ach['up4'] || c.level >= top ? 1 : 0, max: 1, done: !!c.ach['up4'] },
+    { name: 'メジャーリーグで初優勝', now: Math.min(1, t[top]), max: 1, done: t[top] >= 1 },
+    { name: 'メジャーリーグで3連覇', now: Math.min(3, c.rec.proStreak), max: 3, done: !!c.ach['threepeat'] },
+    { name: `メジャーリーグ通算${PRO_TITLES_FOR_HALL}回優勝で殿堂入り`, now: Math.min(PRO_TITLES_FOR_HALL, t[top]), max: PRO_TITLES_FOR_HALL, done: t[top] >= PRO_TITLES_FOR_HALL },
   ];
 }
 

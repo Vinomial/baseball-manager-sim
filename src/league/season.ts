@@ -29,7 +29,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -295,7 +295,7 @@ export function finishSeason(c: Career): void {
   checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from, { cupChamp: cup.champion, cupWins: cup.wins, giant: cup.giantKills });
   if (!c.ended && c.rec.titles[LEAGUES.length - 1] >= PRO_TITLES_FOR_HALL) {
     c.ended = true;
-    c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
+    c.news.push('メジャーリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
   const review = makeReview(c, champIds[from], cup.champion);
   c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [] };

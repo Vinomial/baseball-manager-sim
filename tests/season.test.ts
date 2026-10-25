@@ -59,7 +59,8 @@ function prepareNextSeason(c: Career): void {
 describe('日程', () => {
   it('リーグが上がるほど試合数が増える', () => {
     const games = LEAGUES.map((_, i) => gamesPerSeason(i));
-    for (let i = 1; i < games.length; i++) expect(games[i]).toBeGreaterThan(games[i - 1]);
+    for (let i = 1; i < games.length; i++) expect(games[i]).toBeGreaterThanOrEqual(games[i - 1]);
+    expect(games[games.length - 1]).toBeGreaterThan(games[0]);
   });
 
   it('どのリーグでも全チームが同じ数の試合をする', () => {
@@ -717,7 +718,7 @@ describe('1年48週のカレンダー', () => {
       expect(lg.week).toBe(lg.schedule.length);
     }
     expect(c.cup?.done).toBe(true);
-    expect(c.cupBracket.length).toBe(27);
+    expect(c.cupBracket.length).toBe(LEAGUES.reduce((n, l) => n + l.teams, 0) - 1);
   });
 
   it('試合のない週は,練習試合を選べて,成績には入らず疲れだけがたまる', () => {
@@ -1010,7 +1011,10 @@ describe('難易度・おまかせ進行・1年の振り返り', () => {
 
   it('難易度で予算と信頼度の動きが変わる', () => {
     const a = newCareer('テスト', 'easy'), b = newCareer('テスト', 'hard');
-    expect(budgetFor(a)).toBeGreaterThan(budgetFor(b));
+    const bEasy = budgetFor(a);
+    a.diff = 'hard';
+    expect(bEasy).toBeGreaterThan(budgetFor(a));
+    a.diff = 'easy';
     a.trust = 50; b.trust = 50;
     addTrust(a, 10); addTrust(b, 10);
     expect(a.trust).toBeGreaterThan(b.trust);

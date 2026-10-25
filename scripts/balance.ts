@@ -83,7 +83,7 @@ function autoOffseason(c: Career): void {
   newSeason(c);
 }
 
-const SEASONS = 30;
+const SEASONS = 40;
 console.log(`\n== おすすめどおりに${SEASONS}シーズン進めたときの歩み(3回の平均) ==`);
 for (const menu of ['mix', 'bat'] as MenuKey[]) {
   const R = 3;

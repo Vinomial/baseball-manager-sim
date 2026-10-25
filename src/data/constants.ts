@@ -18,6 +18,7 @@ export const LEAGUES: League[] = [
   { name: '社会人リーグ', base: 44, teams: 6, rounds: 3, roster: 24 },
   { name: '独立リーグ', base: 56, teams: 8, rounds: 3, roster: 26 },
   { name: 'プロリーグ', base: 68, teams: 8, rounds: 4, roster: 28 },
+  { name: 'メジャーリーグ', base: 78, teams: 8, rounds: 4, roster: 30 },
 ];
 
 export const gamesPerSeason = (level: number): number => (LEAGUES[level].teams - 1) * LEAGUES[level].rounds;
@@ -27,7 +28,11 @@ export const TEAM_NAMES: string[][] = [
   ['湾岸製鉄', '北辰電機', '港湾運輸', '東邦化学', '中央ガス', '大和精機', '白鷺紡績', '瑞穂鉄道'],
   ['房総シーガルズ', '甲信アルプス', '瀬戸内オーシャンズ', '北陸サンダーズ', '南九州ボルケーノ', '東北スノーベアーズ', '山陰ライトハウス', '四国ブレイカーズ'],
   ['東京ユニコーンズ', '大阪フェニックス', '名古屋グリフォンズ', '福岡ドラゴンフライ', '札幌ポラリス', '横浜ベイウルフ', '仙台オウルズ', '神戸シーホークス'],
+  ['ニューヨーク・キングス', 'ロサンゼルス・サンライズ', 'シカゴ・ウィンドミルズ', 'ボストン・ハーバーズ', 'ダラス・ガンスリンガーズ', 'シアトル・レインメーカー', 'マイアミ・パームス', 'サンフランシスコ・フォッグス', 'トロント・ノーザンズ'],
 ];
+
+/** 各リーグの境目で入れ替わるチーム数.moves[l] は,リーグ l と l+1 の間. */
+export const MOVES: number[] = [1, 1, 2, 1];
 
 export const POS: Pos[] = ['捕', '一', '二', '三', '遊', '左', '中', '右'];
 export const ALL_POS: LineupPos[] = [...POS, '指'];

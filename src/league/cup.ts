@@ -16,7 +16,7 @@ function bracketOrder(n: number): number[] {
 export function startCup(c: Career): void {
   const seeds: Team[] = [];
   for (let l = LEAGUES.length - 1; l >= 0; l--) seeds.push(...standings(c, l).map((r) => r.t));
-  c.cup = { slots: bracketOrder(32).map((s) => seeds[s - 1]?.id ?? null), round: 0, done: false };
+  c.cup = { slots: bracketOrder(64).map((s) => seeds[s - 1]?.id ?? null), round: 0, done: false };
   c.cupBracket = [];
 }
 

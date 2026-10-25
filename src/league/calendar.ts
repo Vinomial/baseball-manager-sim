@@ -7,7 +7,7 @@ export const SEASON_START = 12;
 export const SEASON_WEEKS = 28;
 export const PLAYOFF_START = 40;
 export const CUP_START = 42;
-export const CUP_ROUNDS = 5;
+export const CUP_ROUNDS = 6;
 /** 1 週あたりの練習量(1 年でおよそ 10 週ぶん) */
 export const TRAIN_PER_WEEK = 10 / WEEKS_PER_YEAR;
 
@@ -44,7 +44,7 @@ export function weekKind(cal: number): WeekKind {
   return 'end';
 }
 
-const CUP_NAMES = ['1回戦', '2回戦', '準々決勝', '準決勝', '決勝'];
+const CUP_NAMES = ['1回戦', '2回戦', '3回戦', '準々決勝', '準決勝', '決勝'];
 export const cupRoundName = (round: number): string => CUP_NAMES[round] ?? `${round + 1}回戦`;
 
 /** プレイヤーがこの週に出る公式戦 */

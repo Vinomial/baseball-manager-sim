@@ -196,7 +196,7 @@ export function step(g: Game): void {
     if ([5, 8, 10, 12, 15].includes(k)) text += `(${k}個目の三振)`;
   } else {
     addPitches(def, 3); b.stats.ab++;
-    const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - (def.D - 50) * 0.0012 + off.fx.hit + pe.hit, 0.15, 0.46);
+    const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - clamp(def.D - 50, -20, 10) * 0.0012 + off.fx.hit + pe.hit, 0.15, 0.46);
     if (rand() < 0.012 + Math.max(0, 55 - def.D) * 0.0012) {
       if (g.bases[2]) scoreRun(off, def, null);
       g.bases = [b, g.bases[0], g.bases[1]];

@@ -24,13 +24,13 @@ export function trustHTML(c: Career): string {
 
 export function forecastSummary(c: Career): string {
   const f = forecast(c, 120);
-  return `昇格圏 ${pct(f.up)} / 降格圏 ${pct(f.down)}`;
+  return `${f.upN ? `昇格圏 ${pct(f.up)}` : 'プレーオフ ' + pct(f.playoff)}${f.downN ? ` / 降格圏 ${pct(f.down)}` : ''}`;
 }
 
 /** シーズンの予想 */
 export function forecastHTML(c: Career): string {
   const f = forecast(c);
-  const rows = [['昇格圏(上位2)', f.up], ['プレーオフ(上位4)', f.playoff], ['降格圏', f.down]] as [string, number][];
+  const rows = [...(f.upN ? [[`昇格圏(上位${f.upN})`, f.up]] : []), ['プレーオフ(上位4)', f.playoff], ...(f.downN ? [['降格圏', f.down]] : [])] as [string, number][];
   return `<p class="small" style="margin:0 0 6px">予想の最終勝数 <b>${f.wins.toFixed(1)}勝</b> / 予想順位 <b>${1 + f.rank.reduce((best, v, i, a) => (v > a[best] ? i : best), 0)}位</b>が最も多い見込み</p>
   ${rows.map(([n, v]) => `<div class="chem"><span class="who">${n}</span><span class="bar"><i style="width:${v * 100}%;${n === '降格圏' ? 'background:var(--bad)' : ''}"></i></span><span>${pct(v)}</span></div>`).join('')}`;
 }

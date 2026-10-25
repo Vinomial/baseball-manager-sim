@@ -1,4 +1,4 @@
-import { LEAGUES } from '../../data/constants';
+import { LEAGUES, MOVES } from '../../data/constants';
 import { leaders } from '../../league/leaders';
 import { standings, teamById } from '../../league/schedule';
 import { ovr } from '../../league/team';
@@ -16,7 +16,8 @@ export function renderTable(c: Career): string {
   const L = LEAGUES[level];
   const tabs = `<div class="lgtabs" role="group" aria-label="リーグ">${LEAGUES.map((x, i) =>
     `<button data-a="lv" data-i="${i}" aria-pressed="${i === level}">${x.name.replace('リーグ', '')}${i === c.level ? ' ★' : ''}</button>`).join('')}</div>`;
-  const moveNote = `${level < LEAGUES.length - 1 ? '上位2チームは昇格.' : ''}${level > 0 ? '下位2チームは降格.' : ''}上位4チームはプレーオフに進みます.`;
+  const upN = level < MOVES.length ? MOVES[level] : 0, downN = level > 0 ? MOVES[level - 1] : 0;
+  const moveNote = `${upN ? `上位${upN}チームは昇格.` : ''}${downN ? `下位${downN}チームは降格.` : ''}上位4チームはプレーオフに進みます.`;
   const tbl = standings(c, level);
   let h = `${tabs}<h2>${L.name} 順位表 <span class="small muted">(${lg.week}/${lg.schedule.length}試合)</span></h2><p class="small muted">${moveNote}</p>
   <div class="card scroll"><table class="std"><thead><tr><th>順位</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>得失点</th><th>戦力</th></tr></thead><tbody>

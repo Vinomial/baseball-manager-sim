@@ -2,7 +2,7 @@
  * 世界の進行.プレイヤーのいるリーグ以外も,毎シーズン同じチーム・選手が続く.
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
-import { DIFFS, DRAFT_ROUNDS, LABEL, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
+import { DIFFS, DRAFT_ROUNDS, LABEL, MOVES, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
@@ -13,10 +13,8 @@ import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 
-/** 昇格・降格するチーム数(上位 k チームが上がり,下位 k チームが下がる) */
-export const MOVES = 2;
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
-export const AI_YEAR_GAIN = [3, 3.5, 4.2, 5];
+export const AI_YEAR_GAIN = [2.7, 3.2, 4, 5, 5.5];
 
 /** AI チームの連携の初期値はリーグが上がるほど高い */
 export const aiChem = (level: number): number => 20 + level * 12;
@@ -203,14 +201,15 @@ export function playoffText(c: Career, lg: LeagueState): string {
 
 /* ===== 昇格・降格 ===== */
 
-/** 全チームの来シーズンのリーグ.上位 MOVES チームが上がり,上のリーグの下位 MOVES チームが下がる. */
+/** 全チームの来シーズンのリーグ.境目ごとに,上位 MOVES[l] チームが上がり,上のリーグの下位 MOVES[l] チームが下がる. */
 export function computeNextLevels(c: Career): Record<number, number> {
   const next: Record<number, number> = {};
   for (const lg of c.leagues) for (const id of lg.teamIds) next[id] = lg.level;
   for (let l = 0; l < LEAGUES.length - 1; l++) {
     const lower = standings(c, l), upper = standings(c, l + 1);
-    for (const r of lower.slice(0, MOVES)) next[r.t.id] = l + 1;
-    for (const r of upper.slice(-MOVES)) next[r.t.id] = l;
+    const k = MOVES[l];
+    for (const r of lower.slice(0, k)) next[r.t.id] = l + 1;
+    for (const r of upper.slice(-k)) next[r.t.id] = l;
   }
   return next;
 }
@@ -419,4 +418,19 @@ export function faVerdict(c: Career, p: Player): 'ok' | 'hard' {
 
 export function teamLevel(c: Career, t: Team): number {
   return leagueOfTeam(c, t.id).level;
+}
+
+/** 古いセーブに,あとから増えた上位のリーグを足す(AI チームだけで作る). */
+export function addMissingLeagues(c: Career): void {
+  for (let level = c.leagues.length; level < LEAGUES.length; level++) {
+    const L = LEAGUES[level];
+    const names = shuffle(TEAM_NAMES[level]).slice(0, L.teams);
+    const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
+    c.teams.push(...ts);
+    const lg: LeagueState = { level, teamIds: ts.map((t) => t.id), schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} };
+    resetLeague(lg);
+    c.leagues.push(lg);
+    if (c.off) for (const t of ts) c.off.next[t.id] = level;
+  }
+  while (c.rec.titles.length < LEAGUES.length) c.rec.titles.push(0);
 }

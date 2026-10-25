@@ -14,7 +14,7 @@ import { fielders, genTeam, ovr, pitchersOf } from './team';
 /** 昇格・降格するチーム数(上位 k チームが上がり,下位 k チームが下がる) */
 export const MOVES = 2;
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
-export const AI_SEASON_GAIN = 3;
+export const AI_SEASON_GAIN = [3, 3.5, 4.2, 5];
 
 /** AI チームの連携の初期値はリーグが上がるほど高い */
 export const aiChem = (level: number): number => 20 + level * 12;
@@ -80,7 +80,7 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
     stepToEnd(g);
     applyGameResultToStanding(c, g);
   }
-  const mult = AI_SEASON_GAIN / lg.schedule.length;
+  const mult = AI_SEASON_GAIN[lg.level] / lg.schedule.length;
   for (const id of lg.teamIds) {
     const t = teamById(c, id);
     for (const p of t.players) p.fatigue = Math.max(0, p.fatigue - 45);

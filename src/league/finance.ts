@@ -11,10 +11,10 @@ export function fmtYen(man: number): string {
   return man >= 10000 ? `${(man / 10000).toFixed(man >= 100000 ? 0 : 1)}億円` : `${Math.round(man).toLocaleString('ja-JP')}万円`;
 }
 
-/** 前のシーズンの成績に応じた収入の倍率(0.85〜1.5).勝つほど予算が増える. */
+/** 前のシーズンの成績に応じた収入の倍率(0.85〜1.3).勝つほど予算が増える. */
 export function revenueAfter(winPct: number, playoff: boolean, title: boolean, prev: number): number {
   const target = 1 + (winPct - 0.5) * 0.9 + (playoff ? 0.05 : 0) + (title ? 0.15 : 0);
-  return clamp(prev * 0.4 + target * 0.6, 0.85, 1.5);
+  return clamp(prev * 0.4 + target * 0.6, 0.85, 1.3);
 }
 
 /** 信頼度が高いほど予算が多く,選手も来てくれる. */

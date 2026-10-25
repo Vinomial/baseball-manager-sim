@@ -34,6 +34,9 @@ export const ACHIEVEMENTS: Ach[] = [
   { id: 'k500', name: '500奪三振', desc: '自チームの投手が通算500奪三振' },
   { id: 'mvp', name: 'MVP輩出', desc: '自チームの選手がリーグMVPになる' },
   { id: 'fa', name: '補強', desc: '自由契約の選手を初めて獲得する' },
+  { id: 'cup', name: '全日本制覇', desc: '年末の全日本選手権で優勝する' },
+  { id: 'giant', name: 'ジャイアントキリング', desc: '全日本選手権で上のリーグのチームに勝つ' },
+  { id: 'cup3', name: '全日本ベスト4', desc: '全日本選手権で3勝以上する' },
   { id: 'hall', name: '殿堂入り', desc: 'プロリーグで通算5回優勝する' },
 ];
 
@@ -65,7 +68,10 @@ export function checkGame(c: Career, g: Game, oppId: number, boxes: BoxBat[]): v
 }
 
 /** シーズンの終わりの実績.userTitle: プレイヤーが優勝したか. */
-export function checkSeason(c: Career, level: number, userTitle: boolean, perfect: boolean, moved: number): void {
+export function checkSeason(c: Career, level: number, userTitle: boolean, perfect: boolean, moved: number, cup: { cupChamp: boolean; cupWins: number; giant: number } = { cupChamp: false, cupWins: 0, giant: 0 }): void {
+  if (cup.cupChamp) unlock(c, 'cup');
+  if (cup.giant > 0) unlock(c, 'giant');
+  if (cup.cupWins >= 3) unlock(c, 'cup3');
   if (userTitle) unlock(c, `title${level}`);
   if (perfect) unlock(c, 'perfect');
   if (moved > 0) unlock(c, `up${level + 1}`);

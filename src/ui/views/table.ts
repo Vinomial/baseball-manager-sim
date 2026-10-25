@@ -36,5 +36,25 @@ export function renderTable(c: Career): string {
   h += `<h2>歴代の優勝 <span class="small muted">(${L.name})</span></h2><div class="card">${champs.length
     ? `<table class="results"><tbody>${champs.map((x) => `<tr><td>第${x.season}季</td><td class="${x.teamId === c.userId ? 'w' : ''}">${esc(x.team)}</td><td class="muted small">準優勝 ${esc(x.runnerUp)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="small muted">まだ優勝チームはありません.</p>'}</div>`;
+  return h + cupHTML(c);
+}
+
+/** 全日本選手権.全リーグ混合のトーナメントの結果. */
+export function cupHTML(c: Career): string {
+  const rounds: string[] = [];
+  for (const m of c.cupBracket) if (!rounds.includes(m.round)) rounds.push(m.round);
+  const past = c.cups.slice().reverse().slice(0, 8);
+  let h = `<h2>全日本選手権 <span class="small muted">(全リーグ混合・年末)</span></h2><div class="card">`;
+  if (!c.cupBracket.length) {
+    h += '<p class="small muted" style="margin:0">シーズンが終わると,全リーグの全チームが1つのトーナメントで戦います.上のリーグほどシードが上位で,下のリーグが勝ち上がれば大金星です.</p>';
+  } else {
+    h += rounds.map((r) => `<details ${r === '決勝' || r === '準決勝' ? 'open' : ''}><summary><b>${r}</b></summary><table class="results"><tbody>${c.cupBracket.filter((m) => m.round === r).map((m) => {
+      const mine = m.aId === c.userId || m.bId === c.userId;
+      const A = `<span class="${m.winner === m.aId ? 'w' : 'muted'}">${esc(m.a)}</span>`, B = `<span class="${m.winner === m.bId ? 'w' : 'muted'}">${esc(m.b)}</span>`;
+      return `<tr class="${mine ? 'me' : ''}"><td>${A}</td><td class="num">${m.sa} - ${m.sb}</td><td>${B}</td></tr>`;
+    }).join('')}</tbody></table></details>`).join('');
+  }
+  h += `</div>`;
+  if (past.length) h += `<div class="card"><table class="results"><tbody>${past.map((x) => `<tr><td>第${x.season}季</td><td class="${x.championId === c.userId ? 'w' : ''}">${esc(x.champion)}</td><td class="muted small">${LEAGUES[x.championLevel].name.replace('リーグ', '')} / 準優勝 ${esc(x.runnerUp)}</td></tr>`).join('')}</tbody></table></div>`;
   return h;
 }

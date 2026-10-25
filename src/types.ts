@@ -142,6 +142,8 @@ export interface OffSeason {
   /** プレーオフの結果(プレイヤーのリーグ) */
   playoff: string;
   draft: DraftState;
+  /** 全日本選手権でのプレイヤーの結果 */
+  cup: string;
   /** 自由契約で獲得した選手名 */
   signed: string[];
   /** 放出した選手名 */
@@ -229,6 +231,19 @@ export interface Meal {
   desc: string;
 }
 
+export interface CupMatch {
+  round: string;
+  a: string;
+  b: string;
+  aId: number;
+  bId: number;
+  sa: number;
+  sb: number;
+  winner: number;
+}
+
+export interface CupRow { season: number; champion: string; championId: number; championLevel: number; runnerUp: string; }
+
 export interface Career {
   version: number;
   nid: number;
@@ -270,6 +285,10 @@ export interface Career {
   /** 監督の信頼度 0〜100.0 になると解任される. */
   trust: number;
   missions: Mission[];
+  /** 年末の全日本選手権の優勝の記録 */
+  cups: CupRow[];
+  /** 直近の全日本選手権の対戦表 */
+  cupBracket: CupMatch[];
   /** 直近の練習メニュー(新しいものが後ろ) */
   lastMenus: string[];
   pantry: Record<Ingredient, number>;

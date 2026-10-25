@@ -77,6 +77,13 @@ export function migrate(raw: unknown): Career | null {
     refillMissions(c as unknown as Career);
     c.version = 10;
   }
+  if (c.version === 10) {
+    // v11: 全日本選手権を追加
+    Object.assign(c, { cups: [], cupBracket: [] });
+    const off = c.off as { cup?: string } | null;
+    if (off) off.cup = '';
+    c.version = 11;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

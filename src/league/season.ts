@@ -10,6 +10,7 @@ import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { refillMissions, updateMissions } from './missions';
+import { runCup, cupRow } from './cup';
 import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
@@ -22,7 +23,7 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -38,7 +39,7 @@ export function newCareer(name: string): Career {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
-    missions: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
+    missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -145,6 +146,17 @@ export function finishSeason(c: Career): void {
     champIds[lg.level] = r.champion.id;
     if (lg.level === c.level) playoff = playoffText(c, lg.level, r);
   }
+  // 全日本選手権(全リーグのチームが 1 つのトーナメントで戦う)
+  const cup = runCup(c);
+  c.cups.push(cupRow(c, cup));
+  c.cupBracket = cup.matches;
+  if (c.cups.length > 60) c.cups.shift();
+  if (cup.userWins > 0) {
+    addTrust(c, cup.userWins * 1.5 + cup.giantKills * 3 + (cup.champion.user ? 8 : 0));
+    c.pantry.meat += cup.userWins;
+    c.pantry.rice += cup.userWins;
+    if (cup.champion.user) c.revenue = Math.min(1.3, c.revenue + 0.1);
+  }
   // 表彰(成績を記録に回す前に行う)
   c.awards.push(...computeAwards(c, champIds));
   if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
@@ -188,12 +200,12 @@ export function finishSeason(c: Career): void {
   if (userTitle) c.rec.titles[from]++;
   if (from === LEAGUES.length - 1) c.rec.proStreak = userTitle ? c.rec.proStreak + 1 : 0;
   if (rec.w > c.rec.bestWins) { c.rec.bestWins = rec.w; c.rec.bestSeason = c.season; }
-  checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from);
+  checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from, { cupChamp: cup.champion.user, cupWins: cup.userWins, giant: cup.giantKills });
   if (!c.ended && c.rec.titles[LEAGUES.length - 1] >= PRO_TITLES_FOR_HALL) {
     c.ended = true;
     c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0 };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.userRound };
   c.phase = 'off';
 }
 

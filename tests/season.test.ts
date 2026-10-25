@@ -629,3 +629,46 @@ describe('ミッションと料理', () => {
     expect(m!.pantry.rice).toBe(0);
   });
 });
+
+describe('全日本選手権', () => {
+  beforeEach(() => setRandom(seeded(111)));
+  afterEach(() => resetRandom());
+
+  it('全チームが出場する1つのトーナメントで,優勝は1チームだけ', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const total = LEAGUES.reduce((n, l) => n + l.teams, 0);
+    expect(c.cupBracket.length).toBe(total - 1);
+    const ids = new Set(c.cupBracket.flatMap((m) => [m.aId, m.bId]));
+    expect(ids.size).toBe(total);
+    expect(c.cups.length).toBe(1);
+    const final = c.cupBracket[c.cupBracket.length - 1];
+    expect(final.round).toBe('決勝');
+    expect(c.cups[0].championId).toBe(final.winner);
+    // 決勝以外は,負けたチームは二度と出てこない
+    const lost = new Set<number>();
+    for (const m of c.cupBracket) {
+      expect(lost.has(m.aId)).toBe(false);
+      expect(lost.has(m.bId)).toBe(false);
+      lost.add(m.winner === m.aId ? m.bId : m.aId);
+    }
+    expect(c.off!.cup.length).toBeGreaterThan(0);
+  });
+
+  it('選手権の試合は成績や疲れに残らない', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    // シーズンの試合数以上の登板・出場は記録されていない
+    for (const t of c.teams) for (const p of t.players) expect(p.stats.g).toBeLessThanOrEqual(gamesPerSeason(c.leagues.findIndex((l) => l.teamIds.includes(t.id))));
+  });
+
+  it('v10 のデータに選手権の欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 10;
+    delete old.cups; delete old.cupBracket;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.cups).toEqual([]);
+  });
+});

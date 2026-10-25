@@ -145,7 +145,7 @@ table.mini td:first-child,table.mini th:first-child{text-align:left}
 .dn{color:var(--bad);font-weight:700}
 .chem .who.me{font-weight:700}
 .chem .num{min-width:2em;text-align:right}
-.focus{display:inline-block;font-size:11px;border-radius:3px;padding:0 5px;background:var(--btn);color:var(--btn-ink);margin-right:4px}
+.menu .focus,.focus{display:inline-block;color:var(--btn-ink);font-size:11px;border-radius:3px;padding:0 5px;background:var(--btn);color:var(--btn-ink);margin-right:4px}
 .results{width:100%;border-collapse:collapse;font-size:14px}
 .results td{padding:4px 6px;border-bottom:1px solid var(--line)}
 .results .w{color:var(--good);font-weight:700}.results .l{color:var(--bad)}
@@ -188,3 +188,24 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .mb i{display:block;width:100%;background:var(--btn);border-radius:2px 2px 0 0;min-height:2px}
 .mb small{font-size:9px;color:var(--muted);line-height:1.2}
 .bar.total{display:block;margin:4px 0;height:6px}
+
+/* replay */
+.replay{background:var(--panel)}
+.rp-board{display:flex;justify-content:center;align-items:baseline;gap:10px;font-size:18px;background:var(--board);color:var(--board-ink);border-radius:6px;padding:6px 10px}
+.rp-board b{color:var(--board-num);font-weight:400;font-size:26px;min-width:1.4em;text-align:center}
+.rp-t{max-width:7.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.rp-info{display:flex;justify-content:space-between;margin:6px 2px;font-size:15px}
+.rp-field{width:100%;max-width:420px;display:block;margin:0 auto;image-rendering:pixelated}
+.rp-dot{transform:translate(100px,160px)}
+.rp-label{fill:#fff;stroke:#000;stroke-width:3px;paint-order:stroke;opacity:0}
+.rp-label.pop{animation:pop .9s ease-out}
+@keyframes pop{0%{opacity:0;transform:translateY(8px) scale(.6)}20%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+.rp-ball{transform-box:fill-box}
+.rp-text{min-height:3em;margin:8px 2px 0;text-align:center;font-weight:500}
+.rp-text.hl{color:var(--accent);font-weight:700}
+.rp-who{margin:0 0 6px;text-align:center}
+.rp-ctl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.rp-ctl .btn{padding:8px 12px}
+.rp-seek{width:100%;margin-top:10px;accent-color:var(--btn)}
+@media (prefers-reduced-motion:reduce){.rp-label.pop{animation:none;opacity:1}}
+@media (max-width:520px){.lines table{font-size:13px;min-width:0}.lines td,.lines th{padding:2px 2px}}

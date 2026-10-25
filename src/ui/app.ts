@@ -14,6 +14,7 @@ import { renderGame } from './views/game';
 import { renderHome } from './views/home';
 import { renderOrder } from './views/order';
 import { renderPlayers } from './views/players';
+import { initReplay } from './replay';
 import { renderStart } from './views/start';
 import { renderTable } from './views/table';
 import { renderTeam } from './views/team';
@@ -50,6 +51,7 @@ function render(): void {
   <nav class="tabs" aria-label="画面切り替え">${TABS.map(([k, n]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}">${n}</button>`).join('')}</nav>
   <main>${body}</main>`;
+  initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
 }
 
 const save = () => { if (state.career) saveCareer(state.career); };

@@ -25,7 +25,7 @@ export function renderTraining(c: Career): string {
       <span>${m.desc}</span>
       ${miniBarsHTML(ALL_KEYS.map((x) => ({ label: LABEL[x], value: a.gains[x] })), maxGain)}
       <span class="bar total"><i style="width:${(a.total / maxTotal) * 100}%"></i></span>
-      <span>${horizon}試合で全能力の合計 +${a.total.toFixed(1)}(1人あたり)</span></button>`;
+      <span>${horizon}試合で全能力が平均 +${(a.total / ALL_KEYS.length).toFixed(1)}</span></button>`;
   }).join('');
 
   return `<h2>今週の練習メニュー</h2>

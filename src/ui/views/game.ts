@@ -5,6 +5,7 @@ import { focusKeys, MENUS } from '../../growth/training';
 import { POS_NAME } from '../../data/constants';
 import type { Game, Side } from '../../types';
 import { esc } from '../../util/format';
+import { replayHTML } from '../replay';
 import { state } from '../state';
 
 /** 直近の試合の結果.試合は自動で進むので,ここでは結果と経過を見る. */
@@ -30,6 +31,7 @@ export function renderGame(): string {
     h += `<div class="card"><h3 style="margin-top:0">戦評</h3><ul class="recap">${rc.lines.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>${rc.mvp
       ? `<p class="mvp"><span class="focus">殊勲</span><b>${esc(rc.mvp.name)}</b> <span class="small muted">${esc(rc.mvp.text)}</span></p>` : ''}</div>`;
   }
+  h += replayHTML(g);
   h += `<details class="card" open><summary><b>今週の練習: ${m.name}</b> <span class="small muted">${l.report.length}人が成長</span></summary>
   <div class="small" style="margin-top:6px">${focusKeys(m).length ? `<span class="focus">重点</span>${focusKeys(m).map((k) => LABEL[k]).join('・')}(それ以外の能力も少し伸びます)<br>` : ''}${l.report.length
     ? l.report.map((x) => `${esc(x.name)}: ${x.ups.map(([k, v]) => `${LABEL[k]}<span class="up">+${v}</span>`).join(' ')}`).join('<br>')

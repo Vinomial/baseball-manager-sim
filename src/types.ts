@@ -187,8 +187,25 @@ export interface Side {
   inn: number[];
 }
 
-/** a, h はその時点の得点(ビジター,ホーム) */
-export interface LogEntry { tag: string; t: string; hl: boolean; a: number; h: number; }
+export type PlayKind = 'k' | 'bb' | 'hit' | 'xbh' | 'hr' | 'gro' | 'fly' | 'dp' | 'sf' | 'err' | 'sub' | 'info';
+
+/** 1打席ごとの記録.a, h はその時点の得点(ビジター,ホーム).再生にも使う. */
+export interface LogEntry {
+  tag: string;
+  t: string;
+  hl: boolean;
+  a: number;
+  h: number;
+  inning: number;
+  half: 0 | 1;
+  kind: PlayKind;
+  /** 打席後のアウト数(3 でチェンジ) */
+  outs: number;
+  /** 打席後の走者の名前(いなければ空) */
+  bases: [string, string, string];
+  batter: string;
+  pitcher: string;
+}
 
 export interface Game {
   home: Side;

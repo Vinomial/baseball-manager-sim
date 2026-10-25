@@ -5,7 +5,7 @@
 import { getChem } from '../growth/chemistry';
 import { eff } from '../growth/player';
 import { fit, getPlayer } from '../league/team';
-import type { Game, Player, Side, Team } from '../types';
+import type { Game, PlayKind, Player, Side, Team } from '../types';
 import { clamp, pick, rand } from '../util/random';
 
 /** この球数を超えると能力が落ち始める */
@@ -47,9 +47,29 @@ export const defense = (g: Game): Side => (g.half ? g.away : g.home);
 /** プレイヤーのチームの側 */
 export const userSide = (g: Game): Side => (g.home.team.user ? g.home : g.away);
 
-function log(g: Game, t: string, hl = false): void {
+function kindOf(text: string): PlayKind {
+  if (text.includes('ホームラン')) return 'hr';
+  if (text.includes('三塁打') || text.includes('二塁打')) return 'xbh';
+  if (text.includes('エラー')) return 'err';
+  if (text.includes('ヒット') || text.includes('内野安打')) return 'hit';
+  if (text.includes('四球') || text.includes('フォアボール') || text.includes('敬遠')) return 'bb';
+  if (text.includes('三振')) return 'k';
+  if (text.includes('併殺')) return 'dp';
+  if (text.includes('犠牲フライ')) return 'sf';
+  if (text.includes('フライ')) return 'fly';
+  if (text.includes('ゴロ')) return 'gro';
+  return 'info';
+}
+
+function log(g: Game, t: string, hl = false, kind?: PlayKind): void {
   if (!g.logOn) return;
-  g.log.unshift({ tag: `${g.inning}回${g.half ? '裏' : '表'}`, t, hl, a: g.away.runs, h: g.home.runs });
+  const off = offense(g), def = defense(g);
+  g.log.unshift({
+    tag: `${g.inning}回${g.half ? '裏' : '表'}`, t, hl, a: g.away.runs, h: g.home.runs,
+    inning: g.inning, half: g.half, kind: kind ?? 'info', outs: g.outs,
+    bases: [g.bases[0]?.name ?? '', g.bases[1]?.name ?? '', g.bases[2]?.name ?? ''],
+    batter: off.lineup[off.bi].p.name, pitcher: def.pitcher.name,
+  });
   if (g.log.length > 400) g.log.length = 400;
 }
 
@@ -70,7 +90,7 @@ function relievers(def: Side): Player[] {
 }
 
 function changePitcher(g: Game, def: Side, np: Player): void {
-  log(g, `${def.team.name}: 投手交代 ${def.pitcher.name} → ${np.name}`);
+  log(g, `${def.team.name}: 投手交代 ${def.pitcher.name} → ${np.name}`, false, 'sub');
   def.pitcher = np;
   def.used.push(np);
   def.pc = 0;
@@ -166,7 +186,7 @@ export function step(g: Game): void {
     else if (prev < 0 && now > 0) text += '逆転!';
     else if (prev === 0 && now > 0) text += '勝ち越し!';
   }
-  log(g, text, hl);
+  log(g, text, hl, kindOf(text));
   off.bi = (off.bi + 1) % 9;
 
   if (g.half === 1 && g.inning >= 9 && g.home.runs > g.away.runs) {

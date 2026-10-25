@@ -38,6 +38,7 @@ npm run dev        # 開発サーバー(http://localhost:5173)
                    # VS Code では F5 でも起動できます(.vscode/launch.json)
 npm test           # テスト
 npm run typecheck  # 型チェック
+npm run e2e        # 画面の自動テスト(スマホの画面幅で操作する)
 npm run balance    # バランス確認(リーグ別の打撃成績,練習ごとの成長量,12シーズンの歩み)
 npm run build      # 公開用のビルド(dist/ に出力)
 ```

@@ -3,13 +3,13 @@ import { userSide } from '../../engine/game';
 import { boxScore, fmtIP, recap } from '../../engine/recap';
 import { focusKeys, MENUS } from '../../growth/training';
 import { POS_NAME } from '../../data/constants';
-import type { Game, Side } from '../../types';
+import type { Career, Game, Side } from '../../types';
 import { esc } from '../../util/format';
 import { replayHTML } from '../replay';
 import { state } from '../state';
 
 /** 直近の試合の結果.試合は自動で進むので,ここでは結果と経過を見る. */
-export function renderGame(): string {
+export function renderGame(c: Career): string {
   const l = state.last;
   if (!l) return `<div class="card"><p>まだ試合をしていません.ホームで練習メニューを選ぶと,練習のあとに試合が行われます.</p><button class="btn" data-a="tab" data-k="home">ホームへ</button></div>`;
   const g = l.game, n = Math.max(9, g.inning);
@@ -23,7 +23,7 @@ export function renderGame(): string {
   const res = us.runs > them.runs ? '勝利!' : us.runs < them.runs ? '敗戦' : '引き分け';
   const m = MENUS[l.menu];
   const rc = recap(g);
-  let h = `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
+  let h = c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
   <p class="headline">${esc(rc.headline)}</p>
   <div class="lines"><table><thead><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join('')}<th class="tot">計</th><th>安</th></tr></thead><tbody>${row(g.away)}${row(g.home)}</tbody></table></div></div>`;
 

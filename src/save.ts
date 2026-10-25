@@ -1,4 +1,5 @@
-import { SAVE_VERSION } from './league/season';
+import { newRecords, SAVE_VERSION } from './league/season';
+import { pickRival } from './league/awards';
 import { fillOtherLeagues } from './league/world';
 import type { Career } from './types';
 
@@ -28,6 +29,15 @@ export function migrate(raw: unknown): Career | null {
     migrateV3(c);
     c.version = 4;
   }
+  if (c.version === 4) {
+    // v5: 実績,表彰,名選手,対戦成績,ライバル,チームの記録を追加
+    Object.assign(c, {
+      ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false,
+      rec: newRecords(),
+    });
+    c.version = 5;
+  }
+  if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }
 

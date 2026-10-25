@@ -16,12 +16,13 @@ import { renderOrder } from './views/order';
 import { renderPlayers } from './views/players';
 import { initReplay } from './replay';
 import { renderStart } from './views/start';
+import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeam } from './views/team';
 
 let root: HTMLElement;
 
-const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '結果'], ['team', 'チーム'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位']];
+const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '結果'], ['team', 'チーム'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位'], ['rec', '記録']];
 
 function render(): void {
   const c = state.career;
@@ -31,11 +32,12 @@ function render(): void {
   const weekLabel = c.phase === 'season' ? `${c.week + 1}/${c.leagues[c.level].schedule.length}` : 'オフ';
   const body = {
     home: () => renderHome(c),
-    game: () => renderGame(),
+    game: () => renderGame(c),
     team: () => renderTeam(c),
     players: () => renderPlayers(c),
     order: () => renderOrder(c),
     table: () => renderTable(c),
+    rec: () => renderRecords(c),
   }[state.tab]();
   root.innerHTML = `
   <header class="board px">

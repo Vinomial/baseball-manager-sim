@@ -5,7 +5,10 @@ import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
 import { ageFactor, emptyStats, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
-import type { Career, DraftState, Game, Team } from '../types';
+import type { Career, DraftState, Game, Team, TeamRecords } from '../types';
+import { boxScore } from '../engine/recap';
+import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
+import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
@@ -15,21 +18,28 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export { teamById };
 export const userTeam = (c: Career): Team => teamById(c, c.userId);
+
+export const newRecords = (): TeamRecords => ({
+  streak: 0, bestStreak: 0, total: { w: 0, l: 0, d: 0 }, bestWins: 0, bestSeason: 0, titles: LEAGUES.map(() => 0), proStreak: 0,
+});
 
 export function newCareer(name: string): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
+    ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false,
+    rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
   // プレイヤーのチームは伸びしろを多めにする
   for (const p of u.players) for (const k of keysOf(p)) p.pot[k] = clamp(p.pot[k] + ri(5, 15), p[k], 99);
   c.userId = u.id;
   buildWorld(c, u);
+  pickRival(c);
   recordHist(c);
   return c;
 }
@@ -59,6 +69,7 @@ export function simGame(c: Career, home: Team, away: Team, logOn = false): Game 
 
 /** 練習をして今週の試合をすべて進める.試合の操作はなく,結果だけが返る. */
 export function playWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
+  c.news = [];
   const lg = c.leagues[c.level];
   // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
   const report = doTraining(userTeam(c), menu, 10 / lg.schedule.length);
@@ -81,6 +92,12 @@ function afterUserGame(c: Career, g: Game): void {
   const res = us.runs > them.runs ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
   c.last = `第${c.week + 1}戦 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
   c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home });
+  recordGame(c, them.team.id, us.runs, them.runs);
+  const r = c.rec;
+  if (us.runs > them.runs) { r.total.w++; r.streak++; r.bestStreak = Math.max(r.bestStreak, r.streak); }
+  else if (us.runs < them.runs) { r.total.l++; r.streak = 0; }
+  else r.total.d++;
+  checkGame(c, g, them.team.id, boxScore(g, us).bat);
 
   const lg = c.leagues[c.level];
   // 同じ週の他のカードと,各チームの疲労・調子・練習
@@ -100,11 +117,16 @@ export function finishSeason(c: Career): void {
 
   // プレーオフ
   let playoff = '';
+  const champIds: Record<number, number> = {};
   for (const lg of c.leagues) {
     const r = runPlayoffs(c, lg.level);
     c.champs.push(champRow(c, lg.level, r));
+    champIds[lg.level] = r.champion.id;
     if (lg.level === c.level) playoff = playoffText(c, lg.level, r);
   }
+  // 表彰(成績を記録に回す前に行う)
+  c.awards.push(...computeAwards(c, champIds));
+  if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
 
   const next = computeNextLevels(c);
   const from = c.level, to = next[c.userId];
@@ -116,6 +138,7 @@ export function finishSeason(c: Career): void {
     for (const t of leagueTeams(c, lg.level)) {
       archiveSeason(c, t, lg.level);
       const out = ageTeam(t);
+      for (const p of out) addLegend(c, p, t);
       if (t.user) retired.push(...out.map((p) => p.name));
     }
   }
@@ -132,6 +155,16 @@ export function finishSeason(c: Career): void {
     } else {
       runAiDraft(c, level, ids);
     }
+  }
+  // チームの記録と実績
+  const userTitle = champIds[from] === c.userId;
+  if (userTitle) c.rec.titles[from]++;
+  if (from === LEAGUES.length - 1) c.rec.proStreak = userTitle ? c.rec.proStreak + 1 : 0;
+  if (rec.w > c.rec.bestWins) { c.rec.bestWins = rec.w; c.rec.bestSeason = c.season; }
+  checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from);
+  if (!c.ended && c.rec.titles[LEAGUES.length - 1] >= PRO_TITLES_FOR_HALL) {
+    c.ended = true;
+    c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
   c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [] };
   c.phase = 'off';
@@ -152,6 +185,7 @@ export function signFreeAgent(c: Career, id: number): string | null {
   u.players.push(p);
   if (p.role === '投手') u.pitchers.push(p.id);
   c.off?.signed.push(p.name);
+  checkFA(c);
   return null;
 }
 
@@ -193,6 +227,7 @@ export function newSeason(c: Career): void {
   const notes = repairTeam(c, u, c.level);
   c.season++;
   c.week = 0;
+  pickRival(c);
   c.phase = 'season';
   c.off = null;
   c.results = [];

@@ -15,10 +15,11 @@ export function renderHome(c: Career): string {
   const { home, opp } = userMatch(c);
   let h = '';
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
+  for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
   <div class="card"><div class="row" style="justify-content:space-between">
-    <div><b>${esc(opp.name)}</b> <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
+    <div><b>${esc(opp.name)}</b>${opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
     <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div></div>
   `;
   h += renderTraining(c);

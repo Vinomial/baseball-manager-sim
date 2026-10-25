@@ -134,6 +134,48 @@ export interface OffSeason {
   released: string[];
 }
 
+export interface AwardRow {
+  season: number;
+  level: number;
+  kind: string;
+  pid: number;
+  name: string;
+  team: string;
+  text: string;
+  /** プレイヤーのチームの選手か */
+  mine: boolean;
+}
+
+/** 引退した名選手 */
+export interface LegendRow {
+  name: string;
+  pos: string;
+  team: string;
+  lastSeason: number;
+  years: number;
+  /** 在籍中に最も高かったリーグ */
+  level: number;
+  line: string;
+  score: number;
+  mine: boolean;
+}
+
+export interface Record3 { w: number; l: number; d: number; }
+
+/** プレイヤーのチーム全体の記録 */
+export interface TeamRecords {
+  streak: number;
+  bestStreak: number;
+  total: Record3;
+  /** 1シーズンの最多勝 */
+  bestWins: number;
+  bestSeason: number;
+  /** 優勝の回数(リーグごと) */
+  titles: number[];
+  /** プロリーグの連覇(いま続いている回数) */
+  proStreak: number;
+}
+
 export interface Career {
   version: number;
   nid: number;
@@ -158,6 +200,18 @@ export interface Career {
   fa: Player[];
   /** 各リーグの優勝の記録 */
   champs: ChampRow[];
+  /** 解除した実績(実績の ID → 解除したシーズン) */
+  ach: Record<string, number>;
+  /** まだ見ていない知らせ(実績の解除など) */
+  news: string[];
+  awards: AwardRow[];
+  legends: LegendRow[];
+  /** 対戦成績(相手チームの ID ごと) */
+  h2h: Record<number, Record3>;
+  rival: number | null;
+  rec: TeamRecords;
+  /** 殿堂入りのエンディングを見たか */
+  ended: boolean;
 }
 
 /* ===== 試合 ===== */

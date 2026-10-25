@@ -1,7 +1,7 @@
 import type { GrowthReport, MenuKey } from '../growth/training';
 import type { Career, Game } from '../types';
 
-export type Tab = 'home' | 'game' | 'team' | 'players' | 'order' | 'table';
+export type Tab = 'home' | 'game' | 'team' | 'players' | 'order' | 'table' | 'rec';
 
 export type Selection =
   | { t: 'l'; i: number }   // 打順

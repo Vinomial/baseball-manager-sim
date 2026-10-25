@@ -209,3 +209,8 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .rp-seek{width:100%;margin-top:10px;accent-color:var(--btn)}
 @media (prefers-reduced-motion:reduce){.rp-label.pop{animation:none;opacity:1}}
 @media (max-width:520px){.lines table{font-size:13px;min-width:0}.lines td,.lines th{padding:2px 2px}}
+.achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.ach{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--panel2);display:flex;flex-direction:column;opacity:.55}
+.ach.on{opacity:1;background:var(--panel);border-color:var(--sel)}
+.ending{border:2px solid var(--sel)}
+.news{border-left:4px solid var(--sel);padding:6px 10px;background:var(--panel2);border-radius:4px;font-size:14px;margin:6px 0}

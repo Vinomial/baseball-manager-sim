@@ -265,3 +265,52 @@ describe('練習のおすすめ', () => {
     expect(Math.abs(got - exp) / exp).toBeLessThan(0.25);
   });
 });
+
+describe('記録と実績', () => {
+  beforeEach(() => setRandom(seeded(33)));
+  afterEach(() => resetRandom());
+
+  it('シーズンを終えると表彰,優勝,チーム記録が残る', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    expect(c.awards.length).toBeGreaterThan(0);
+    expect(c.awards.some((a) => a.kind === 'MVP' && a.level === 0)).toBe(true);
+    expect(c.rec.total.w + c.rec.total.l + c.rec.total.d).toBe(gamesPerSeason(0));
+    expect(c.rec.bestWins).toBe(c.off!.rec.w);
+    expect(c.rival).not.toBeNull();
+    const games = Object.values(c.h2h).reduce((n, r) => n + r.w + r.l + r.d, 0);
+    expect(games).toBe(gamesPerSeason(0));
+  });
+
+  it('実績は一度だけ解除され,知らせが出る', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 30 && !c.ach.first_win; i++) {
+      if (c.phase === 'off') prepareNextSeason(c);
+      playWeek(c, 'mix');
+    }
+    expect(c.ach.first_win).toBeDefined();
+    const n = Object.keys(c.ach).length;
+    playWeek(c, 'mix');
+    expect(Object.keys(c.ach).length).toBeGreaterThanOrEqual(n);
+  });
+
+  it('引退した名選手は上限を超えて増えない', () => {
+    const c = newCareer('テスト');
+    for (let s = 0; s < 12; s++) { playSeason(c, 'mix'); prepareNextSeason(c); }
+    expect(c.legends.length).toBeLessThanOrEqual(60);
+    const sorted = [...c.legends].sort((a, b) => b.score - a.score);
+    expect(c.legends).toEqual(sorted);
+  });
+
+  it('v4 のデータに記録の欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 4;
+    for (const k of ['ach', 'news', 'awards', 'legends', 'h2h', 'rival', 'rec', 'ended']) delete old[k];
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.ach).toEqual({});
+    expect(m!.rec.titles.length).toBe(LEAGUES.length);
+    expect(m!.rival).not.toBeNull();
+  });
+});

@@ -33,6 +33,7 @@ export function renderGame(c: Career): string {
   const pick = l.games.length > 1 ? `<div class="lgtabs" role="group" aria-label="試合の選択">${l.games.map((x, i) => `<button data-a="game-pick" data-i="${i}" aria-pressed="${x === g}">第${i + 1}戦 ${userSide(x).runs}-${(userSide(x) === x.home ? x.away : x.home).runs}</button>`).join('')}</div>` : '';
   let h = `<p class="small muted" style="margin:0 0 6px"><span class="rec">${kindName}</span></p>${pick}` + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
   <p class="headline">${esc(rc.headline)}</p>
+  <div class="row" style="justify-content:center"><button class="btn ghost" data-a="share-text" data-k="game">📋 この試合をシェア</button></div>
   <div class="lines"><table><thead><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join('')}<th class="tot">計</th><th>安</th></tr></thead><tbody>${row(g.away)}${row(g.home)}</tbody></table></div></div>`;
 
   if (rc.lines.length || rc.mvp) {

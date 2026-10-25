@@ -27,7 +27,8 @@ import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/per
 import { playoffSeeds, weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
-import { resultSound, sfx, startBgm, stopBgm } from '../src/ui/sound';
+import { resultSound, setScene, setVolume, sfx, sound, startBgm, stopBgm, vibrate } from '../src/ui/sound';
+import { gameText, seasonText } from '../src/ui/share';
 import { convertOptions, convertWeeks, startConvert, tickConvert } from '../src/league/convert';
 import { detailSheet } from '../src/ui/detail';
 import { findCombos, sumFx } from '../src/league/combos';
@@ -1377,5 +1378,31 @@ describe('2周目の引き継ぎと地区', () => {
     expect(m).not.toBeNull();
     expect(m!.gen).toBe(1);
     expect(m!.leagues[LEAGUES.length - 1].divs).toBeDefined();
+  });
+});
+
+describe('共有と音量', () => {
+  beforeEach(() => setRandom(seeded(251)));
+  afterEach(() => resetRandom());
+
+  it('1年の結果の文章に,順位と成績が入る', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const t = seasonText(c);
+    expect(t).toContain('ダイヤモンド監督');
+    expect(t).toContain(`${c.off!.rank}位`);
+    expect(t).toContain('勝');
+    expect(t).not.toMatch(/undefined|NaN/);
+    const g = c.results.length ? gameText(c, 'A', 'B', 3, 2, '見出し') : '';
+    expect(g).toContain('B 2 - 3 A');
+  });
+
+  it('音量は 0〜1 に収まり,音の出せない環境でも設定できる', () => {
+    setVolume('se', 5);
+    expect(sound.vol.se).toBe(1);
+    setVolume('bgm', -1);
+    expect(sound.vol.bgm).toBe(0);
+    setVolume('se', 0.7); setVolume('bgm', 0.5);
+    expect(() => { setScene('game'); setScene('off'); vibrate(10); }).not.toThrow();
   });
 });

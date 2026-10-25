@@ -23,11 +23,13 @@ import { renderHome } from './views/home';
 import { initReplay } from './replay';
 import { DIFFS } from '../data/constants';
 import { renderStart, renderTitle } from './views/start';
+import { recap } from '../engine/recap';
+import { gameText, seasonText, shareImage, shareText } from './share';
 import { confirmMessage } from '../league/warnings';
 import { userSide } from '../engine/game';
 import { applyPrefs, prefs, savePrefs, type FontSize, type Theme } from './prefs';
 import { glossarySheet, termSheet } from './glossary';
-import { resultSound, setBgm, setSe, sfx, sound, unlockAudio } from './sound';
+import { resultSound, setBgm, setScene, setSe, setVib, setVolume, sfx, sound, unlockAudio } from './sound';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
@@ -64,7 +66,10 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="tut-again">📘 はじめてガイドをもう一度</button>
   <button class="btn ghost" data-a="glossary">📖 用語集</button>
   <button class="btn ghost" data-a="se" aria-pressed="${sound.se}">🔊 効果音: ${sound.se ? 'ON' : 'OFF'}</button>
+  <label class="vol">効果音の大きさ<input type="range" min="0" max="100" value="${Math.round(sound.vol.se * 100)}" data-vol="se" aria-label="効果音の大きさ"></label>
   <button class="btn ghost" data-a="bgm" aria-pressed="${sound.bgm}">🎵 BGM: ${sound.bgm ? 'ON' : 'OFF'}</button>
+  <label class="vol">BGMの大きさ<input type="range" min="0" max="100" value="${Math.round(sound.vol.bgm * 100)}" data-vol="bgm" aria-label="BGMの大きさ"></label>
+  ${'vibrate' in navigator ? `<button class="btn ghost" data-a="vib" aria-pressed="${sound.vib}">📳 振動: ${sound.vib ? 'ON' : 'OFF'}</button>` : ''}
   <button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button>
   <p class="small muted" style="margin:6px 0 0">進行は自動でセーブされます.第${c.season}シーズン.</p></div>`;
 }
@@ -126,6 +131,8 @@ function warnSheet(msg: string): string {
 function toast(msg: string): void {
   const t = document.createElement('div');
   t.className = 'toast';
+  t.setAttribute('role', 'status');
+  t.setAttribute('aria-live', 'polite');
   t.textContent = msg;
   document.body.appendChild(t);
   window.setTimeout(() => t.remove(), 1800);
@@ -137,6 +144,7 @@ function render(): void {
 
 function renderInner(): void {
   const c = state.career;
+  setScene(!c || state.screen !== 'play' ? 'title' : c.phase === 'off' ? 'off' : state.tab === 'game' ? 'game' : 'home');
   if (!c) { root.innerHTML = state.screen === 'new' ? renderStart() : renderTitle(null); return; }
   if (state.screen === 'title') { root.innerHTML = renderTitle(c); return; }
   if (state.screen === 'new') { root.innerHTML = renderStart(true); return; }
@@ -153,12 +161,13 @@ function renderInner(): void {
   }[state.tab]();
   const alert = c.event && state.tab !== 'home' ? ' <i class="dot" aria-label="出来事があります"></i>' : '';
   root.innerHTML = `
+  <a class="skip" href="#main">本文へ移動</a>
   <header class="board slim px">
     <div class="b-row"><span class="title">ダイヤモンド監督</span><span class="lg">${LEAGUES[c.level].name}<button class="menubtn" data-a="menu-open" aria-label="メニュー" aria-expanded="${state.menuOpen}">☰</button></span></div>
     <div class="b-row"><span class="tm">${esc(userTeam(c).name)}</span>
       <span class="stat"><b>${c.season}</b>季 <b>${weekLabel}</b> <b>${rec.w}-${rec.l}-${rec.d}</b> <b>${c.phase === 'season' ? rank : c.off?.rank}</b>位</span></div>
   </header>
-  ${saveBanner()}<main>${body}</main>
+  ${saveBanner()}<main id="main" tabindex="-1">${body}</main>
   <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (c.phase === 'off' && c.off && c.off.step === 0 && state.celebrated !== c.season && c.off.review && (c.off.review.ownTitle || c.off.review.cupChampion || c.off.move > 0)) { state.celebrated = c.season; sfx.level(); }
@@ -267,6 +276,16 @@ function onClick(e: MouseEvent): void {
     case 'scout': if (c) { const err = dispatchScout(c, k as '野手' | '投手' | '素質'); if (err) alert(err); else save(); } break;
     case 'negotiate': if (c) { const t = negotiate(c, id, k as 'accept' | 'bargain'); if (t) { c.news.push(t); save(); } } break;
     case 'ngplus': if (c && c.ended && confirm(`いまのデータを引き継いで,${c.gen + 1}周目を始めます.よろしいですか?(先にバックアップをおすすめします)`)) { state.career = newCareer(userTeam(c).name, c.diff, c); state.last = null; state.tab = 'home'; state.screen = 'play'; save(); top(); } break;
+    case 'vib': setVib(!sound.vib); break;
+    case 'share-text': {
+      if (!c) break;
+      const text = k === 'game' && state.last?.game
+        ? (() => { const g = state.last!.game!; return gameText(c, g.home.team.name, g.away.team.name, g.home.runs, g.away.runs, recap(g).headline); })()
+        : seasonText(c);
+      void shareText(text).then((m) => toast(m));
+      return;
+    }
+    case 'share-img': if (c) void shareImage(c).then((m) => toast(m)); return;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;
@@ -382,6 +401,19 @@ export function mount(el: HTMLElement): void {
   window.addEventListener('error', (e) => { if (e.error) showCrash(e.error); });
   window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof Error) showCrash(e.reason); });
   document.addEventListener('change', onChange);
+  document.addEventListener('input', (e) => { const el = e.target as HTMLInputElement; if (el.dataset.vol) { setVolume(el.dataset.vol as 'se' | 'bgm', Number(el.value) / 100); } });
+  document.addEventListener('change', (e) => { const el = e.target as HTMLInputElement; if (el.dataset.vol === 'se') sfx.ok(); });
+  // シートが開いているあいだは,Tab キーでシートの外に出ない
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const sheet = root.querySelector<HTMLElement>('.sheet');
+    if (!sheet) return;
+    const f = [...sheet.querySelectorAll<HTMLElement>('button:not([disabled]), input, a[href], select')];
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null || state.term || state.warn)) { state.menuOpen = false; state.detail = null; state.term = null; state.warn = null; render(); } });
   // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)
   document.addEventListener('toggle', (e) => {

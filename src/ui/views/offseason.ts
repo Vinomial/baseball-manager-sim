@@ -38,7 +38,7 @@ function reviewHTML(c: Career): string {
   <tr><td>資金の増減</td><td class="${r.fundsDelta >= 0 ? 'up' : 'dn'}">${r.fundsDelta >= 0 ? '+' : ''}${fmtYen(r.fundsDelta)}</td></tr>
   ${r.goals.length ? `<tr><td>オーナーの目標</td><td>${r.goals.map((g) => `${g.done ? '✔' : '✘'} ${esc(g.text)}${g.done ? ` <span class="small up">${esc(g.rewardText)}</span>` : ''}`).join('<br>')}</td></tr>` : ''}
   <tr><td>よく伸びた選手</td><td>${r.growers.length ? r.growers.map((g) => `${esc(g.name)} <span class="up">+${g.delta}</span>`).join(' / ') : '-'}</td></tr>
-  </tbody></table></div>`;
+  </tbody></table><div class="row" style="margin-top:8px"><button class="btn ghost" data-a="share-text" data-k="season">📋 結果をシェア(文章)</button><button class="btn ghost" data-a="share-img">🖼 結果を画像で保存</button></div></div>`;
 }
 
 /** 10 シーズンごとのバックアップのおすすめ */

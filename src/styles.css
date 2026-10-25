@@ -68,7 +68,7 @@ h3{font-size:15px;margin:14px 0 6px}
 
 /* grades */
 .g{display:inline-block;width:1.45em;text-align:center;border-radius:3px;color:#fff;font-family:"DotGothic16",sans-serif;font-size:13px;line-height:1.45}
-.gS{background:#C2407F}.gA{background:#D9472F}.gB{background:#D9802A}.gC{background:#BC9B12}.gD{background:#5F9A2C}.gE{background:#2C8EA3}.gF{background:#5F6F9C}.gG{background:#7C7C7C}
+.gS{background:#A8326A}.gA{background:#BF3A24}.gB{background:#A85F12}.gC{background:#7F6700}.gD{background:#4B7A1F}.gE{background:#1F7488}.gF{background:#4F5F8C}.gG{background:#666666}
 .gv{font-size:12px;color:var(--muted);margin-left:2px;margin-right:6px}
 .attrs{display:flex;flex-wrap:wrap;gap:2px 4px;font-size:12px;align-items:center}
 .attrs label{color:var(--muted)}
@@ -324,3 +324,10 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .todo-list li{padding:3px 0}
 .todo-list li.warn{color:var(--bad);font-weight:700}
 .todo-list li.ok{color:var(--good)}
+
+.vol{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.vol input{flex:1;accent-color:var(--btn)}
+.skip{position:absolute;left:-999px;top:0;background:var(--board);color:var(--board-num);padding:8px 12px;border-radius:0 0 8px 0;z-index:100}
+.skip:focus{left:0}
+@media (prefers-contrast:more){:root{--line:#7a8a7e}.card,.pl{border-width:2px}}
+button:focus-visible,[data-a]:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--sel);outline-offset:2px}

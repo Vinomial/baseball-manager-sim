@@ -9,6 +9,7 @@ import type { Career, DraftState, Game, GameKind, Team, TeamRecords } from '../t
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
+import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { maybeInjure } from './health';
 import { refillMissions, updateMissions, type GameCtx } from './missions';
 import { cupSummary, playCupRound, startCup } from './cup';
@@ -25,7 +26,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -41,6 +42,7 @@ export function newCareer(name: string): Career {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
+    funds: 3000, fac: emptyFac(), market: emptyMarket(),
     missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
@@ -116,7 +118,8 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   c.event = null;
   const info = weekInfo(c);
   const u = userTeam(c);
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult, trustCondBias(c.trust), c.meal);
+  u.med = c.fac.clinic;
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c), trustCondBias(c.trust), c.meal);
 
   let games: Game[] = [];
   let kind: GameKind | null = null;
@@ -148,6 +151,8 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
   c.week = c.leagues[c.level].week;
+  c.funds += weeklyIncome(c);
+  stepMarket(c);
   weeklyUpkeep(c, menu === 'rest' ? 0.3 : menu === 'stam' ? 1.4 : 1);
   updateMissions(c, { menu, games: ctx });
   c.lastMenus.push(menu);
@@ -195,6 +200,8 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
     if (win) r.total.w++; else if (us.runs < them.runs) r.total.l++; else r.total.d++;
   }
   for (const p of g.injured) if (t.players.includes(p)) c.news.push(`${p.name}が試合中に${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
+  // 入場収入(ホームゲーム)
+  if (us === g.home) c.funds += gateIncome(c, kind !== 'league');
   const box = boxScore(g, us);
   checkGame(c, g, opp.id, box.bat);
   void menu;
@@ -246,7 +253,7 @@ export function finishSeason(c: Career): void {
   for (let level = 0; level < LEAGUES.length; level++) {
     const ids = c.teams.filter((t) => next[t.id] === level).map((t) => t.id);
     if (level === to) {
-      draft = { pool: genDraftClass(c, level), order: draftOrder(c, ids), idx: 0, picks: [], done: false };
+      draft = { pool: genDraftClass(c, level, c.fac.scout), order: draftOrder(c, ids), idx: 0, picks: [], done: false };
       advanceDraft(c, draft);
     } else {
       runAiDraft(c, level, ids);

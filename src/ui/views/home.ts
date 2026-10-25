@@ -10,6 +10,7 @@ import { hurtPlayers } from '../../league/health';
 import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
+import { facilitiesHTML, facilitiesSummary } from './facilities';
 import { kitchenHTML, kitchenSummary, missionsHTML } from './kitchen';
 import { renderTraining } from './training';
 import { forecastHTML, forecastSummary, trustHTML, trustSummary, winProbHTML } from './status';
@@ -50,8 +51,9 @@ export function renderHome(c: Career): string {
   h += renderTraining(c);
   const w = c.results.filter((r) => r.us > r.them).length, l = c.results.filter((r) => r.us < r.them).length;
   const sumPantry = Object.values(c.pantry).reduce((a, b) => a + b, 0);
-  h += `<h2>ミッションと食事</h2>`;
+  h += `<h2>ミッション・施設・食事</h2>`;
   h += fold('missions', 'ミッション', `${c.missions.length}件 進行中`, missionsHTML(c));
+  h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
   h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));
   h += `<h2>状況</h2>`;
   h += fold('trust', '監督の信頼度', trustSummary(c), trustHTML(c));

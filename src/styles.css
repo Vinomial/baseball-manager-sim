@@ -280,3 +280,7 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .injtag{font-size:11px;border-radius:3px;padding:0 5px;background:var(--bad);color:#fff;white-space:nowrap}
 .tiredtag{font-size:11px;border-radius:3px;padding:0 5px;background:var(--sel);color:#2a1d00;white-space:nowrap}
 .tiredtag.bad{background:#D9472F;color:#fff}
+
+.sells{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.sell{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.sell .btn{padding:4px 10px;min-height:36px}

@@ -43,7 +43,11 @@ export function cook(c: Career, key: string): Meal | null {
   const r = RECIPES.find((x) => x.key === key);
   if (!r || !canCook(c, r)) return null;
   for (const [k, n] of Object.entries(r.need) as [Ingredient, number][]) c.pantry[k] -= n;
-  c.meal = { name: r.name, weeks: r.weeks, mult: r.mult, desc: r.desc };
+  // 食堂が整っているほど,効き目が強く長い
+  const f = 1 + c.fac.canteen * 0.1;
+  const mult: Meal['mult'] = {};
+  for (const [k, v] of Object.entries(r.mult) as [keyof Meal['mult'], number][]) mult[k] = 1 + (v - 1) * f;
+  c.meal = { name: r.name, weeks: r.weeks + (c.fac.canteen >= 3 ? 1 : 0), mult, desc: r.desc };
   if (r.recover) {
     const u = c.teams.find((t) => t.user)!;
     for (const p of u.players) { p.fatigue = Math.max(0, p.fatigue - 40); p.cond = Math.min(4, p.cond + 1); }

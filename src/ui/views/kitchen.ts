@@ -1,4 +1,6 @@
 import { canCook, INGREDIENTS, RECIPES, recipeNeedText } from '../../growth/meals';
+import { ingredientPrice } from '../../league/economy';
+import { fmtYen } from '../../league/finance';
 import { rewardText } from '../../league/missions';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
@@ -17,9 +19,14 @@ export function kitchenSummary(c: Career): string {
 export function kitchenHTML(c: Career): string {
   const meal = c.meal;
   const pantry = INGREDIENTS.map((i) => `<span class="ing ${c.pantry[i.key] ? '' : 'none'}"><b>${i.name}</b>×${c.pantry[i.key]}</span>`).join('');
+  const sell = INGREDIENTS.map((i) => {
+    const pr = ingredientPrice(c, i.key), mk = c.market[i.key];
+    return `<div class="sell"><span><b>${i.name}</b> <span class="small ${mk >= 1.1 ? 'up' : mk <= 0.9 ? 'dn' : 'muted'}">${fmtYen(pr)}${mk >= 1.1 ? '↑' : mk <= 0.9 ? '↓' : ''}</span></span><button class="btn ghost" data-a="sell" data-k="${i.key}" data-i="1" ${c.pantry[i.key] ? '' : 'disabled'}>1個売る</button><button class="btn ghost" data-a="sell" data-k="${i.key}" data-i="99" ${c.pantry[i.key] ? '' : 'disabled'}>全部</button></div>`;
+  }).join('');
   return `<div class="kitchen">
   ${meal ? `<p class="meal-on"><span class="rec star">効果中</span> <b>${esc(meal.name)}</b> <span class="small">あと${meal.weeks}週 / ${esc(meal.desc)}</span></p>` : '<p class="small muted" style="margin:0 0 6px">いま効いている料理はありません.ミッションや試合で食材を集めて,料理を作りましょう.</p>'}
   <div class="pantry">${pantry}</div>
+  <h3>食材を売る <span class="small muted">相場は毎週動きます</span></h3><div class="sells">${sell}</div>
   <h3>料理を作る <span class="small muted">${RECIPES.filter((r) => canCook(c, r)).length}品 作れます</span></h3>
   <div class="plist">${RECIPES.map((r) => {
     const ok = canCook(c, r);

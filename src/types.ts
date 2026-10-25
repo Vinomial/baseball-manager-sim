@@ -274,6 +274,8 @@ export interface CupMatch {
 
 export interface CupRow { season: number; champion: string; championId: number; championLevel: number; runnerUp: string; }
 
+export type FacKey = 'stadium' | 'ground' | 'clinic' | 'canteen' | 'scout';
+
 export interface Career {
   version: number;
   nid: number;
@@ -318,6 +320,12 @@ export interface Career {
   event: GameEvent | null;
   /** 監督の信頼度 0〜100.0 になると解任される. */
   trust: number;
+  /** 資金(万円).入場収入や食材の売却で増え,施設に使う. */
+  funds: number;
+  /** 施設のレベル(0〜5) */
+  fac: Record<FacKey, number>;
+  /** 食材の相場(1.0 が標準) */
+  market: Record<Ingredient, number>;
   missions: Mission[];
   /** 年末の全日本選手権の優勝の記録 */
   cups: CupRow[];

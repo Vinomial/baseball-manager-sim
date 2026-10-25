@@ -253,19 +253,19 @@ export function toFreeAgent(c: Career, t: Team, p: Player): void {
   c.fa.push(p);
 }
 
-export function genDraftClass(c: Career, level: number): Player[] {
+export function genDraftClass(c: Career, level: number, scoutLv = 0): Player[] {
   const n = LEAGUES[level].teams * DRAFT_ROUNDS + 4;
   const base = LEAGUES[level].base - 8;
   return Array.from({ length: n }, (_, i) => {
     const p = genPlayer(c, i % 3 === 2 ? '投手' : '野手', base, { age: ri(18, 22), potMul: 0.7 });
     p.scout = {};
     for (const k of keysOf(p)) {
-      const e = ri(4, 10);
+      const e = Math.max(1, Math.round(ri(4, 10) * (1 - scoutLv * 0.15)));
       p.scout[k] = [clamp(Math.round(p[k] - ri(0, e)), 1, 99), clamp(Math.round(p[k] + ri(0, e)), 1, 99)];
     }
     const ks = keysOf(p);
     const pot = ks.reduce((s, k) => s + p.pot[k], 0) / ks.length;
-    const e = ri(3, 9);
+    const e = Math.max(1, Math.round(ri(3, 9) * (1 - scoutLv * 0.15)));
     p.scoutPot = [clamp(Math.round(pot - ri(0, e)), 1, 99), clamp(Math.round(pot + ri(0, e)), 1, 99)];
     return p;
   });

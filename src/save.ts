@@ -2,6 +2,7 @@ import { newRecords, SAVE_VERSION } from './league/season';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
+import { emptyFac, emptyMarket } from './league/economy';
 import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
 import { fillOtherLeagues } from './league/world';
@@ -93,6 +94,11 @@ export function migrate(raw: unknown): Career | null {
     cc.cal = cc.phase === 'season' ? (ul.weeks[Math.min(ul.week, ul.weeks.length - 1)] ?? SEASON_START) : 0;
     cc.cup = null;
     c.version = 12;
+  }
+  if (c.version === 12) {
+    // v13: 資金,施設,食材の相場を追加
+    Object.assign(c, { funds: 3000, fac: emptyFac(), market: emptyMarket() });
+    c.version = 13;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

@@ -2,6 +2,7 @@
 import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
 import { cook } from '../growth/meals';
+import { sellIngredient, upgrade } from '../league/economy';
 import { weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
@@ -10,7 +11,7 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, saveCareer } from '../save';
-import type { Career, LineupPos } from '../types';
+import type { Career, FacKey, Ingredient, LineupPos } from '../types';
 import { esc } from '../util/format';
 import { state, writeAutoOpen, type Screen, type Tab, type TeamSub } from './state';
 import { renderGame } from './views/game';
@@ -165,6 +166,8 @@ function onClick(e: MouseEvent): void {
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
     case 'draft': if (c) { pickDraft(c, i); save(); } break;
     case 'cook': if (c) { const m = cook(c, k); if (m) { c.news = [`${m.name}を食べた!${m.desc}.`]; save(); } } break;
+    case 'upgrade': if (c) { const err = upgrade(c, k as FacKey); if (err) alert(err); else save(); } break;
+    case 'sell': if (c) { const err = sellIngredient(c, k as Ingredient, i); if (err) alert(err); else save(); } break;
     case 'autoopen': state.autoOpen = !state.autoOpen; writeAutoOpen(state.autoOpen); break;
     case 'event': {
       if (!c) break;

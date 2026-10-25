@@ -8,7 +8,8 @@ import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
-import { fatigueRisk, isHurt } from '../src/league/health';
+import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
+import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgradeCost, weeklyIncome } from '../src/league/economy';
 import { effectiveLineup } from '../src/league/team';
 import type { Player } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
@@ -805,5 +806,82 @@ describe('疲労と怪我', () => {
     const u = userTeam(c);
     for (const p of u.players) p.fatigue = 75;
     expect(adviseTraining(u, leagueAvgAttrs(c), 10, 1).best).toBe('rest');
+  });
+});
+
+describe('資金と施設', () => {
+  beforeEach(() => setRandom(seeded(151)));
+  afterEach(() => resetRandom());
+
+  it('毎週の収入と試合の入場収入で資金が増える', () => {
+    const c = newCareer('テスト');
+    const f0 = c.funds;
+    playWeek(c, 'mix');
+    expect(c.funds).toBeGreaterThan(f0);
+    expect(weeklyIncome(c)).toBeGreaterThan(0);
+  });
+
+  it('施設を強くすると資金が減り,レベルが上がる.足りなければ強化できない', () => {
+    const c = newCareer('テスト');
+    c.funds = 0;
+    expect(upgrade(c, 'clinic')).toContain('資金');
+    c.funds = upgradeCost(c, 'clinic') + 5;
+    expect(upgrade(c, 'clinic')).toBeNull();
+    expect(c.fac.clinic).toBe(1);
+    expect(c.funds).toBe(5);
+    c.fac.clinic = MAX_FAC;
+    c.funds = 1e9;
+    expect(upgrade(c, 'clinic')).toContain('これ以上');
+  });
+
+  it('食材を売るとお金になる', () => {
+    const c = newCareer('テスト');
+    c.pantry.meat = 3;
+    c.funds = 0;
+    expect(sellIngredient(c, 'meat', 2)).toBeNull();
+    expect(c.pantry.meat).toBe(1);
+    expect(c.funds).toBe(2 * ingredientPrice(c, 'meat'));
+    expect(sellIngredient(c, 'fish', 1)).toContain('ありません');
+  });
+
+  it('医務室が高いほど怪我が起きにくい', () => {
+    let a = 0, b = 0;
+    for (let i = 0; i < 4000; i++) {
+      const p1 = { fatigue: 60, skills: [], pitches: {}, meet: 50, power: 50, speed: 50, field: 50, velo: 0, ctrl: 0, stam: 0, role: '野手', cond: 2 } as unknown as Player;
+      const p2 = { ...p1 } as Player;
+      if (maybeInjure(p1, 0.05, 0)) a++;
+      if (maybeInjure(p2, 0.05, 5)) b++;
+    }
+    expect(b).toBeLessThan(a * 0.8);
+  });
+
+  it('食堂が整うほど料理が強く,長く効く', () => {
+    const mk = (lv: number) => {
+      const c = newCareer('テスト');
+      c.fac.canteen = lv;
+      c.pantry.rice = 1;
+      cook(c, 'onigiri');
+      return c.meal!;
+    };
+    expect(mk(5).mult.all!).toBeGreaterThan(mk(0).mult.all!);
+    expect(mk(3).weeks).toBeGreaterThan(mk(0).weeks);
+  });
+
+  it('練習場が高いほど練習の伸びが大きい', () => {
+    const c = newCareer('テスト');
+    expect(trainFacMult(c)).toBe(1);
+    c.fac.ground = 5;
+    expect(trainFacMult(c)).toBeGreaterThan(1.25);
+  });
+
+  it('v12 のデータに資金と施設を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 12;
+    delete old.funds; delete old.fac; delete old.market;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.funds).toBeGreaterThan(0);
+    expect(m!.fac.stadium).toBe(0);
   });
 });

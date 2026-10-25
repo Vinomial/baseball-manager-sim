@@ -4,6 +4,7 @@ import { LEAGUES, POS_NAME } from '../data/constants';
 import { abilityLabels } from '../growth/abilities';
 import { careerStats, fmt3 } from '../league/leaders';
 import type { Game, Player, Stats } from '../types';
+import { state } from './state';
 import { esc, fmtEra, grade } from '../util/format';
 
 export function gradeHTML(v: number): string {
@@ -70,4 +71,10 @@ export function careerTable(p: Player, current: boolean): string {
 /** 選手 1 人の詳細(成長タイプ,伸びしろ,通算成績). */
 export function playerDetail(p: Player, current: boolean, room: string): string {
   return `<div class="detail">${POS_NAME[p.pos]} / ${p.age}歳 / 成長タイプ: ${p.type} / 伸びしろ: ${room}${careerTable(p, current)}</div>`;
+}
+
+/** 折りたたみ.開いているかどうかは再描画しても保たれる. */
+export function fold(id: string, title: string, summary: string, body: string, openDefault = false): string {
+  const open = state.folds[id] ?? openDefault;
+  return `<details class="fold card" data-fold="${id}" ${open ? 'open' : ''}><summary><b>${title}</b> <span class="small muted">${summary}</span></summary><div class="fold-body">${body}</div></details>`;
 }

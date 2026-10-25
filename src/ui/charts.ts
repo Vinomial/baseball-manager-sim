@@ -13,17 +13,19 @@ const NS = 'xmlns="http://www.w3.org/2000/svg"';
 /** レーダーチャート.0〜100 の値を軸ごとに描く. */
 export function radarSVG(labels: string[], series: Series[]): string {
   const cx = 130, cy = 120, R = 82, n = labels.length;
+  // 値が小さいうちは,グラフが小さくならないように最大値を詰める(10 きざみ)
+  const top = Math.max(50, Math.ceil((Math.max(...series.flatMap((x) => x.values)) + 5) / 10) * 10);
   const ang = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
   const pt = (i: number, v: number) => {
-    const r = (Math.max(0, Math.min(100, v)) / 100) * R;
+    const r = (Math.max(0, Math.min(top, v)) / top) * R;
     return [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r] as const;
   };
   const poly = (f: (i: number) => readonly [number, number]) => labels.map((_, i) => f(i).map((x) => x.toFixed(1)).join(',')).join(' ');
-  const rings = [25, 50, 75, 100].map((g) =>
+  const rings = [0.25, 0.5, 0.75, 1].map((f) => f * top).map((g) =>
     `<polygon points="${poly((i) => pt(i, g))}" fill="none" stroke="var(--line)" stroke-width="1"/>`).join('');
-  const spokes = labels.map((_, i) => { const [x, y] = pt(i, 100); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`; }).join('');
+  const spokes = labels.map((_, i) => { const [x, y] = pt(i, top); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)"/>`; }).join('');
   const names = labels.map((l, i) => {
-    const [x, y] = pt(i, 100);
+    const [x, y] = pt(i, top);
     const dx = Math.cos(ang(i)) * 14, dy = Math.sin(ang(i)) * 14 + 4;
     const anchor = Math.abs(Math.cos(ang(i))) < 0.2 ? 'middle' : Math.cos(ang(i)) > 0 ? 'start' : 'end';
     return `<text x="${(x + dx).toFixed(1)}" y="${(y + dy).toFixed(1)}" font-size="12" text-anchor="${anchor}" fill="var(--ink)">${esc(l)}</text>`;
@@ -35,7 +37,7 @@ export function radarSVG(labels: string[], series: Series[]): string {
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="${s.color}" stroke="var(--panel)" stroke-width="2"><title>${esc(s.name)} ${esc(labels[i])}: ${Math.round(v)}</title></circle>`;
   }).join('')).join('');
   const label = `${series.map((s) => s.name).join(' と ')}の能力レーダー: ${labels.map((l, i) => `${l} ${series.map((s) => Math.round(s.values[i])).join('/')}`).join(',')}`;
-  return `<svg ${NS} viewBox="0 0 260 240" role="img" aria-label="${esc(label)}" class="chart">${rings}${spokes}${shapes}${dots}${names}</svg>`;
+  return `<svg ${NS} viewBox="0 0 260 240" role="img" aria-label="${esc(label)}" class="chart">${rings}${spokes}${shapes}${dots}${names}<text x="${cx + 3}" y="${cy - R - 2}" font-size="9" fill="var(--muted)">${top}</text></svg>`;
 }
 
 /** 折れ線グラフ.x は 0..n-1 の等間隔.marks は x 位置に縦線と注釈を入れる. */

@@ -8,19 +8,17 @@ import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
-import { clearSave, loadCareer, saveCareer } from '../save';
+import { clearSave, loadCareer, migrate, saveCareer } from '../save';
 import type { Career, LineupPos } from '../types';
 import { esc } from '../util/format';
-import { state, writeAutoOpen, type Tab } from './state';
+import { state, writeAutoOpen, type Tab, type TeamSub } from './state';
 import { renderGame } from './views/game';
 import { renderHome } from './views/home';
-import { renderOrder } from './views/order';
-import { renderPlayers } from './views/players';
 import { initReplay } from './replay';
 import { renderStart } from './views/start';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
-import { renderTeam } from './views/team';
+import { renderTeamTab } from './views/teamtab';
 
 let root: HTMLElement;
 
@@ -32,7 +30,7 @@ function renderFired(c: Career): string {
   <button class="btn danger" data-a="reset">最初からやり直す</button></div></div>`;
 }
 
-const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '結果'], ['team', 'チーム'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位'], ['rec', '記録']];
+const TABS: [Tab, string, string][] = [['home', 'ホーム', '⌂'], ['game', '試合', '▶'], ['team', 'チーム', '☺'], ['table', '順位', '≡'], ['rec', '記録', '★']];
 
 function render(): void {
   const c = state.career;
@@ -44,26 +42,20 @@ function render(): void {
   const body = {
     home: () => renderHome(c),
     game: () => renderGame(c),
-    team: () => renderTeam(c),
-    players: () => renderPlayers(c),
-    order: () => renderOrder(c),
+    team: () => renderTeamTab(c),
     table: () => renderTable(c),
     rec: () => renderRecords(c),
   }[state.tab]();
+  const alert = c.event && state.tab !== 'home' ? ' <i class="dot" aria-label="出来事があります"></i>' : '';
   root.innerHTML = `
-  <header class="board px">
-    <div class="board-top"><span class="title">ダイヤモンド監督</span><span class="lg">${LEAGUES[c.level].name}</span></div>
-    <div class="team">${esc(userTeam(c).name)}</div>
-    <div class="cells">
-      <div class="cell"><b>${c.season}</b><small>シーズン</small></div>
-      <div class="cell"><b>${weekLabel}</b><small>試合</small></div>
-      <div class="cell"><b>${rec.w}-${rec.l}-${rec.d}</b><small>勝-敗-分</small></div>
-      <div class="cell"><b>${c.phase === 'season' ? rank : c.off?.rank}</b><small>位</small></div>
-    </div>
+  <header class="board slim px">
+    <div class="b-row"><span class="title">ダイヤモンド監督</span><span class="lg">${LEAGUES[c.level].name}</span></div>
+    <div class="b-row"><span class="tm">${esc(userTeam(c).name)}</span>
+      <span class="stat"><b>${c.season}</b>季 <b>${weekLabel}</b> <b>${rec.w}-${rec.l}-${rec.d}</b> <b>${c.phase === 'season' ? rank : c.off?.rank}</b>位</span></div>
   </header>
-  <nav class="tabs" aria-label="画面切り替え">${TABS.map(([k, n]) =>
-    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}">${n}</button>`).join('')}</nav>
-  <main>${body}</main>`;
+  <main>${body}</main>
+  <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
+    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
 }
 
@@ -81,6 +73,8 @@ function onClick(e: MouseEvent): void {
       const v = (document.getElementById('tname') as HTMLInputElement | null)?.value.trim() || 'マイチーム';
       state.career = newCareer(v); state.tab = 'home'; save(); break;
     }
+    case 'sub': state.sub = k as TeamSub; state.sel = null; state.open = null; top(); break;
+    case 'export': if (c) exportSave(c); break;
     case 'tab': state.tab = k as Tab; state.sel = null; state.open = null; top(); break;
     case 'menu': state.menu = k as MenuKey; state.menuTouched = true; break;
     case 'start': {
@@ -158,8 +152,31 @@ function onClick(e: MouseEvent): void {
   render();
 }
 
+/** セーブデータをファイルとして保存する */
+function exportSave(c: Career): void {
+  const blob = new Blob([JSON.stringify(c)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `diamond-kantoku-save-s${c.season}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function onChange(e: Event): void {
   const el = e.target as HTMLSelectElement;
+  if ((el as unknown as HTMLInputElement).id === 'imp') {
+    const f = (el as unknown as HTMLInputElement).files?.[0];
+    if (!f) return;
+    void f.text().then((t) => {
+      try {
+        const c = migrate(JSON.parse(t));
+        if (!c) { alert('読み込めないデータです.'); return; }
+        if (!confirm('いまのデータを,読み込んだデータで置き換えます.よろしいですか?')) return;
+        state.career = c; state.last = null; state.tab = 'home'; save(); render();
+      } catch { alert('読み込めないデータです.'); }
+    });
+    return;
+  }
   if (el.dataset.a !== 'pos' || !state.career) return;
   setPosition(userTeam(state.career), Number(el.dataset.i), el.value as LineupPos);
   save();
@@ -171,5 +188,10 @@ export function mount(el: HTMLElement): void {
   state.career = loadCareer();
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
+  // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)
+  document.addEventListener('toggle', (e) => {
+    const d = e.target as HTMLElement;
+    if (d instanceof HTMLDetailsElement && d.dataset.fold) state.folds[d.dataset.fold] = d.open;
+  }, true);
   render();
 }

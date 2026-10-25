@@ -1,7 +1,8 @@
 import type { GrowthReport, MenuKey } from '../growth/training';
 import type { Career, Game } from '../types';
 
-export type Tab = 'home' | 'game' | 'team' | 'players' | 'order' | 'table' | 'rec';
+export type Tab = 'home' | 'game' | 'team' | 'table' | 'rec';
+export type TeamSub = 'power' | 'players' | 'order';
 
 export type Selection =
   | { t: 'l'; i: number }   // 打順
@@ -20,6 +21,10 @@ export interface AppState {
   career: Career | null;
   last: LastWeek | null;
   tab: Tab;
+  /** チームタブの中の表示 */
+  sub: TeamSub;
+  /** 折りたたみの開閉.再描画しても保たれる. */
+  folds: Record<string, boolean>;
   menu: MenuKey;
   /** プレイヤーが練習を自分で選んだか(選んでいなければおすすめを選んでおく) */
   menuTouched: boolean;
@@ -44,6 +49,6 @@ export function writeAutoOpen(v: boolean): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, tab: 'home', menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
 };

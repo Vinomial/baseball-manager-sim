@@ -5,12 +5,12 @@ import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
-import { gradeHTML } from '../components';
+import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
-import { renderKitchen } from './kitchen';
+import { kitchenHTML, kitchenSummary, missionsHTML } from './kitchen';
 import { renderTraining } from './training';
-import { statusHTML, winProbHTML } from './status';
+import { forecastHTML, forecastSummary, trustHTML, trustSummary, winProbHTML } from './status';
 
 export function renderHome(c: Career): string {
   if (c.phase === 'off') return renderOff(c);
@@ -30,21 +30,26 @@ export function renderHome(c: Career): string {
   h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
   <div class="card"><div class="row" style="justify-content:space-between">
     <div><b>${esc(opp.name)}</b>${opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
-    <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, opp)}</div>
-  `;
-  h += renderKitchen(c);
+    <div class="small">総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, opp)}</div>`;
   h += renderTraining(c);
-  h += `
-  <div class="row" style="margin-top:14px"><button class="btn" data-a="start">${MENUS[state.menu].name}をして試合へ</button>
-  <button class="btn ghost" data-a="auto-season">この練習でシーズン終了まで進める</button></div>
-  <p class="small" style="margin:8px 0 0"><button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button></p>`;
+  const w = c.results.filter((r) => r.us > r.them).length, l = c.results.filter((r) => r.us < r.them).length;
+  const sumPantry = Object.values(c.pantry).reduce((a, b) => a + b, 0);
+  h += `<h2>ミッションと食事</h2>`;
+  h += fold('missions', 'ミッション', `${c.missions.length}件 進行中`, missionsHTML(c));
+  h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));
+  h += `<h2>状況</h2>`;
+  h += fold('trust', '監督の信頼度', trustSummary(c), trustHTML(c));
+  h += fold('forecast', 'シーズンの予想', forecastSummary(c), forecastHTML(c));
   if (c.results.length) {
-    h += `<h2>今シーズンの試合結果</h2><div class="card scroll"><table class="results"><tbody>${[...c.results].reverse().slice(0, 8).map((r) => {
+    h += fold('results', '今シーズンの試合結果', `${w}勝${l}敗`, `<table class="results"><tbody>${[...c.results].reverse().slice(0, 10).map((r) => {
       const k = r.us > r.them ? 'w' : r.us < r.them ? 'l' : '';
       return `<tr><td>第${r.week + 1}戦</td><td>${esc(r.opp)}<span class="tag">${r.home ? 'H' : 'A'}</span></td><td class="${k}">${r.us > r.them ? '勝' : r.us < r.them ? '負' : '分'}</td><td class="num">${r.us} - ${r.them}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table>`);
   }
-  h += statusHTML(c);
-  h += `<h2>データ</h2><div class="row"><button class="btn danger" data-a="reset">データを消して最初から</button></div>`;
+  h += fold('settings', '設定・データ', 'バックアップなど', `<div class="row"><button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button></div>
+  <p class="small muted" style="margin:8px 0 4px">セーブはこの端末のブラウザに保存されます.機種変更やデータ消去に備えて,ときどきバックアップを取りましょう.</p>
+  <div class="row"><button class="btn ghost" data-a="export">バックアップを保存</button><label class="btn ghost filebtn">バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label></div>
+  <div class="row" style="margin-top:8px"><button class="btn danger" data-a="reset">データを消して最初から</button></div>`);
+  h += `<div class="actionbar"><button class="btn" data-a="start">▶ ${MENUS[state.menu].name}で試合へ</button><button class="btn ghost" data-a="auto-season" title="この練習のまま,シーズン最後まで進めます">⏩ 最後まで</button></div>`;
   return h;
 }

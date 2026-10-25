@@ -6,6 +6,8 @@ import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { weekInfo } from '../../league/calendar';
+import { term } from '../glossary';
+import { tutorialCard } from '../tutorial';
 import { hurtPlayers } from '../../league/health';
 import { warnings } from '../../league/warnings';
 import { fold, gradeHTML } from '../components';
@@ -22,6 +24,7 @@ export function renderHome(c: Career): string {
   const m = userMatch(c);
   const info = weekInfo(c);
   let h = '';
+  h += tutorialCard();
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
   for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
   if (c.event) {
@@ -42,7 +45,7 @@ export function renderHome(c: Career): string {
   if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;
   if (info.userGame === 'league' && m) {
     h += `<div class="row" style="justify-content:space-between"><div><b>第${c.week + 1}戦 vs ${esc(m.opp.name)}</b>${m.opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${m.home ? 'ホーム' : 'ビジター'} / 全${total}戦 ${lg.teams}チーム)</span></div>
-    <div class="small">総合力 ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
+    <div class="small">${term('ovr')} ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
   } else if (info.userGame) {
     h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : '全日本選手権に出場します'}</b></p>`;
   } else {
@@ -58,7 +61,7 @@ export function renderHome(c: Career): string {
   h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
   h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));
   h += `<h2>状況</h2>`;
-  h += fold('trust', '監督の信頼度', trustSummary(c), trustHTML(c));
+  h += fold('trust', term('trust'), trustSummary(c), trustHTML(c));
   h += fold('forecast', 'シーズンの予想', forecastSummary(c), forecastHTML(c));
   if (c.results.length) {
     h += fold('results', '今シーズンの試合結果', `${w}勝${l}敗`, `<table class="results"><tbody>${[...c.results].reverse().slice(0, 10).map((r) => {

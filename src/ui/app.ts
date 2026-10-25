@@ -22,6 +22,8 @@ import { initReplay } from './replay';
 import { renderStart, renderTitle } from './views/start';
 import { confirmMessage } from '../league/warnings';
 import { userSide } from '../engine/game';
+import { applyPrefs, prefs, savePrefs, type FontSize, type Theme } from './prefs';
+import { glossarySheet, termSheet } from './glossary';
 import { resultSound, setBgm, setSe, sfx, sound, unlockAudio } from './sound';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
@@ -48,6 +50,10 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="gokitchen">🍙 台所とミッション</button>
   <button class="btn ghost" data-a="export">⬇ バックアップを保存</button>
   <label class="btn ghost filebtn">⬆ バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label>
+  <div class="seg" role="group" aria-label="テーマ">${(['auto', 'light', 'dark'] as Theme[]).map((t) => `<button class="btn ghost" data-a="theme" data-k="${t}" aria-pressed="${prefs.theme === t}">${t === 'auto' ? 'テーマ自動' : t === 'light' ? 'ライト' : 'ダーク'}</button>`).join('')}</div>
+  <div class="seg" role="group" aria-label="文字サイズ">${(['s', 'm', 'l'] as FontSize[]).map((f) => `<button class="btn ghost" data-a="font" data-k="${f}" aria-pressed="${prefs.font === f}">文字${f === 's' ? '小' : f === 'm' ? '標準' : '大'}</button>`).join('')}</div>
+  <button class="btn ghost" data-a="tut-again">📘 はじめてガイドをもう一度</button>
+  <button class="btn ghost" data-a="glossary">📖 用語集</button>
   <button class="btn ghost" data-a="se" aria-pressed="${sound.se}">🔊 効果音: ${sound.se ? 'ON' : 'OFF'}</button>
   <button class="btn ghost" data-a="bgm" aria-pressed="${sound.bgm}">🎵 BGM: ${sound.bgm ? 'ON' : 'OFF'}</button>
   <button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button>
@@ -101,6 +107,7 @@ function render(): void {
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
   if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
+  if (state.term) root.insertAdjacentHTML('beforeend', state.term === '*' ? glossarySheet() : termSheet(state.term));
   if (state.detail !== null) root.insertAdjacentHTML('beforeend', detailSheet(c, state.detail));
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
 }
@@ -165,6 +172,14 @@ function onClick(e: MouseEvent): void {
     case 'warn-go': if (c) { state.warn = null; doStart(c); } break;
     case 'warn-cancel': state.warn = null; break;
     case 'se': setSe(!sound.se); break;
+    case 'term': state.term = k; break;
+    case 'term-close': state.term = null; break;
+    case 'glossary': state.term = '*'; state.menuOpen = false; break;
+    case 'font': prefs.font = k as FontSize; savePrefs(); applyPrefs(); break;
+    case 'theme': prefs.theme = k as Theme; savePrefs(); applyPrefs(); break;
+    case 'tut-next': prefs.tut++; savePrefs(); break;
+    case 'tut-skip': prefs.tutOn = false; savePrefs(); break;
+    case 'tut-again': prefs.tut = 0; prefs.tutOn = true; savePrefs(); state.tab = 'home'; state.menuOpen = false; break;
     case 'bgm': setBgm(!sound.bgm); break;
     case 'practice': state.practice = !state.practice; break;
     case 'game-pick': if (state.last) state.last.game = state.last.games[i] ?? state.last.game; break;
@@ -273,11 +288,12 @@ function onChange(e: Event): void {
 
 export function mount(el: HTMLElement): void {
   root = el;
+  applyPrefs();
   state.career = loadCareer();
   state.screen = 'title';
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null)) { state.menuOpen = false; state.detail = null; render(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null || state.term || state.warn)) { state.menuOpen = false; state.detail = null; state.term = null; state.warn = null; render(); } });
   // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)
   document.addEventListener('toggle', (e) => {
     const d = e.target as HTMLElement;

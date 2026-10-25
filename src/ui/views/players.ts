@@ -6,6 +6,7 @@ import { fielders, findPlayer } from '../../league/team';
 import type { Career, Player, Team } from '../../types';
 import { esc, fmtAvg, fmtEra } from '../../util/format';
 import { attrsHTML, condHTML, playerDetail } from '../components';
+import { term } from '../glossary';
 import { state } from '../state';
 
 /** 選手の 1 枚のカード.タップで通算成績が開く. */
@@ -30,5 +31,5 @@ export function rosterHTML(c: Career, t: Team, canRelease: boolean): string {
 export function renderPlayers(c: Career): string {
   const u = userTeam(c);
   const pay = payroll(u), bud = budgetFor(c);
-  return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div><p class="small muted" style="margin:4px 0 0">登録 ${u.players.length}/${userRosterMax(c)}人.予算は同じリーグの他チームの平均と,監督の信頼度で決まります.</p></div><p class="small muted">選手をタップすると,成長タイプ,伸びしろ,通算成績が見られます.${c.phase === 'off' ? '放出した選手は自由契約になります.' : ''}</p>${rosterHTML(c, u, c.phase === 'off')}`;
+  return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div><p class="small muted" style="margin:4px 0 0">登録 ${u.players.length}/${userRosterMax(c)}人.${term('budget')}は同じリーグの他チームの平均と,監督の信頼度で決まります.</p></div><p class="small muted">選手をタップすると,成長タイプ,伸びしろ,通算成績が見られます.${c.phase === 'off' ? '放出した選手は自由契約になります.' : ''}</p>${rosterHTML(c, u, c.phase === 'off')}`;
 }

@@ -1,13 +1,14 @@
 import { forecast, trustBudgetFactor, trustGrowth, trustLabel, winProb } from '../../league/finance';
 import { userTeam } from '../../league/season';
 import type { Career, Team } from '../../types';
+import { term } from '../glossary';
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
 
 /** 今週の予想勝率. */
 export function winProbHTML(c: Career, opp: Team): string {
   const p = winProb(userTeam(c), opp);
-  return `<div class="prob" role="img" aria-label="予想勝率 ${pct(p)}"><span class="small">予想勝率</span><span class="bar"><i style="width:${p * 100}%;${p < 0.5 ? 'background:var(--bad)' : ''}"></i></span><b>${pct(p)}</b></div>`;
+  return `<div class="prob" role="img" aria-label="予想勝率 ${pct(p)}"><span class="small">${term('prob')}</span><span class="bar"><i style="width:${p * 100}%;${p < 0.5 ? 'background:var(--bad)' : ''}"></i></span><b>${pct(p)}</b></div>`;
 }
 
 export function trustSummary(c: Career): string {

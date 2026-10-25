@@ -294,3 +294,12 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .warnbox.warn{border-color:#D9802A}
 .warnbox.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--panel2))}
 .warnbox.info{border-color:var(--muted)}
+
+/* prefs, glossary, tutorial */
+:root{--fs:1}
+.wrap>header,.wrap>main{zoom:var(--fs)}
+.term{background:none;border:0;padding:0;color:inherit;font:inherit;text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
+.tut{border:2px solid var(--btn)}
+.seg{display:flex;gap:4px}
+.seg .btn{flex:1;padding:6px 4px;min-height:36px;text-align:center}
+.seg .btn[aria-pressed="true"]{background:var(--board);color:var(--board-num);border-color:var(--board)}

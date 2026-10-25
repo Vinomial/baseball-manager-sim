@@ -2,16 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "ゲームを起動 (Chrome)",
-      "type": "chrome",
+      "name": "ゲームを起動 (既定のブラウザ)",
+      "type": "node-terminal",
       "request": "launch",
-      "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "dev-server"
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
     },
     {
-      "name": "ゲームを起動 (Edge)",
-      "type": "msedge",
+      "name": "ゲームを起動 (Chrome でデバッグ)",
+      "type": "chrome",
       "request": "launch",
       "url": "http://localhost:5173",
       "webRoot": "${workspaceFolder}",

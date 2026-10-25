@@ -3,14 +3,14 @@ import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
 import { cook } from '../growth/meals';
 import { sellIngredient, upgrade } from '../league/economy';
-import { weekInfo } from '../league/calendar';
+import { WEEKS_PER_YEAR, weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
 import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
-import { clearSave, loadCareer, migrate, saveCareer } from '../save';
+import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
 import type { Career, Difficulty, FacKey, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { detailSheet } from './detail';
@@ -67,6 +67,49 @@ function menuSheet(c: Career): string {
   <p class="small muted" style="margin:6px 0 0">進行は自動でセーブされます.第${c.season}シーズン.</p></div>`;
 }
 
+/** セーブの問題を知らせる */
+function saveBanner(): string {
+  if (state.saveFail) return '<div class="warnbox bad">⚠ セーブできませんでした(保存容量がいっぱいです).メニューの「バックアップを保存」で,いまのデータを残してください.</div>';
+  if (state.saveSize > SIZE_WARN) return '<div class="warnbox warn">⚠ セーブが大きくなっています.メニューの「バックアップを保存」をおすすめします.</div>';
+  return '';
+}
+
+/** 長い処理の進み具合 */
+function busyOverlay(): string {
+  const b = state.busy!;
+  return `<div class="sheet-bg"></div><div class="sheet" role="status" aria-live="polite"><div class="sheet-h"><b>⏩ 年末まで進めています…</b></div>
+  <div class="chem"><span class="bar"><i id="busybar" style="width:${(b.done / b.total) * 100}%"></i></span><span id="busytxt" class="small">${b.done}/${b.total}週</span></div>
+  <button class="btn ghost" data-a="busy-cancel">ここで中止する</button></div>`;
+}
+
+/** 想定外のエラーが起きたときの画面.セーブは壊さず,バックアップを取れるようにする. */
+function showCrash(err: unknown): void {
+  console.error(err);
+  if (document.getElementById('crash')) return;
+  const msg = err instanceof Error ? err.message : String(err);
+  document.body.insertAdjacentHTML('beforeend', `<div class="sheet-bg" id="crash-bg" style="z-index:90"></div><div class="sheet" id="crash" role="alertdialog" style="z-index:91">
+  <div class="sheet-h"><b>⚠ エラーが起きました</b></div>
+  <p style="margin:0">ご迷惑をおかけします.保存済みのセーブは無事です(エラーのあとの内容は保存していません).</p>
+  <p class="small muted" style="margin:0;word-break:break-all">${esc(msg)}</p>
+  <button class="btn" id="crash-backup">保存済みのセーブをバックアップする</button>
+  <button class="btn ghost" id="crash-reload">ページを読み込み直す</button></div>`);
+  document.getElementById('crash-backup')?.addEventListener('click', () => {
+    const raw = rawSave();
+    if (!raw) { alert('保存されたセーブがありません.'); return; }
+    downloadText(raw, `diamond-kantoku-save-backup.json`);
+  });
+  document.getElementById('crash-reload')?.addEventListener('click', () => location.reload());
+}
+
+function downloadText(text: string, name: string): void {
+  const blob = new Blob([text], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /** 疲れがたまっているときの確認 */
 function warnSheet(msg: string): string {
   return `<div class="sheet-bg" data-a="warn-cancel"></div><div class="sheet" role="alertdialog" aria-label="休養のおすすめ">
@@ -87,6 +130,10 @@ function toast(msg: string): void {
 }
 
 function render(): void {
+  try { renderInner(); } catch (e) { showCrash(e); }
+}
+
+function renderInner(): void {
   const c = state.career;
   if (!c) { root.innerHTML = state.screen === 'new' ? renderStart() : renderTitle(null); return; }
   if (state.screen === 'title') { root.innerHTML = renderTitle(c); return; }
@@ -109,15 +156,40 @@ function render(): void {
     <div class="b-row"><span class="tm">${esc(userTeam(c).name)}</span>
       <span class="stat"><b>${c.season}</b>季 <b>${weekLabel}</b> <b>${rec.w}-${rec.l}-${rec.d}</b> <b>${c.phase === 'season' ? rank : c.off?.rank}</b>位</span></div>
   </header>
-  <main>${body}</main>
+  ${saveBanner()}<main>${body}</main>
   <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (c.phase === 'off' && c.off && c.off.step === 0 && state.celebrated !== c.season && c.off.review && (c.off.review.ownTitle || c.off.review.cupChampion || c.off.move > 0)) { state.celebrated = c.season; sfx.level(); }
+  if (state.busy) root.insertAdjacentHTML('beforeend', busyOverlay());
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
   if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
   if (state.term) root.insertAdjacentHTML('beforeend', state.term === '*' ? glossarySheet() : termSheet(state.term));
   if (state.detail !== null) root.insertAdjacentHTML('beforeend', detailSheet(c, state.detail));
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
+}
+
+/** 年末まで,1 週ずつ進める.途中で画面が固まらないよう,ときどき処理を譲って進み具合を出す. */
+async function runYear(c: Career): Promise<void> {
+  state.busy = { done: 0, total: Math.max(1, WEEKS_PER_YEAR - c.cal), cancel: false };
+  render();
+  let r: ReturnType<typeof playWeek> | undefined;
+  try {
+    while (c.phase === 'season' && !c.fired && !state.busy.cancel) {
+      r = playWeek(c, state.menu);
+      state.busy.done++;
+      const b = document.getElementById('busybar'), t = document.getElementById('busytxt');
+      if (b) b.style.width = `${Math.min(100, (state.busy.done / state.busy.total) * 100)}%`;
+      if (t) t.textContent = `${state.busy.done}/${state.busy.total}週`;
+      if (state.busy.done % 2 === 0) await new Promise((res) => window.setTimeout(res, 0));
+    }
+  } catch (e) { state.busy = null; showCrash(e); return; }
+  if (r) state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: r.menu, report: r.report };
+  state.busy = null;
+  state.menuTouched = false; state.practice = false;
+  state.tab = 'home';
+  save();
+  top();
+  render();
 }
 
 /** 今週を進める */
@@ -132,12 +204,18 @@ function doStart(c: Career): void {
   save();
 }
 
-const save = () => { if (state.career) saveCareer(state.career); };
+const save = () => {
+  if (!state.career) return;
+  const r = saveCareer(state.career);
+  state.saveFail = !r.ok;
+  state.saveSize = r.size;
+};
 const top = () => window.scrollTo(0, 0);
 
 function onClick(e: MouseEvent): void {
   unlockAudio();
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-a]');
+  if (state.busy && el?.dataset.a !== 'busy-cancel') return;
   if (!el || (el as HTMLButtonElement).disabled || el.tagName === 'SELECT') return;
   if (!['start', 'warn-go', 'warn-rest', 'se'].includes(el.dataset.a ?? '')) sfx.tap();
   const a = el.dataset.a, k = el.dataset.k ?? '', i = Number(el.dataset.i), id = Number(el.dataset.id);
@@ -195,14 +273,8 @@ function onClick(e: MouseEvent): void {
     case 'bgm': setBgm(!sound.bgm); break;
     case 'practice': state.practice = !state.practice; break;
     case 'game-pick': if (state.last) state.last.game = state.last.games[i] ?? state.last.game; break;
-    case 'auto-season': {
-      if (!c || c.phase !== 'season') break;
-      let r;
-      while (c.phase === 'season' && !c.fired) r = playWeek(c, state.menu);
-      if (r) state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
-      state.menuTouched = false; state.practice = false;
-      state.tab = 'home'; save(); top(); break;
-    }
+    case 'auto-season': if (c && c.phase === 'season' && !state.busy) { void runYear(c); return; } break;
+    case 'busy-cancel': if (state.busy) state.busy.cancel = true; return;
     case 'reset':
       if (confirm('保存データを消して最初からやり直します.よろしいですか?')) {
         clearSave(); state.career = null; state.last = null; state.screen = 'new'; state.menuOpen = false;
@@ -269,12 +341,9 @@ function onClick(e: MouseEvent): void {
 
 /** セーブデータをファイルとして保存する */
 function exportSave(c: Career): void {
-  const blob = new Blob([JSON.stringify(c)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `diamond-kantoku-save-s${c.season}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  downloadText(JSON.stringify(c), `diamond-kantoku-save-s${c.season}.json`);
+  prefs.backup = c.season;
+  savePrefs();
 }
 
 function onChange(e: Event): void {
@@ -303,7 +372,9 @@ export function mount(el: HTMLElement): void {
   applyPrefs();
   state.career = loadCareer();
   state.screen = 'title';
-  document.addEventListener('click', onClick);
+  document.addEventListener('click', (e) => { try { onClick(e); } catch (err) { showCrash(err); } });
+  window.addEventListener('error', (e) => { if (e.error) showCrash(e.error); });
+  window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof Error) showCrash(e.reason); });
   document.addEventListener('change', onChange);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null || state.term || state.warn)) { state.menuOpen = false; state.detail = null; state.term = null; state.warn = null; render(); } });
   // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)

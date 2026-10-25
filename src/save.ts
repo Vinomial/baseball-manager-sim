@@ -12,8 +12,40 @@ import type { Career } from './types';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
 
-export function saveCareer(c: Career): void {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(c)); } catch { /* 容量不足などは無視 */ }
+/** この文字数を超えたら,古い記録を整理する(ブラウザの保存容量はおよそ 500 万文字) */
+export const SIZE_PRUNE = 2_400_000;
+/** これを超えたら,バックアップをすすめる */
+export const SIZE_WARN = 3_500_000;
+
+export interface SaveStatus { ok: boolean; size: number; }
+
+/** 容量が大きくなりすぎたとき,古い記録を整理する.遊びに影響のない部分だけを削る. */
+export function pruneCareer(c: Career): void {
+  c.hist = c.hist.slice(-240);
+  c.awards = c.awards.slice(-200);
+  c.cups = c.cups.slice(-30);
+  c.champs = c.champs.slice(-80);
+  for (const t of c.teams) {
+    if (t.user) continue;
+    for (const p of t.players) if (p.seasons.length > 10) p.seasons = p.seasons.slice(-10);
+  }
+}
+
+export function saveCareer(c: Career): SaveStatus {
+  let json = JSON.stringify(c);
+  if (json.length > SIZE_PRUNE) { pruneCareer(c); json = JSON.stringify(c); }
+  try {
+    localStorage.setItem(SAVE_KEY, json);
+    return { ok: true, size: json.length };
+  } catch {
+    // 容量不足などで保存できなかった.一度整理して,もう一度だけ試す
+    try { pruneCareer(c); json = JSON.stringify(c); localStorage.setItem(SAVE_KEY, json); return { ok: true, size: json.length }; } catch { return { ok: false, size: json.length }; }
+  }
+}
+
+/** 保存されているセーブ(文字列のまま).バックアップ用. */
+export function rawSave(): string | null {
+  try { return localStorage.getItem(SAVE_KEY); } catch { return null; }
 }
 
 /** 古いバージョンのセーブデータを最新の形に直す.直せないときは null. */

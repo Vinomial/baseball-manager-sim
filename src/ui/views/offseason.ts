@@ -10,6 +10,7 @@ import type { Career, Player } from '../../types';
 import { esc, grade } from '../../util/format';
 import { abilitiesHTML, attrsHTML } from '../components';
 import { avatar } from '../avatar';
+import { prefs } from '../prefs';
 import { term } from '../glossary';
 import { state } from '../state';
 
@@ -35,6 +36,12 @@ function reviewHTML(c: Career): string {
   <tr><td>資金の増減</td><td class="${r.fundsDelta >= 0 ? 'up' : 'dn'}">${r.fundsDelta >= 0 ? '+' : ''}${fmtYen(r.fundsDelta)}</td></tr>
   <tr><td>よく伸びた選手</td><td>${r.growers.length ? r.growers.map((g) => `${esc(g.name)} <span class="up">+${g.delta}</span>`).join(' / ') : '-'}</td></tr>
   </tbody></table></div>`;
+}
+
+/** 10 シーズンごとのバックアップのおすすめ */
+function backupNote(c: Career): string {
+  if (c.season < 10 || c.season - prefs.backup < 10) return '';
+  return `<div class="warnbox warn">💾 ${c.season - prefs.backup}シーズン,バックアップを取っていません.長く遊んだデータを守るため,いま保存しておくのがおすすめです. <button class="btn ghost" data-a="export" style="margin-top:6px">バックアップを保存</button></div>`;
 }
 
 function resultHTML(c: Career): string {
@@ -112,7 +119,7 @@ export function renderOff(c: Career): string {
   const canNext = step === 2 ? o.draft.done : step < 3;
   const buttons = `<div class="row" style="margin-top:12px">${step > 0 ? '<button class="btn ghost" data-a="ostep" data-k="-1">← 前へ</button>' : ''}${step < 3 ? `<button class="btn" data-a="ostep" data-k="1" ${canNext ? '' : 'disabled'}>${STEPS[step + 1]}へ →</button>` : ''}${step === 2 && !o.draft.done ? '<span class="small muted">ドラフトが終わると進めます.</span>' : ''}</div>`;
   let body = '';
-  if (step === 0) body = resultHTML(c);
+  if (step === 0) body = backupNote(c) + resultHTML(c);
   else if (step === 1) body = cutsHTML(c);
   else if (step === 2) body = draftHTML(c);
   else body = `${faHTML(c)}

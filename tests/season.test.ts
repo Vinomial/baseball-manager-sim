@@ -29,7 +29,7 @@ import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
 import { salaryOf } from '../src/growth/player';
 import { newGame, stepToEnd } from '../src/engine/game';
-import { migrate } from '../src/save';
+import { migrate, pruneCareer, rawSave, saveCareer } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
 import { resetRandom, seeded, setRandom } from '../src/util/random';
@@ -1163,5 +1163,35 @@ describe('昇格・降格の枠', () => {
     // 最下位リーグの最下位は降格しない
     const last = standings(c, 0).slice(-1)[0].t.id;
     expect(o.next[last]).toBe(0);
+  });
+});
+
+describe('セーブの安全', () => {
+  beforeEach(() => setRandom(seeded(211)));
+  afterEach(() => resetRandom());
+
+  it('大きくなりすぎたセーブは整理され,遊びに必要な部分は残る', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 600; i++) c.hist.push({ ...c.hist[0] });
+    for (let i = 0; i < 400; i++) c.awards.push({ season: 1, level: 0, kind: 'MVP', pid: 1, name: 'x', team: 'y', text: '', mine: false });
+    pruneCareer(c);
+    expect(c.hist.length).toBeLessThanOrEqual(240);
+    expect(c.awards.length).toBeLessThanOrEqual(200);
+    expect(userTeam(c).players.length).toBeGreaterThan(10);
+    expect(c.leagues.length).toBe(LEAGUES.length);
+  });
+
+  it('保存の結果(成功か,大きさ)が返る.保存先がない環境でも落ちない', () => {
+    const c = newCareer('テスト');
+    const r = saveCareer(c);
+    expect(typeof r.ok).toBe('boolean');
+    expect(r.size).toBeGreaterThan(1000);
+    expect(rawSave() === null || typeof rawSave() === 'string').toBe(true);
+  });
+
+  it('長い進行でもセーブの大きさは,保存できる範囲に収まる', () => {
+    const c = newCareer('テスト');
+    for (let s = 0; s < 6; s++) { playSeason(c, 'mix'); prepareNextSeason(c); }
+    expect(JSON.stringify(c).length).toBeLessThan(4_000_000);
   });
 });

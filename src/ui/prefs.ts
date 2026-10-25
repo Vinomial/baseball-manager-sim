@@ -4,10 +4,10 @@ export type Theme = 'auto' | 'light' | 'dark';
 
 const KEY = 'baseball-manager-sim/prefs';
 
-export interface Prefs { font: FontSize; theme: Theme; /** ガイドの進み具合 */ tut: number; /** ガイドを出すか */ tutOn: boolean; }
+export interface Prefs { font: FontSize; theme: Theme; /** ガイドの進み具合 */ tut: number; /** ガイドを出すか */ tutOn: boolean; /** 最後にバックアップを取ったシーズン */ backup: number; }
 
 function load(): Prefs {
-  const d: Prefs = { font: 'm', theme: 'auto', tut: 0, tutOn: true };
+  const d: Prefs = { font: 'm', theme: 'auto', tut: 0, tutOn: true, backup: 0 };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return d;
@@ -17,6 +17,7 @@ function load(): Prefs {
       theme: p.theme === 'light' || p.theme === 'dark' ? p.theme : 'auto',
       tut: typeof p.tut === 'number' ? p.tut : 0,
       tutOn: p.tutOn !== false,
+      backup: typeof p.backup === 'number' ? p.backup : 0,
     };
   } catch { return d; }
 }

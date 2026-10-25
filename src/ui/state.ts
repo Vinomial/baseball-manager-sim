@@ -33,6 +33,11 @@ export interface AppState {
   detail: number | null;
   /** 進む前の確認(疲れがたまっているときなど) */
   warn: string | null;
+  /** セーブに失敗したか,容量が大きいか */
+  saveFail: boolean;
+  saveSize: number;
+  /** 長い処理の進み具合(年末まで進める,など) */
+  busy: { done: number; total: number; cancel: boolean } | null;
   /** 優勝などの演出を出したシーズン */
   celebrated: number;
   /** 説明を開いている用語.'*' なら用語集 */
@@ -68,7 +73,7 @@ export function writeAutoOpen(v: boolean): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, warn: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
   practice: false,
 };

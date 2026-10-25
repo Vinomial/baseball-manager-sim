@@ -24,7 +24,7 @@ function ac(): AudioContext | null {
     if (!C) return null;
     try { ctx = new C(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination); } catch { return null; }
   }
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (ctx.state === 'suspended') ctx.resume().catch(() => undefined);
   return ctx;
 }
 

@@ -11,7 +11,7 @@ import { warnings } from '../../league/warnings';
 import type { Career, Game } from '../../types';
 import { userSide } from '../../engine/game';
 import { esc } from '../../util/format';
-import { fold, starsHTML } from '../components';
+import { fold, gradeHTML } from '../components';
 import { term } from '../glossary';
 import { state } from '../state';
 import { tutorialCard } from '../tutorial';

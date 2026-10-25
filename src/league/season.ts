@@ -20,7 +20,7 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */

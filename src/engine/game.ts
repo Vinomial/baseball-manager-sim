@@ -4,12 +4,25 @@
  */
 import { getChem } from '../growth/chemistry';
 import { eff } from '../growth/player';
+import { findCombos, sumFx } from '../league/combos';
 import { fit, getPlayer } from '../league/team';
+import type { PitchKey } from '../types';
 import type { Game, PlayKind, Player, Side, Team } from '../types';
 import { clamp, pick, rand } from '../util/random';
 
 /** この球数を超えると能力が落ち始める */
-export const pitchLimit = (p: Player): number => 45 + p.stam * 0.9 - p.fatigue * 0.4;
+export const pitchLimit = (p: Player): number => 45 + p.stam * 0.9 - p.fatigue * 0.4 + (p.skills.includes('iron') ? 12 : 0);
+
+/** 球種の効果.レベルが高いほど大きい. */
+export function pitchFx(p: Player): { V: number; C: number; hit: number; dp: number } {
+  const lv = (k: PitchKey) => p.pitches[k] ?? 0;
+  return {
+    V: lv('slider') * 1.3 + lv('fork') * 1.8,
+    C: lv('curve') * 1.2 - lv('fork') * 0.5,
+    hit: -(lv('change') * 0.004 + lv('cutter') * 0.004),
+    dp: lv('sinker') * 0.03,
+  };
+}
 
 export function makeSide(t: Team): Side {
   const lineup = t.lineup.map((e) => ({ p: getPlayer(t, e.pid), pos: e.pos }));
@@ -20,13 +33,17 @@ export function makeSide(t: Team): Side {
     return e.p;
   };
   const sec = get('二'), ss = get('遊');
-  const D = F.reduce((s, e) => s + eff(e.p, 'field') + fit(e.p, e.pos), 0) / F.length + getChem(t, sec.id, ss.id) * 0.06;
+  const glove = F.filter((e) => e.p.skills.includes('glove')).length * 6 / F.length;
+  let D = F.reduce((s, e) => s + eff(e.p, 'field') + fit(e.p, e.pos), 0) / F.length + getChem(t, sec.id, ss.id) * 0.06 + glove;
   let sp = getPlayer(t, t.pitchers[t.rotIdx % 3]);
   if (sp.fatigue > 60) {
     sp = t.pitchers.slice(0, 3).map((id) => getPlayer(t, id)).sort((a, b) => a.fatigue - b.fatigue)[0];
   }
+  const cs = findCombos(t, sp.id);
+  const fx = sumFx(cs);
+  D += fx.def;
   return {
-    team: t, lineup, D, catcher: get('捕'), sec, ss, bi: 0,
+    team: t, lineup, D, fx, combos: cs.filter((c) => c.active).map((c) => c.name), catcher: get('捕'), sec, ss, bi: 0,
     pitcher: sp, starter: sp, used: [sp], pc: 0, pr: 0, pcBy: { [sp.id]: 0 },
     runs: 0, hits: 0, inn: [],
   };
@@ -73,12 +90,18 @@ function log(g: Game, t: string, hl = false, kind?: PlayKind): void {
   if (g.log.length > 400) g.log.length = 400;
 }
 
-function pitcherEff(def: Side): { V: number; C: number } {
+function pitcherEff(def: Side): { V: number; C: number; K: number; hit: number; dp: number } {
   const p = def.pitcher;
   const tired = Math.max(0, def.pc - pitchLimit(p)) * 0.7;
+  const f = pitchFx(p);
+  const starter = p === def.starter;
+  const role = (p.skills.includes('closer') && !starter ? 6 : 0) + (p.skills.includes('ace') && starter ? 3 : 0);
   return {
-    V: eff(p, 'velo') - tired,
-    C: eff(p, 'ctrl') - tired + getChem(def.team, p.id, def.catcher.id) * 0.1,
+    V: eff(p, 'velo') - tired + f.V + role,
+    C: eff(p, 'ctrl') - tired + getChem(def.team, p.id, def.catcher.id) * 0.1 + f.C + def.fx.cmd + (p.skills.includes('ace') && starter ? 3 : 0),
+    K: p.skills.includes('killer') ? 0.03 : 0,
+    hit: f.hit,
+    dp: f.dp,
   };
 }
 
@@ -143,15 +166,18 @@ export function step(g: Game): void {
   autoPitch(g, def);
   const b = off.lineup[off.bi].p, nm = b.name, before = off.runs;
 
-  const { V, C } = pitcherEff(def);
-  const M = eff(b, 'meet'), Pw = eff(b, 'power');
-  const Sp = eff(b, 'speed');
+  const pe = pitcherEff(def), { V, C } = pe;
+  const has = (k: Player['skills'][number]) => b.skills.includes(k);
+  const scoring = !!g.bases[1] || !!g.bases[2];
+  const M = eff(b, 'meet') + (has('contact') ? 4 : 0) + (has('clutch') && scoring ? 8 : 0);
+  const Pw = eff(b, 'power') + (has('slugger') ? 12 : 0);
+  const Sp = eff(b, 'speed') + (has('runner') ? 15 : 0);
   b.stats.pa++;
   let text = '', hl = false;
 
-  const pK = clamp(0.18 + (V - M) * 0.004, 0.05, 0.42);
+  const pK = clamp(0.18 + (V - M) * 0.004 + pe.K + off.fx.k - (has('contact') ? 0.03 : 0) - (has('eye') ? 0.02 : 0), 0.05, 0.42);
   // 投手の制球を打者のミートと比べる.リーグの高さではなく,力の差で決まる
-  const pBB = clamp(0.105 + (M - C) * 0.0025, 0.02, 0.2);
+  const pBB = clamp(0.105 + (M - C) * 0.0025 + (has('eye') ? 0.03 : 0), 0.02, 0.2);
   const r = rand();
   if (r < pBB) {
     addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++; def.pitcher.stats.bba++;
@@ -165,7 +191,7 @@ export function step(g: Game): void {
     if ([5, 8, 10, 12, 15].includes(k)) text += `(${k}個目の三振)`;
   } else {
     addPitches(def, 3); b.stats.ab++;
-    const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - (def.D - 50) * 0.0012, 0.15, 0.46);
+    const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - (def.D - 50) * 0.0012 + off.fx.hit + pe.hit, 0.15, 0.46);
     if (rand() < 0.012 + Math.max(0, 55 - def.D) * 0.0012) {
       if (g.bases[2]) scoreRun(off, def, null);
       g.bases = [b, g.bases[0], g.bases[1]];
@@ -210,7 +236,7 @@ function hit(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): 
 function hitText(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): string {
   const nm = b.name;
   b.stats.h++; off.hits++; def.pitcher.stats.ha++;
-  const hr = clamp(0.045 + (Pw - 50) * 0.0016 + (Pw - eff(def.pitcher, 'velo')) * 0.002, 0.01, 0.3);
+  const hr = clamp(0.045 + (Pw - 50) * 0.0016 + (Pw - eff(def.pitcher, 'velo')) * 0.002 + off.fx.hr, 0.01, 0.3);
   const tr = clamp(0.02 + (Sp - 50) * 0.001, 0.005, 0.06);
   const db = clamp(0.18 + (Pw - 50) * 0.002, 0.08, 0.3);
   const x = rand();
@@ -258,7 +284,7 @@ function inPlayOut(g: Game, off: Side, def: Side, b: Player, Sp: number): string
   const nm = b.name, B = g.bases;
   if (rand() < 0.5) {
     // ゴロ
-    const dpP = clamp(0.45 + getChem(def.team, def.sec.id, def.ss.id) * 0.002 - (Sp - 50) * 0.004, 0.1, 0.75);
+    const dpP = clamp(0.45 + getChem(def.team, def.sec.id, def.ss.id) * 0.002 - (Sp - 50) * 0.004 + def.fx.dp + pitchFx(def.pitcher).dp, 0.1, 0.75);
     if (B[0] && g.outs < 2 && rand() < dpP) {
       addOut(g, def, 2); B[0] = null;
       if (g.outs < 3) {

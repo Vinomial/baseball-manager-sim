@@ -1,5 +1,6 @@
 import { BAT_KEYS, GIVEN_NAMES, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
 import type { AttrKey, Player, Pos, Role, Stats } from '../types';
+import { genAbilities } from './abilities';
 import { clamp, pick, rand, randn, ri } from '../util/random';
 
 /** 新しい ID を払い出すもの(Career が該当) */
@@ -37,6 +38,8 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
     stats: emptyStats(),
     seasons: [],
     salary: 0,
+    pitches: {},
+    skills: [],
   };
   const keys = keysOf(p);
   for (const k of keys) p[k] = clamp(Math.round(base + randn() * 7), 8, 95);
@@ -48,6 +51,7 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
   }
   const youth = age <= 22 ? 1 : age <= 26 ? 0.7 : age <= 29 ? 0.4 : 0.15;
   for (const k of keys) p.pot[k] = clamp(Math.round(p[k] + ri(4, 34) * youth * (opt.potMul ?? 1)), p[k], 99);
+  genAbilities(p, base);
   p.salary = salaryOf(p);
   return p;
 }

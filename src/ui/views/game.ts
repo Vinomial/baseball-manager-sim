@@ -34,7 +34,7 @@ export function renderGame(c: Career): string {
   h += replayHTML(g);
   h += `<details class="card" open><summary><b>今週の練習: ${m.name}</b> <span class="small muted">${l.report.length}人が成長</span></summary>
   <div class="small" style="margin-top:6px">${focusKeys(m).length ? `<span class="focus">重点</span>${focusKeys(m).map((k) => LABEL[k]).join('・')}(それ以外の能力も少し伸びます)<br>` : ''}${l.report.length
-    ? l.report.map((x) => `${esc(x.name)}: ${x.ups.map(([k, v]) => `${LABEL[k]}<span class="up">+${v}</span>`).join(' ')}`).join('<br>')
+    ? l.report.map((x) => `${x.ups.length ? `${esc(x.name)}: ${x.ups.map(([k, v]) => `${LABEL[k]}<span class="up">+${v}</span>`).join(' ')}` : ''}${x.note ? `${x.ups.length ? ' ' : ''}<b class="up">★${esc(x.note)}</b>` : ''}`).join('<br>')
     : '目に見える成長はありませんでした.'}</div></details>`;
 
   h += `<h2>ボックススコア</h2>${boxHTML(g, us)}${boxHTML(g, them)}`;

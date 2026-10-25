@@ -8,7 +8,7 @@ import { faAppeal, faVerdict } from '../../league/world';
 import { keysOf } from '../../growth/player';
 import type { Career, Player } from '../../types';
 import { esc, grade } from '../../util/format';
-import { attrsHTML } from '../components';
+import { abilitiesHTML, attrsHTML } from '../components';
 import { state } from '../state';
 
 const tagHTML = (tags: string[]) => tags.map((t) => `<span class="rec">${esc(t)}</span>`).join('');
@@ -39,7 +39,7 @@ function draftHTML(c: Career): string {
   <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></span>
     <button class="btn" data-a="draft" data-i="${i}">指名する</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
     <div class="attrs">${keysOf(p).map((k) => { const r = p.scout?.[k] ?? [p[k], p[k]]; return `<label>${LABEL[k]}</label><span class="g g${grade(r[0])}">${grade(r[0])}</span>〜<span class="g g${grade(r[1])}">${grade(r[1])}</span><span class="gv"></span>`; }).join('')}
-    ${p.scoutPot ? `<label>素質</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div></div>`).join('')}</div>
+    ${p.scoutPot ? `<label>素質</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div>${abilitiesHTML(p)}</div>`).join('')}</div>
   <div class="row" style="margin-top:8px"><button class="btn ghost" data-a="draft" data-i="-1">この順番は見送る</button></div>${log}`;
 }
 

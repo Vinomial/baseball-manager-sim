@@ -1,5 +1,6 @@
 /** 週ごとの出来事.選手の相談や,チームの雰囲気など.DOM に依存しない. */
 import { LABEL, MIN_FIELDERS, MIN_PITCHERS } from '../data/constants';
+import { maybeLearn } from '../growth/abilities';
 import { addChem } from '../growth/chemistry';
 import { futureValue, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, GameEvent, Player, Team } from '../types';
@@ -145,6 +146,8 @@ export function resolveEvent(c: Career, key: string): string {
         growAttr(p, k, 3);
         p.fatigue = clamp(p.fatigue + 25, 0, 100);
         text = `${p.name}は夜遅くまで汗を流し,${LABEL[k]}に手応えをつかみました.`;
+        const learned = maybeLearn(p, p.role === '投手' ? 'pitch' : 'bat', 0.4);
+        if (learned) text += learned;
       } else {
         p.cond = clamp(p.cond + 1, 0, 4);
         p.fatigue = Math.max(0, p.fatigue - 20);
@@ -212,7 +215,8 @@ export function resolveEvent(c: Career, key: string): string {
       if (key === 'ok') {
         for (const k of keysOf(q)) growAttr(q, k, 1);
         p.fatigue = clamp(p.fatigue + 10, 0, 100);
-        text = `${q.name}は${p.name}の教えで,技術を磨きました.`;
+        text = `${q.name}は${p.name}の教えで,技術を磨きました.${p.name}との間に師弟の絆が生まれました.`;
+        if (!t.bonds.some(([a, b]) => a === p.id && b === q.id)) { t.bonds.push([p.id, q.id]); if (t.bonds.length > 4) t.bonds.shift(); }
       } else text = '今回は見送りました.';
       break;
     case 'trade': {

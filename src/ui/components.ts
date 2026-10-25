@@ -1,6 +1,7 @@
 import { COND, LABEL } from '../data/constants';
 import { keysOf } from '../growth/player';
 import { LEAGUES, POS_NAME } from '../data/constants';
+import { abilityLabels } from '../growth/abilities';
 import { careerStats, fmt3 } from '../league/leaders';
 import type { Game, Player, Stats } from '../types';
 import { esc, fmtEra, grade } from '../util/format';
@@ -15,8 +16,13 @@ export function gradeBadge(v: number): string {
   return `<span class="g g${g}">${g}</span>`;
 }
 
+export function abilitiesHTML(p: Player): string {
+  const l = abilityLabels(p);
+  return l.length ? `<div class="abil">${l.map((x) => `<span class="ab">${esc(x)}</span>`).join('')}</div>` : '';
+}
+
 export function attrsHTML(p: Player): string {
-  return `<div class="attrs">${keysOf(p).map((k) => `<label>${LABEL[k]}</label>${gradeHTML(p[k])}`).join('')}</div>`;
+  return `<div class="attrs">${keysOf(p).map((k) => `<label>${LABEL[k]}</label>${gradeHTML(p[k])}`).join('')}</div>${abilitiesHTML(p)}`;
 }
 
 export function condHTML(p: Player): string {

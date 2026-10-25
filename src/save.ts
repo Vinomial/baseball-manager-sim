@@ -2,7 +2,8 @@ import { newRecords, SAVE_VERSION } from './league/season';
 import type { Player } from './types';
 import { pickRival } from './league/awards';
 import { fillOtherLeagues } from './league/world';
-import { salaryOf } from './growth/player';
+import { genAbilities } from './growth/abilities';
+import { playerValue, salaryOf } from './growth/player';
 import type { Career } from './types';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
@@ -58,6 +59,15 @@ export function migrate(raw: unknown): Career | null {
     c.revenue = 1;
     c.fired = null;
     c.version = 8;
+  }
+  if (c.version === 8) {
+    // v9: 球種,特殊能力,選手の絆を追加
+    for (const t of (c.teams ?? []) as { players: Player[]; bonds?: [number, number][] }[]) {
+      t.bonds = [];
+      for (const p of t.players) genAbilities(p, playerValue(p) - 3);
+    }
+    for (const p of (c.fa ?? []) as Player[]) genAbilities(p, playerValue(p) - 3);
+    c.version = 9;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

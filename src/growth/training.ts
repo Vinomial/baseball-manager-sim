@@ -1,5 +1,6 @@
 import type { AttrKey, Team } from '../types';
 import { addChem } from './chemistry';
+import { maybeLearn } from './abilities';
 import { condDrift, growAttr, keysOf } from './player';
 import { findByPos } from '../league/team';
 
@@ -32,7 +33,7 @@ export const MENUS: Record<MenuKey, Menu> = {
 /** 重点の能力名(表示用) */
 export const focusKeys = (m: Menu): AttrKey[] => Object.keys(m.focus) as AttrKey[];
 
-export interface GrowthReport { name: string; ups: [AttrKey, number][]; }
+export interface GrowthReport { name: string; ups: [AttrKey, number][]; /** 球種や特殊能力を身につけたときの知らせ */ note?: string; }
 
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
 /** @param scale 試合数が多いリーグほど1週あたりの練習量を減らすための係数
@@ -47,7 +48,8 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0): Gro
     condDrift(p, (m.rest ? 1 : 0) + condBias);
     if (m.rest) p.fatigue = Math.max(0, p.fatigue - 40);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);
-    if (ups.length) rep.push({ name: p.name, ups });
+    const note = maybeLearn(p, menu, 0.012 * scale) ?? undefined;
+    if (ups.length || note) rep.push({ name: p.name, ups, note });
   }
   if (m.chem === 'field') {
     const a = findByPos(t, '二'), b = findByPos(t, '遊');

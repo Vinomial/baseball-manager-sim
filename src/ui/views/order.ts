@@ -1,5 +1,6 @@
 import { ALL_POS, POS_NAME } from '../../data/constants';
 import { chemWord, getChem } from '../../growth/chemistry';
+import { findCombos } from '../../league/combos';
 import { userTeam } from '../../league/season';
 import { fielders, findByPos, fit, getPlayer } from '../../league/team';
 import type { Career } from '../../types';
@@ -33,10 +34,12 @@ export function renderOrder(c: Career): string {
   }).join('')}</div>
   <div class="row" style="margin-top:10px"><button class="btn ghost" data-a="auto">おまかせで組む</button></div>`;
 
+  const combos = findCombos(u);
   const cat = findByPos(u, '捕'), a = findByPos(u, '二'), b = findByPos(u, '遊');
   const bar = (lbl: string, v: number) => `<div class="chem"><span class="who">${lbl}</span><span class="bar"><i style="width:${v}%"></i></span><span>${chemWord(v)}</span></div>`;
   h += `<h2>連携</h2><div class="card"><p class="small muted">一緒に試合に出たり,守備練習・投球練習をすると深まります.バッテリーの連携は制球に,二遊間の連携は守備と併殺に効きます.</p>`;
   if (cat) h += `<h3>バッテリー(捕手 ${esc(cat.name)})</h3>${u.pitchers.map((id) => bar(esc(getPlayer(u, id).name), getChem(u, cat.id, id))).join('')}`;
   if (a && b) h += `<h3>二遊間</h3>${bar(esc(a.name) + ' / ' + esc(b.name), getChem(u, a.id, b.id))}`;
-  return h + `</div>`;
+  h += `</div><h2>コンボ</h2><p class="small muted">条件がそろうと,試合で小さな追い風になります.オーダーを入れ替えて,そろえてみましょう.</p><div class="plist">${combos.map((cb) => `<div class="pl ${cb.active ? 'star' : ''}"><div class="top"><span class="nm">${cb.active ? '<span class="rec star">発動中</span>' : ''}${esc(cb.name)}</span></div><span class="small">${esc(cb.need)}</span><br><span class="small ${cb.active ? 'up' : 'muted'}">${esc(cb.effect)}</span></div>`).join('')}</div>`;
+  return h;
 }

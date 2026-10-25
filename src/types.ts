@@ -6,6 +6,10 @@ export type LineupPos = Pos | '指';
 export type BatKey = 'meet' | 'power' | 'speed' | 'field';
 export type PitKey = 'velo' | 'ctrl' | 'stam';
 export type AttrKey = BatKey | PitKey;
+export type PitchKey = 'slider' | 'curve' | 'fork' | 'change' | 'sinker' | 'cutter';
+export type SkillKey =
+  | 'clutch' | 'contact' | 'slugger' | 'eye' | 'runner' | 'glove'   // 野手
+  | 'closer' | 'iron' | 'ace' | 'killer';                           // 投手
 export type GrowthType = '早熟' | '普通' | '晩成';
 
 export interface Stats {
@@ -53,6 +57,10 @@ export interface Player {
   seasons: SeasonLine[];
   /** 年俸(万円) */
   salary: number;
+  /** 投手の球種とそのレベル(1〜5) */
+  pitches: Partial<Record<PitchKey, number>>;
+  /** 特殊能力 */
+  skills: SkillKey[];
   /** 自由契約になる前の所属チーム */
   prev?: string;
 }
@@ -71,6 +79,8 @@ export interface Team {
   chem: Record<string, number>;
   /** 連携の初期値 */
   baseChem: number;
+  /** 選手同士の絆(師弟など).[選手ID, 選手ID] */
+  bonds: [number, number][];
 }
 
 export interface Standing { w: number; l: number; d: number; rf: number; ra: number; }
@@ -260,6 +270,9 @@ export interface Side {
   pitcher: Player;
   starter: Player;
   used: Player[];
+  /** 発動しているコンボの補正 */
+  fx: { hit: number; hr: number; k: number; dp: number; def: number; cmd: number };
+  combos: string[];
   /** 現投手の球数 */
   pc: number;
   /** 現投手の失点 */

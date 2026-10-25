@@ -22,7 +22,7 @@ export const fielders = (t: Team): Player[] => t.players.filter((p) => p.role ==
 export const pitchersOf = (t: Team): Player[] => t.players.filter((p) => p.role === '投手');
 
 export function genTeam(ids: TeamIdSource, name: string, base: number, baseChem: number, user = false): Team {
-  const t: Team = { id: ids.tid++, name, user, players: [], lineup: [], pitchers: [], rotIdx: 0, chem: {}, baseChem };
+  const t: Team = { id: ids.tid++, name, user, players: [], lineup: [], pitchers: [], rotIdx: 0, chem: {}, baseChem, bonds: [] };
   for (const pos of POS) t.players.push(genPlayer(ids, '野手', base, { pos }));
   for (let i = 0; i < 4; i++) t.players.push(genPlayer(ids, '野手', base - 4));
   for (let i = 0; i < 6; i++) t.players.push(genPlayer(ids, '投手', base - (i >= 3 ? 3 : 0)));

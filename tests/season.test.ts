@@ -8,6 +8,7 @@ import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
+import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
 import { salaryOf } from '../src/growth/player';
 import { newGame, stepToEnd } from '../src/engine/game';
@@ -122,7 +123,8 @@ describe('世界の進行', () => {
       prepareNextSeason(c);
       const seen = new Set<number>();
       for (const t of c.teams) {
-        expect(t.players.length).toBeLessThanOrEqual(rosterMax(c.leagues.findIndex((lg) => lg.teamIds.includes(t.id))));
+        // 最低人数の補充(入団テスト)は上限より優先されるので,プレイヤーのチームは除く
+        if (!t.user) expect(t.players.length).toBeLessThanOrEqual(rosterMax(c.leagues.findIndex((lg) => lg.teamIds.includes(t.id))));
         expect(isLineupValid(t)).toBe(true);
         for (const p of t.players) { expect(seen.has(p.id)).toBe(false); seen.add(p.id); }
       }
@@ -484,5 +486,80 @@ describe('年俸・予算・信頼度', () => {
     expect(m).not.toBeNull();
     expect(m!.trust).toBe(60);
     expect(m!.teams[0].players[0].salary).toBeGreaterThanOrEqual(50);
+  });
+});
+
+describe('球種・特殊能力・コンボ', () => {
+  beforeEach(() => setRandom(seeded(91)));
+  afterEach(() => resetRandom());
+
+  it('全員に球種か特殊能力の欄があり,投手は球種を持つ', () => {
+    const c = newCareer('テスト');
+    for (const t of c.teams) for (const p of t.players) {
+      expect(Array.isArray(p.skills)).toBe(true);
+      if (p.role === '投手') expect(Object.keys(p.pitches).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('長距離砲だらけの打線は,そうでない打線より本塁打が多い', () => {
+    const c = newCareer('テスト');
+    const a = c.teams[1], b = c.teams[2];
+    const hrs = (t: typeof a) => {
+      let n = 0;
+      for (let i = 0; i < 200; i++) {
+        for (const x of [a, b]) for (const p of x.players) p.fatigue = 0;
+        const g = newGame(t === a ? a : b, t === a ? b : a, false);
+        stepToEnd(g);
+        n += (t === a ? g.home : g.away).hits > 0 ? t.players.reduce((s, p) => s + (p.stats.hr - (g.snap[p.id]?.hr ?? 0)), 0) : 0;
+        for (const p of t.players) g.snap[p.id] = { ...p.stats };
+      }
+      return n;
+    };
+    for (const p of a.players) { p.skills = []; }
+    for (const p of b.players) { p.skills = []; }
+    const base = hrs(a);
+    for (const e of a.lineup) { const p = a.players.find((x) => x.id === e.pid)!; if (p.role === '野手') p.skills = ['slugger']; }
+    const boosted = hrs(a);
+    expect(boosted).toBeGreaterThan(base);
+  });
+
+  it('コンボは条件がそろうと発動し,補正が足し合わされる', () => {
+    const c = newCareer('テスト');
+    const t = userTeam(c);
+    const before = findCombos(t).filter((x) => x.active).length;
+    const L = t.lineup.map((e) => t.players.find((p) => p.id === e.pid)!);
+    L[2].power = 99; L[3].power = 99; L[4].power = 99;
+    L[2].skills = ['slugger']; L[3].skills = ['slugger'];
+    const cs = findCombos(t);
+    expect(cs.find((x) => x.key === 'cleanup')!.active).toBe(true);
+    expect(cs.find((x) => x.key === 'arch')!.active).toBe(true);
+    expect(cs.filter((x) => x.active).length).toBeGreaterThanOrEqual(before);
+    expect(sumFx(cs).hr).toBeGreaterThan(0.03);
+  });
+
+  it('練習で球種や特殊能力を身につけることがある', () => {
+    let learned = 0;
+    for (let i = 0; i < 300; i++) {
+      const c = newCareer('テスト');
+      const t = userTeam(c);
+      for (const p of t.players) p.skills = [];
+      const rep = doTraining(t, 'bat', 4);
+      learned += rep.filter((r) => r.note).length;
+    }
+    expect(learned).toBeGreaterThan(0);
+  });
+
+  it('v8 のデータに球種・特殊能力・絆を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 8;
+    for (const t of old.teams as { bonds?: unknown; players: Record<string, unknown>[] }[]) {
+      delete t.bonds;
+      for (const p of t.players) { delete p.pitches; delete p.skills; }
+    }
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.teams[0].bonds).toEqual([]);
+    expect(Array.isArray(m!.teams[0].players[0].skills)).toBe(true);
   });
 });

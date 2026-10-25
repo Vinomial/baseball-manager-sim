@@ -5,6 +5,7 @@ import { userTeam } from '../../league/season';
 import { fielders, findByPos, fit, getPlayer } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { avatar } from '../avatar';
 import { attrsHTML, condHTML } from '../components';
 import { state } from '../state';
 
@@ -20,7 +21,7 @@ export function renderOrder(c: Career): string {
     const p = getPlayer(u, e.pid), f = fit(p, e.pos);
     return `<tr class="${sel?.t === 'l' && sel.i === i ? 'sel' : ''}">
     <td class="num">${i + 1}</td>
-    <td><button class="mini ghost" data-a="detail" data-id="${p.id}" aria-label="${esc(p.name)}の詳細" style="float:right">📊</button><button class="pick" data-a="selL" data-i="${i}"><b>${esc(p.name)}</b> <span class="tag">本職 ${POS_NAME[p.pos]}</span> ${condHTML(p)}${f < 0 ? ` <span class="fitbad">守備${f}</span>` : ''}${attrsHTML(p)}</button></td>
+    <td><button class="mini ghost" data-a="detail" data-id="${p.id}" aria-label="${esc(p.name)}の詳細" style="float:right">📊</button><button class="pick" data-a="selL" data-i="${i}">${avatar(p, 30)} <b>${esc(p.name)}</b> <span class="tag">本職 ${POS_NAME[p.pos]}</span> ${condHTML(p)}${f < 0 ? ` <span class="fitbad">守備${f}</span>` : ''}${attrsHTML(p)}</button></td>
     <td><select data-a="pos" data-i="${i}" aria-label="${esc(p.name)}の守備位置">${ALL_POS.map((x) => `<option ${x === e.pos ? 'selected' : ''} value="${x}">${POS_NAME[x]}</option>`).join('')}</select></td></tr>`;
   }).join('')}
   </tbody></table></div>

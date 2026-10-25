@@ -9,6 +9,7 @@ import { keysOf } from '../../growth/player';
 import type { Career, Player } from '../../types';
 import { esc, grade } from '../../util/format';
 import { abilitiesHTML, attrsHTML } from '../components';
+import { avatar } from '../avatar';
 import { term } from '../glossary';
 import { state } from '../state';
 
@@ -53,14 +54,14 @@ function draftHTML(c: Career): string {
   const log = d.picks.length
     ? `<details class="card"><summary><b>これまでの指名</b> <span class="small muted">${d.picks.length}人</span></summary><ol class="small" style="margin:6px 0 0;padding-left:1.4em">${d.picks.map((p) => `<li class="${p.user ? 'up' : ''}">${esc(p.team)}: ${esc(p.name)}</li>`).join('')}</ol></details>` : '';
   if (d.done) {
-    return `<h2>ドラフト会議</h2><div class="card"><p class="small">${mine.length ? `指名した選手: ${mine.map((p) => esc(p.name)).join(',')}` : '今年は指名しませんでした.'}</p></div>${log}`;
+    return `<h2>ドラフト会議</h2><div class="card"><p class="small">${mine.length ? `指名した選手: ${mine.map((p) => esc(p.name)).join(',')}` : '今年は指名しませんでした.'}</p>${o.press?.length ? `<h3>新人の入団会見</h3><ul class="recap">${o.press.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>${log}`;
   }
   const perRound = d.order.length / DRAFT_ROUNDS;
   const round = Math.floor(d.idx / perRound) + 1, nth = (d.idx % perRound) + 1;
   const adv = advise(u, d.pool);
   const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
   return `<h2>ドラフト会議</h2><p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>
-  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></span>
+  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></span>
     <button class="btn" data-a="draft" data-i="${i}">指名する</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
     <div class="attrs">${keysOf(p).map((k) => { const r = p.scout?.[k] ?? [p[k], p[k]]; return `<label>${LABEL[k]}</label><span class="g g${grade(r[0])}">${grade(r[0])}</span>〜<span class="g g${grade(r[1])}">${grade(r[1])}</span><span class="gv"></span>`; }).join('')}
     ${p.scoutPot ? `<label>${term('pot')}</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div>${abilitiesHTML(p)}</div>`).join('')}</div>

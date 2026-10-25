@@ -7,6 +7,8 @@ import type { AttrKey, Career, GameEvent, Player, Team } from '../types';
 import { clamp, pick, rand, ri, shuffle } from '../util/random';
 import { leagueTeams } from './schedule';
 import { autoLineup, autoPitchers, fielders, findByPos, findPlayer, pitchersOf } from './team';
+import { moneyScale, weeklyIncome } from './economy';
+import { addTrust, fmtYen } from './finance';
 
 /** 1 週ごとに出来事が起きる確率 */
 export const EVENT_RATE = 0.2;
@@ -98,6 +100,55 @@ const makers: Maker[] = [
       ],
     };
   },
+  // 怪我の相談
+  (_c, t) => {
+    const ps = t.players.filter((p) => p.inj && p.inj.weeks >= 2);
+    if (!ps.length) return null;
+    const p = pick(ps);
+    return {
+      kind: 'injTalk', pid: p.id, title: `${p.name}の怪我`,
+      body: `${p.name}が${p.inj!.name}で,あと${p.inj!.weeks}週かかる見込みです.本人は「早く戻りたい」と言っています.`,
+      choices: [
+        { key: 'rush', label: '無理をしてでも早く戻す', hint: '2週ぶん早く戻れる.ただし悪化することもある.' },
+        { key: 'heal', label: 'しっかり治す', hint: '予定どおり.疲れが抜け,調子も上がる.' },
+      ],
+    };
+  },
+  // 他球団からの引き抜き
+  (c, t) => {
+    const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
+    const ps = t.players.filter((p) => !core.has(p.id) && p.age >= 23 && p.age <= 31 && playerValue(p) > 30);
+    if (!ps.length) return null;
+    const p = pick(ps);
+    if ((p.role === '野手' ? fielders(t).length : pitchersOf(t).length) <= (p.role === '野手' ? MIN_FIELDERS : MIN_PITCHERS) + 1) return null;
+    const o = pick(leagueTeams(c, c.level).filter((x) => !x.user));
+    return {
+      kind: 'poach', pid: p.id, teamId: o.id, title: `${o.name}が${p.name}を希望`,
+      body: `${o.name}が,控えの${p.name}を${fmtYen(p.salary * 8)}で譲ってほしいと申し出ました.`,
+      choices: [
+        { key: 'sell', label: '譲る', hint: `${fmtYen(p.salary * 8)}が入る.選手は移籍する.` },
+        { key: 'keep', label: '断る', hint: '選手は「必要とされている」と感じ,調子が上がる.' },
+      ],
+    };
+  },
+  // ファンイベント
+  () => ({
+    kind: 'fan', title: 'ファン感謝イベント',
+    body: '後援会から,ファン感謝イベントの開催を提案されました.',
+    choices: [
+      { key: 'host', label: '開催する', hint: '資金が増え,信頼度も少し上がる.数人が疲れる.' },
+      { key: 'skip', label: '練習に集中する', hint: '何も起きない.' },
+    ],
+  }),
+  // スポンサー
+  () => ({
+    kind: 'sponsor', title: 'スポンサーの依頼',
+    body: '地元の企業が,広告への出演と引き換えに協賛金を出したいと言っています.',
+    choices: [
+      { key: 'accept', label: '引き受ける', hint: '協賛金が入る.数人が疲れる.' },
+      { key: 'decline', label: '断る', hint: '信頼度が少し上がる.「練習に集中する監督」と評判に.' },
+    ],
+  }),
   // 他球団からのトレード打診
   (c, t) => {
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
@@ -218,6 +269,43 @@ export function resolveEvent(c: Career, key: string): string {
         text = `${q.name}は${p.name}の教えで,技術を磨きました.${p.name}との間に師弟の絆が生まれました.`;
         if (!t.bonds.some(([a, b]) => a === p.id && b === q.id)) { t.bonds.push([p.id, q.id]); if (t.bonds.length > 4) t.bonds.shift(); }
       } else text = '今回は見送りました.';
+      break;
+    case 'injTalk':
+      if (!p || !p.inj) break;
+      if (key === 'rush') {
+        p.inj.weeks = Math.max(1, p.inj.weeks - 2);
+        if (rand() < 0.35) { p.inj.weeks += 4; p.cond = clamp(p.cond - 1, 0, 4); text = `無理がたたり,${p.name}の怪我が悪化しました…(あと${p.inj.weeks}週)`; }
+        else text = `${p.name}は予定より早く戻れそうです(あと${p.inj.weeks}週).`;
+      } else { p.fatigue = Math.max(0, p.fatigue - 30); p.cond = clamp(p.cond + 1, 0, 4); text = `${p.name}はじっくり治すことになりました.`; }
+      break;
+    case 'poach': {
+      const o = c.teams.find((x) => x.id === e.teamId);
+      if (key !== 'sell' || !p || !o) { if (p) p.cond = clamp(p.cond + 1, 0, 4); text = `${p?.name ?? '選手'}は「必要とされている」と張り切っています.`; break; }
+      c.funds += p.salary * 8;
+      t.players = t.players.filter((x) => x !== p);
+      t.pitchers = t.pitchers.filter((id) => id !== p.id);
+      t.lineup = t.lineup.filter((x) => x.pid !== p.id);
+      o.players.push(p);
+      if (p.role === '投手') o.pitchers.push(p.id);
+      autoLineup(o); autoPitchers(o);
+      if (t.lineup.length < 9) autoLineup(t);
+      text = `${p.name}が${o.name}へ移籍しました.${fmtYen(p.salary * 8)}が入りました.`;
+      break;
+    }
+    case 'fan':
+      if (key === 'host') {
+        c.funds += weeklyIncome(c) * 2;
+        addTrust(c, 1.5);
+        for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
+        text = 'ファン感謝イベントは大盛況でした!資金が増えました.';
+      } else text = '今回は見送り,練習に集中しました.';
+      break;
+    case 'sponsor':
+      if (key === 'accept') {
+        c.funds += Math.round(moneyScale(c) * 0.05);
+        for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
+        text = '広告に出演し,協賛金を受け取りました.';
+      } else { addTrust(c, 1); text = '「練習に集中する監督」と好評です.'; }
       break;
     case 'trade': {
       if (key !== 'accept' || !p || e.teamId === undefined || e.pid2 === undefined) { text = '申し出を断りました.'; break; }

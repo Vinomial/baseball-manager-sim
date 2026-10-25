@@ -312,3 +312,6 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 @keyframes fall{0%{transform:translateY(-10px) rotate(0)}100%{transform:translateY(110vh) rotate(540deg)}}
 .celebrate{border:2px solid var(--sel);text-align:center;background:color-mix(in srgb,var(--sel) 18%,var(--panel))}
 @media (prefers-reduced-motion:reduce){.confetti{display:none}}
+
+.avatar{vertical-align:middle;image-rendering:pixelated;border-radius:6px;background:var(--panel2);border:1px solid var(--line);margin-right:2px}
+.tag.newbie{background:var(--sel);color:#2a1d00;border-color:transparent}

@@ -298,7 +298,7 @@ export function finishSeason(c: Career): void {
     c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
   const review = makeReview(c, champIds[from], cup.champion);
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [] };
   c.phase = 'off';
 }
 

@@ -11,7 +11,9 @@ import { adviseCuts } from '../src/league/cuts';
 import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
 import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgradeCost, weeklyIncome } from '../src/league/economy';
 import { effectiveLineup, fit } from '../src/league/team';
-import type { Player, Pos } from '../src/types';
+import type { GameEvent, Player, Pos } from '../src/types';
+import { avatar } from '../src/ui/avatar';
+import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
@@ -1075,5 +1077,53 @@ describe('難易度・おまかせ進行・1年の振り返り', () => {
     expect(m!.diff).toBe('normal');
     expect(m!.auto.rest).toBe(false);
     expect(Object.keys(m!.yearStart.attrs).length).toBeGreaterThan(0);
+  });
+});
+
+describe('選手の顔・追加の出来事・入団会見', () => {
+  beforeEach(() => setRandom(seeded(191)));
+  afterEach(() => resetRandom());
+
+  it('顔は選手ごとに決まっていて,いつも同じ', () => {
+    const c = newCareer('テスト');
+    const [a, b] = userTeam(c).players;
+    expect(avatar(a)).toBe(avatar(a));
+    expect(avatar(a)).not.toBe(avatar(b));
+    expect(avatar(a)).toContain('<svg');
+    expect(avatar(a, 40, '#123456')).toContain('#123456');
+  });
+
+  it('追加した出来事(怪我の相談・引き抜き・ファン・スポンサー)がどの選択でも成り立つ', () => {
+    for (const choice of [0, 1]) {
+      const c = newCareer('テスト');
+      const t = userTeam(c);
+      const hurt = t.players[0];
+      hurt.inj = { name: 'テスト', weeks: 6, major: false };
+      const mk = (kind: string, pid?: number, teamId?: number): GameEvent => ({
+        kind, title: kind, body: '', pid, teamId, choices: [{ key: '', label: '', hint: '' }, { key: '', label: '', hint: '' }],
+      });
+      const keys: Record<string, string[]> = { injTalk: ['rush', 'heal'], poach: ['sell', 'keep'], fan: ['host', 'skip'], sponsor: ['accept', 'decline'] };
+      const bench = t.players.find((p) => p.role === '野手' && !t.lineup.some((e) => e.pid === p.id))!;
+      const o = c.teams.find((x) => !x.user)!;
+      for (const kind of Object.keys(keys)) {
+        c.event = mk(kind, kind === 'poach' ? bench.id : hurt.id, o.id);
+        const f0 = c.funds;
+        const text = resolveEvent(c, keys[kind][choice]);
+        expect(text.length).toBeGreaterThan(0);
+        expect(c.event).toBeNull();
+        if (kind === 'poach' && choice === 0) { expect(c.funds).toBeGreaterThan(f0); expect(t.players.includes(bench)).toBe(false); expect(o.players.includes(bench)).toBe(true); }
+        if (kind === 'fan' && choice === 0) expect(c.funds).toBeGreaterThan(f0);
+        expect(isLineupValid(t)).toBe(true);
+      }
+    }
+  });
+
+  it('ドラフトで指名すると,新人の入団会見のコメントが残る', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    pickDraft(c, 0);
+    const mine = c.off!.draft.picks.filter((p) => p.user);
+    if (mine.length) expect(c.off!.press!.length).toBe(mine.length);
+    expect(pressNote(userTeam(c).players[0])).toMatch(/入団会見/);
   });
 });

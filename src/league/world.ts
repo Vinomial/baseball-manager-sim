@@ -2,7 +2,7 @@
  * 世界の進行.プレイヤーのいるリーグ以外も,毎シーズン同じチーム・選手が続く.
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
-import { DIFFS, DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
+import { DIFFS, DRAFT_ROUNDS, LABEL, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
@@ -324,10 +324,27 @@ function takePick(c: Career, d: DraftState, t: Team, p: Player): void {
   d.idx++;
 }
 
+/** 新人の入団会見のコメント */
+export function pressNote(p: Player): string {
+  const ks = keysOf(p);
+  const best = ks.reduce((a, b) => (p[b] > p[a] ? b : a));
+  const room = ks.reduce((s, k) => s + (p.pot[k] - p[k]), 0) / ks.length;
+  const lines = p.role === '野手'
+    ? [`「${LABEL[best]}なら負けません.チームの力になります!」`, '「一日でも早く試合に出たいです.」', '「憧れの舞台に立てて光栄です.」']
+    : [`「${LABEL[best]}には自信があります.」`, '「まずは先発ローテーションを目指します.」', '「ファンに愛される投手になりたいです.」'];
+  const tag = room >= 20 ? '【期待の新人】' : room >= 12 ? '【伸びしろ十分】' : '【即戦力候補】';
+  return `${tag}${p.name} 入団会見 ${pick(lines)}`;
+}
+
 /** プレイヤーが指名する(i が候補の位置).-1 なら見送り. */
 export function userDraftPick(c: Career, d: DraftState, i: number): void {
   if (d.done || d.order[d.idx] !== c.userId) return;
-  if (i < 0 || !d.pool[i]) { d.idx++; } else takePick(c, d, teamById(c, c.userId), d.pool[i]);
+  if (i < 0 || !d.pool[i]) { d.idx++; } else {
+    const p = d.pool[i];
+    const note = pressNote(p);
+    takePick(c, d, teamById(c, c.userId), p);
+    c.off?.press?.push(note);
+  }
   advanceDraft(c, d);
 }
 

@@ -7,6 +7,7 @@ import { fmtYen } from '../league/finance';
 import type { AttrKey, Career, PitchKey, Player } from '../types';
 import { esc } from '../util/format';
 import { legendHTML, lineSVG, radarSVG, type Series } from './charts';
+import { avatar } from './avatar';
 import { careerTable, condHTML, gradeHTML } from './components';
 
 const COLORS = ['var(--btn)', 'var(--accent)', '#2C8EA3', '#C2407F'];
@@ -50,7 +51,7 @@ export function detailSheet(c: Career, id: number): string {
       `<div class="pl"><div class="top"><span class="nm">${POS_NAME[o.to]} <span class="tag">適性${o.score}</span></span><button class="btn ghost" data-a="convert" data-id="${p.id}" data-k="${o.to}">${o.weeks}週で挑戦</button></div><span class="small muted">${o.note} / 成功率${Math.round(o.chance * 100)}%</span></div>`).join('')}</div>`;
   }
   return `<div class="sheet-bg" data-a="detail-close"></div><div class="sheet detail" role="dialog" aria-label="選手の詳細">
-  <div class="sheet-h"><b>${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
+  <div class="sheet-h"><b>${avatar(p, 44)} ${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
   <p class="small" style="margin:0">${esc(r.team)} / 成長タイプ: ${p.type} / 伸びしろ: ${roomWord(p)} / 年俸 ${fmtYen(p.salary)}${p.alt?.length ? ` / サブポジ: ${p.alt.map((x) => POS_NAME[x]).join('・')}` : ''}</p>
   <p style="margin:0">${condHTML(p)}</p>
   <h3>能力</h3>

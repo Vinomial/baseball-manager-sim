@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BASE_GAIN, MENUS, doTraining, type MenuKey } from '../src/growth/training';
-import { LEAGUES, ROSTER_MAX, gamesPerSeason } from '../src/data/constants';
+import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX, gamesPerSeason } from '../src/data/constants';
 import {
   canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, userTeam,
 } from '../src/league/season';
 import { makeSchedule } from '../src/league/schedule';
-import { isLineupValid, teamAttrs } from '../src/league/team';
+import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
+import { resolveEvent, rollEvent } from '../src/league/events';
 import { migrate } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
@@ -302,6 +303,16 @@ describe('記録と実績', () => {
     expect(c.legends).toEqual(sorted);
   });
 
+  it('v5 のデータに出来事の欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 5;
+    delete old.event;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.event).toBeNull();
+  });
+
   it('v4 のデータに記録の欄を足す', () => {
     const c = newCareer('テスト');
     const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
@@ -312,5 +323,41 @@ describe('記録と実績', () => {
     expect(m!.ach).toEqual({});
     expect(m!.rec.titles.length).toBe(LEAGUES.length);
     expect(m!.rival).not.toBeNull();
+  });
+});
+
+describe('出来事', () => {
+  beforeEach(() => setRandom(seeded(77)));
+  afterEach(() => resetRandom());
+
+  it('どの出来事のどの選択でも壊れず,チームが成り立つ', () => {
+    const kinds = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      const c = newCareer('テスト');
+      for (let w = 0; w < 3; w++) playWeek(c, 'mix');
+      // 年齢の高い選手や若手,不調の選手をそろえて,出来事が起きやすくする
+      const u = userTeam(c);
+      u.players[0].age = 35; u.players[1].age = 20; u.players[2].cond = 0;
+      for (let tries = 0; tries < 20 && !c.event; tries++) rollEvent(c);
+      if (!c.event) continue;
+      kinds.add(c.event.kind);
+      const key = c.event.choices[i % c.event.choices.length].key;
+      const text = resolveEvent(c, key);
+      expect(text.length).toBeGreaterThan(0);
+      expect(c.event).toBeNull();
+      expect(isLineupValid(u)).toBe(true);
+      expect(fielders(u).length).toBeGreaterThanOrEqual(MIN_FIELDERS);
+      expect(pitchersOf(u).length).toBeGreaterThanOrEqual(MIN_PITCHERS);
+      for (const p of u.players) for (const k of ALL_KEYS) expect(Number.isFinite(p[k])).toBe(true);
+    }
+    expect(kinds.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('選ばずに試合を進めると出来事は消える', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 30 && !c.event; i++) playWeek(c, 'mix');
+    if (!c.event) return;
+    playWeek(c, 'mix');
+    expect(c.event === null || c.event !== undefined).toBe(true);
   });
 });

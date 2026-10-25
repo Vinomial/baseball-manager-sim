@@ -214,3 +214,7 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .ach.on{opacity:1;background:var(--panel);border-color:var(--sel)}
 .ending{border:2px solid var(--sel)}
 .news{border-left:4px solid var(--sel);padding:6px 10px;background:var(--panel2);border-radius:4px;font-size:14px;margin:6px 0}
+
+.event{border:2px solid var(--sel)}
+.btn.ev{display:flex;flex-direction:column;align-items:flex-start;text-align:left;flex:1 1 150px;gap:2px}
+.btn.ev .small{font-weight:400}

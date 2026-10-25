@@ -8,6 +8,7 @@ import { doTraining, type GrowthReport, type MenuKey } from '../growth/training'
 import type { Career, DraftState, Game, Team, TeamRecords } from '../types';
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
+import { rollEvent } from './events';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
@@ -18,7 +19,7 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export { teamById };
 export const userTeam = (c: Career): Team => teamById(c, c.userId);
@@ -31,7 +32,7 @@ export function newCareer(name: string): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
-    ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false,
+    ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -70,6 +71,7 @@ export function simGame(c: Career, home: Team, away: Team, logOn = false): Game 
 /** 練習をして今週の試合をすべて進める.試合の操作はなく,結果だけが返る. */
 export function playWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
   c.news = [];
+  c.event = null;
   const lg = c.leagues[c.level];
   // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
   const report = doTraining(userTeam(c), menu, 10 / lg.schedule.length);
@@ -106,6 +108,7 @@ function afterUserGame(c: Career, g: Game): void {
   advanceWorld(c);
   recordHist(c);
   if (c.week >= lg.schedule.length) finishSeason(c);
+  else rollEvent(c);
 }
 
 /** シーズンを締めて,プレーオフ,昇格・降格,加齢,引退,ドラフトの準備を行う. */
@@ -234,6 +237,7 @@ export function newSeason(c: Career): void {
   u.rotIdx = 0;
   for (const lg of c.leagues) resetLeague(lg);
   recordHist(c);
+  rollEvent(c);
   c.last = notes.length ? `入団テストで ${notes.join(',')} が加入しました.` : null;
 }
 

@@ -176,6 +176,21 @@ export interface TeamRecords {
   proStreak: number;
 }
 
+export interface EventChoice { key: string; label: string; hint: string; }
+
+/** 週のはじめに起きる出来事.プレイヤーが選んで決める. */
+export interface GameEvent {
+  kind: string;
+  title: string;
+  body: string;
+  /** 関わる選手(ID) */
+  pid?: number;
+  pid2?: number;
+  /** トレード相手のチーム */
+  teamId?: number;
+  choices: EventChoice[];
+}
+
 export interface Career {
   version: number;
   nid: number;
@@ -212,6 +227,8 @@ export interface Career {
   rec: TeamRecords;
   /** 殿堂入りのエンディングを見たか */
   ended: boolean;
+  /** いま選べる出来事 */
+  event: GameEvent | null;
 }
 
 /* ===== 試合 ===== */

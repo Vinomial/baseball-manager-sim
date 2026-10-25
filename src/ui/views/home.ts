@@ -16,6 +16,9 @@ export function renderHome(c: Career): string {
   let h = '';
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
   for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
+  if (c.event) {
+    h += `<div class="card event"><p style="margin:0"><span class="rec star">出来事</span> <b>${esc(c.event.title)}</b></p><p class="small" style="margin:6px 0">${esc(c.event.body)}</p><div class="row">${c.event.choices.map((x) => `<button class="btn ghost ev" data-a="event" data-k="${x.key}"><b>${esc(x.label)}</b><span class="small muted">${esc(x.hint)}</span></button>`).join('')}</div><p class="small muted" style="margin:6px 0 0">選ばずに試合へ進むと,出来事は過ぎ去ります.</p></div>`;
+  }
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
   <div class="card"><div class="row" style="justify-content:space-between">

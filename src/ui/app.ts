@@ -1,6 +1,7 @@
 /** 画面の描画と操作の受け付け. */
 import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
+import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
 import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
@@ -114,6 +115,13 @@ function onClick(e: MouseEvent): void {
     }
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
     case 'draft': if (c) { pickDraft(c, i); save(); } break;
+    case 'event': {
+      if (!c) break;
+      const text = resolveEvent(c, k);
+      if (text) c.news.push(text);
+      save();
+      break;
+    }
     case 'sign': {
       if (!c) break;
       const err = signFreeAgent(c, id);

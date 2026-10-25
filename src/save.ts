@@ -37,6 +37,11 @@ export function migrate(raw: unknown): Career | null {
     });
     c.version = 5;
   }
+  if (c.version === 5) {
+    // v6: 週ごとの出来事を追加
+    c.event = null;
+    c.version = 6;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

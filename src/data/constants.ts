@@ -1,14 +1,24 @@
 import type { AttrKey, BatKey, GrowthType, LineupPos, PitKey, Pos } from '../types';
 
-export interface League { name: string; base: number; }
+export interface League {
+  name: string;
+  /** 所属チームの平均的な能力値 */
+  base: number;
+  /** チーム数(プレイヤーを含む) */
+  teams: number;
+  /** 同じ相手と何回戦うか.1シーズンの試合数 = (teams - 1) * rounds */
+  rounds: number;
+}
 
-/** リーグ.base は所属チームの平均的な能力値. */
+/** リーグが上がるほど,チーム数と試合数が増える. */
 export const LEAGUES: League[] = [
-  { name: '草野球リーグ', base: 32 },
-  { name: '社会人リーグ', base: 44 },
-  { name: '独立リーグ', base: 56 },
-  { name: 'プロリーグ', base: 68 },
+  { name: '草野球リーグ', base: 32, teams: 6, rounds: 2 },
+  { name: '社会人リーグ', base: 44, teams: 6, rounds: 3 },
+  { name: '独立リーグ', base: 56, teams: 8, rounds: 3 },
+  { name: 'プロリーグ', base: 68, teams: 8, rounds: 4 },
 ];
+
+export const gamesPerSeason = (level: number): number => (LEAGUES[level].teams - 1) * LEAGUES[level].rounds;
 
 export const TEAM_NAMES: string[][] = [
   ['河川敷ドリームス', '商店街クラッカーズ', '早朝ボンバーズ', '銭湯ラッコーズ', '土手ワンダーズ', '公民館パイレーツ', '月曜ナイトオウルズ'],
@@ -40,7 +50,6 @@ export const COND: [string, string][] = [['絶不調', '↓'], ['不調', '↘']
 export const ROSTER_MAX = 22;
 export const MIN_FIELDERS = 10;
 export const MIN_PITCHERS = 5;
-export const WEEKS_PER_SEASON = 10;
 
 export const SURNAMES = ['佐藤', '鈴木', '高橋', '田中', '伊藤', '渡辺', '山本', '中村', '小林', '加藤', '吉田', '山田', '佐々木', '山口', '松本', '井上', '木村', '林', '斎藤', '清水', '山崎', '森', '池田', '橋本', '阿部', '石川', '山下', '中島', '石井', '小川', '前田', '岡田', '長谷川', '藤田', '後藤', '近藤', '村上', '遠藤', '青木', '坂本', '福田', '西村', '太田', '原田', '柴田', '酒井', '工藤', '横山', '宮崎', '宮本', '内田', '高木', '安藤', '谷口', '大野', '丸山', '今井', '河野', '藤原', '小野'];
 export const GIVEN_NAMES = ['翔太', '大輝', '蓮', '悠斗', '陽翔', '湊', '颯', '健太', '拓海', '優斗', '直樹', '和也', '亮', '匠', '大和', '海斗', '樹', '隼人', '誠', '航', '慎吾', '智也', '俊介', '雄大', '光', '遼', '駿', '陸', '恭平', '聡', '涼', '啓太', '一輝', '賢人', '晴', '奏太', '壮真', '康介', '佑樹', '大地'];

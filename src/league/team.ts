@@ -1,6 +1,6 @@
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, POS } from '../data/constants';
 import { genPlayer, type IdSource } from '../growth/player';
-import type { LineupPos, Player, Team } from '../types';
+import type { AttrKey, LineupPos, Player, Team } from '../types';
 import { ri } from '../util/random';
 
 export interface TeamIdSource extends IdSource { tid: number; }
@@ -80,6 +80,17 @@ export function ovr(t: Team): number {
   const ps = t.pitchers.slice(0, 5).map((id) => findPlayer(t, id)).filter((p): p is Player => !!p);
   const pv = ps.reduce((s, p) => s + (p.velo + p.ctrl + p.stam) / 3, 0) / ps.length;
   return (b + pv) / 2;
+}
+
+/** 能力ごとの平均.打撃系は先発の野手,投手系は先発・中継ぎの上位5人で出す. */
+export function teamAttrs(t: Team): Record<AttrKey, number> {
+  const L = t.lineup.map((e) => findPlayer(t, e.pid)).filter((p): p is Player => !!p);
+  const P = t.pitchers.slice(0, 5).map((id) => findPlayer(t, id)).filter((p): p is Player => !!p);
+  const avg = (xs: Player[], k: AttrKey) => (xs.length ? xs.reduce((s, p) => s + p[k], 0) / xs.length : 0);
+  return {
+    meet: avg(L, 'meet'), power: avg(L, 'power'), speed: avg(L, 'speed'), field: avg(L, 'field'),
+    velo: avg(P, 'velo'), ctrl: avg(P, 'ctrl'), stam: avg(P, 'stam'),
+  };
 }
 
 /* ===== オーダー編集 ===== */

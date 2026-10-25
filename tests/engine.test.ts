@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { canBunt, canSteal, newGame, step, stepToEnd } from '../src/engine/game';
+import { newGame, step, stepToEnd } from '../src/engine/game';
 import { newCareer, teamById } from '../src/league/season';
 import { resetRandom, seeded, setRandom } from '../src/util/random';
 
@@ -34,16 +34,13 @@ describe('試合エンジン', () => {
     }
   });
 
-  it('作戦を指定しても壊れない', () => {
+  it('1打席ずつ進めても壊れない', () => {
     const c = newCareer('テスト');
     const g = newGame(c.teams[0], c.teams[1], true);
-    const tacs = ['none', 'swing', 'bunt', 'steal', 'ibb'] as const;
     let n = 0;
-    while (!g.over && n < 1000) {
-      const t = tacs[n % tacs.length];
-      if (t === 'bunt' && !canBunt(g)) { step(g); } else if (t === 'steal' && !canSteal(g)) { step(g); } else step(g, t);
+    while (!g.over && n++ < 1000) {
+      step(g);
       expect(g.outs).toBeLessThan(3);
-      n++;
     }
     expect(g.over).toBe(true);
     expect(g.log.length).toBeGreaterThan(0);

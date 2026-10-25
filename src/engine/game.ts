@@ -5,7 +5,7 @@
 import { getChem } from '../growth/chemistry';
 import { eff } from '../growth/player';
 import { fit, getPlayer } from '../league/team';
-import type { Game, Player, Side, Tactic, Team } from '../types';
+import type { Game, Player, Side, Team } from '../types';
 import { clamp, pick, rand } from '../util/random';
 
 /** この球数を超えると能力が落ち始める */
@@ -62,13 +62,13 @@ function pitcherEff(def: Side): { V: number; C: number } {
 }
 
 /** まだ登板していない,疲れていない中継ぎ */
-export function relievers(def: Side): Player[] {
+function relievers(def: Side): Player[] {
   return def.team.pitchers.slice(3)
     .map((id) => getPlayer(def.team, id))
     .filter((x) => !def.used.includes(x) && x.fatigue < 70);
 }
 
-export function changePitcher(g: Game, def: Side, np: Player): void {
+function changePitcher(g: Game, def: Side, np: Player): void {
   log(g, `${def.team.name}: 投手交代 ${def.pitcher.name} → ${np.name}`);
   def.pitcher = np;
   def.used.push(np);
@@ -115,79 +115,42 @@ function forceWalk(g: Game, off: Side, def: Side, b: Player): void {
   B[0] = b;
 }
 
-export const canSteal = (g: Game): boolean => {
-  const B = g.bases;
-  return (!!B[0] && !B[1]) || (!!B[1] && !B[2]);
-};
-export const canBunt = (g: Game): boolean => (!!g.bases[0] || !!g.bases[1]) && g.outs < 2;
-
-/** 1打席進める.tac はその打席だけ有効な作戦. */
-export function step(g: Game, tac: Tactic = 'none'): void {
+/** 1打席進める. */
+export function step(g: Game): void {
   if (g.over) return;
-  const off = offense(g), def = defense(g), B = g.bases;
+  const off = offense(g), def = defense(g);
   autoPitch(g, def);
   const b = off.lineup[off.bi].p, nm = b.name, before = off.runs;
 
-  if (tac === 'steal' && canSteal(g)) {
-    const from = B[0] && !B[1] ? 0 : 1;
-    const r = B[from] as Player;
-    const pr = clamp(0.6 + (eff(r, 'speed') - 50) * 0.012 - (eff(def.catcher, 'field') - 50) * 0.006, 0.1, 0.95);
-    addPitches(def, 1);
-    if (rand() < pr) {
-      B[from + 1] = r; B[from] = null; r.stats.sb++;
-      log(g, `${r.name},${from === 0 ? '二' : '三'}盗成功!`, true);
-    } else {
-      B[from] = null; addOut(g, def, 1);
-      log(g, `${r.name},盗塁失敗.`);
-    }
-    if (g.outs >= 3) { endHalf(g); return; }
-  }
-
   const { V, C } = pitcherEff(def);
-  let M = eff(b, 'meet'), Pw = eff(b, 'power');
+  const M = eff(b, 'meet'), Pw = eff(b, 'power');
   const Sp = eff(b, 'speed');
   b.stats.pa++;
   let text = '', hl = false;
 
-  if (tac === 'ibb') {
-    forceWalk(g, off, def, b); b.stats.bb++;
-    text = `${nm}を敬遠.`;
-  } else if (tac === 'bunt' && canBunt(g)) {
-    addPitches(def, 2);
-    if (rand() < clamp(0.75 + (M - 50) * 0.004, 0.4, 0.95)) {
-      addOut(g, def, 1);
-      if (B[2]) scoreRun(off, def, null);
-      B[2] = B[1]; B[1] = B[0]; B[0] = null;
-      text = `${nm},送りバント成功.`;
-    } else {
-      addOut(g, def, 1); b.stats.ab++;
-      text = `${nm},バント失敗(小フライ).`;
-    }
+  const pK = clamp(0.18 + (V - M) * 0.004, 0.05, 0.42);
+  // 投手の制球を打者のミートと比べる.リーグの高さではなく,力の差で決まる
+  const pBB = clamp(0.105 + (M - C) * 0.0025, 0.02, 0.2);
+  const r = rand();
+  if (r < pBB) {
+    addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++;
+    text = `${nm},四球.`;
+  } else if (r < pBB + pK) {
+    addPitches(def, 5); addOut(g, def, 1);
+    b.stats.ab++; b.stats.so++; def.pitcher.stats.k++;
+    text = `${nm},${pick(['空振り三振', '見逃し三振'])}.`;
   } else {
-    if (tac === 'swing') { Pw += 15; M -= 12; }
-    const pK = clamp(0.18 + (V - M) * 0.004 + (tac === 'swing' ? 0.05 : 0), 0.05, 0.42);
-    const pBB = clamp(0.085 + (55 - C) * 0.0025, 0.02, 0.2);
-    const r = rand();
-    if (r < pBB) {
-      addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++;
-      text = `${nm},四球.`;
-    } else if (r < pBB + pK) {
-      addPitches(def, 5); addOut(g, def, 1);
-      b.stats.ab++; b.stats.so++; def.pitcher.stats.k++;
-      text = `${nm},${pick(['空振り三振', '見逃し三振'])}.`;
+    addPitches(def, 3); b.stats.ab++;
+    const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - (def.D - 50) * 0.0012, 0.15, 0.46);
+    if (rand() < 0.012 + Math.max(0, 55 - def.D) * 0.0012) {
+      if (g.bases[2]) scoreRun(off, def, null);
+      g.bases = [b, g.bases[0], g.bases[1]];
+      text = `${nm}の打球をエラー!出塁.`;
+    } else if (rand() < pH) {
+      text = hit(g, off, def, b, Pw, Sp);
+      hl = true;
     } else {
-      addPitches(def, 3); b.stats.ab++;
-      const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - 50) * 0.0025, 0.15, 0.46);
-      if (rand() < 0.012 + Math.max(0, 50 - def.D) * 0.0006) {
-        if (B[2]) scoreRun(off, def, null);
-        g.bases = [b, B[0], B[1]];
-        text = `${nm}の打球をエラー!出塁.`;
-      } else if (rand() < pH) {
-        text = hit(g, off, def, b, Pw, Sp);
-        hl = true;
-      } else {
-        text = inPlayOut(g, off, def, b, Sp);
-      }
+      text = inPlayOut(g, off, def, b, Sp);
     }
   }
 
@@ -207,7 +170,7 @@ export function step(g: Game, tac: Tactic = 'none'): void {
 function hit(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): string {
   const nm = b.name;
   b.stats.h++; off.hits++;
-  const hr = clamp(0.06 + (Pw - 50) * 0.004, 0.01, 0.32);
+  const hr = clamp(0.045 + (Pw - 50) * 0.0016 + (Pw - eff(def.pitcher, 'velo')) * 0.002, 0.01, 0.3);
   const tr = clamp(0.02 + (Sp - 50) * 0.001, 0.005, 0.06);
   const db = clamp(0.18 + (Pw - 50) * 0.002, 0.08, 0.3);
   const x = rand();
@@ -302,17 +265,8 @@ export function finish(g: Game): void {
   log(g, `試合終了 ${g.away.team.name} ${g.away.runs} - ${g.home.runs} ${g.home.team.name}`, true);
 }
 
-/** 今のハーフイニングが終わるまで進める */
-export function stepInning(g: Game, firstTac: Tactic = 'none'): void {
-  const key = `${g.inning}-${g.half}`;
-  step(g, firstTac);
-  let n = 0;
-  while (!g.over && `${g.inning}-${g.half}` === key && n++ < 200) step(g);
-}
-
 /** 試合終了まで進める */
-export function stepToEnd(g: Game, firstTac: Tactic = 'none'): void {
-  step(g, firstTac);
+export function stepToEnd(g: Game): void {
   let n = 0;
   while (!g.over && n++ < 500) step(g);
   if (!g.over) finish(g);

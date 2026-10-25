@@ -8,20 +8,29 @@ export type MenuKey = 'bat' | 'run' | 'field' | 'pitch' | 'stam' | 'mix' | 'rest
 export interface Menu {
   name: string;
   desc: string;
-  gain: Partial<Record<AttrKey, number>>;
+  /** 重点的に伸びる能力と,その倍率 */
+  focus: Partial<Record<AttrKey, number>>;
+  /** 重点以外の能力の倍率(省略時は BASE_GAIN) */
+  base?: number;
   chem?: 'field' | 'pitch';
   rest?: boolean;
 }
 
+/** どの練習でも,重点以外の能力がこの倍率で少し伸びる. */
+export const BASE_GAIN = 0.35;
+
 export const MENUS: Record<MenuKey, Menu> = {
-  bat: { name: '打撃練習', desc: '野手のミートとパワーが伸びる', gain: { meet: 1, power: 1 } },
-  run: { name: '走塁練習', desc: '野手の走力が伸びる.盗塁が決まりやすくなる', gain: { speed: 1.4 } },
-  field: { name: '守備練習', desc: '野手の守備が伸び,二遊間の連携も深まる', gain: { field: 1.3 }, chem: 'field' },
-  pitch: { name: '投球練習', desc: '投手の球威と制球が伸び,バッテリーの連携も深まる', gain: { velo: 1, ctrl: 1 }, chem: 'pitch' },
-  stam: { name: '走り込み', desc: '投手のスタミナと野手の走力が伸びる', gain: { stam: 1.3, speed: 0.5 } },
-  mix: { name: 'バランス', desc: '全員の全能力が少しずつ伸びる', gain: { meet: 0.45, power: 0.45, speed: 0.45, field: 0.45, velo: 0.45, ctrl: 0.45, stam: 0.45 } },
-  rest: { name: '休養', desc: '能力は伸びないが,調子が上がり疲れが取れる', gain: {}, rest: true },
+  bat: { name: '打撃練習', desc: 'ミートとパワーが重点的に伸びる(野手)', focus: { meet: 1.7, power: 1.7 } },
+  run: { name: '走塁練習', desc: '走力が重点的に伸びる(野手).盗塁・進塁が増える', focus: { speed: 2.8 } },
+  field: { name: '守備練習', desc: '守備が重点的に伸び,二遊間の連携も深まる(野手)', focus: { field: 2.8 }, chem: 'field' },
+  pitch: { name: '投球練習', desc: '球威と制球が重点的に伸び,バッテリーの連携も深まる(投手)', focus: { velo: 1.7, ctrl: 1.7 }, chem: 'pitch' },
+  stam: { name: '走り込み', desc: 'スタミナが重点的に伸び,走力も少し伸びる(投手・野手)', focus: { stam: 2.8, speed: 1.2 } },
+  mix: { name: 'バランス', desc: '全員の全能力がまんべんなく伸びる', focus: {}, base: 0.9 },
+  rest: { name: '休養', desc: '伸びは小さいが,調子が上がり疲れが取れる', focus: {}, base: 0.12, rest: true },
 };
+
+/** 重点の能力名(表示用) */
+export const focusKeys = (m: Menu): AttrKey[] => Object.keys(m.focus) as AttrKey[];
 
 export interface GrowthReport { name: string; ups: [AttrKey, number][]; }
 
@@ -32,9 +41,7 @@ export function doTraining(t: Team, menu: MenuKey): GrowthReport[] {
   for (const p of t.players) {
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
-    for (const [k, mult] of Object.entries(m.gain) as [AttrKey, number][]) {
-      if (keys.includes(k)) growAttr(p, k, mult);
-    }
+    for (const k of keys) growAttr(p, k, m.focus[k] ?? m.base ?? BASE_GAIN);
     condDrift(p, m.rest ? 1 : 0);
     if (m.rest) p.fatigue = Math.max(0, p.fatigue - 40);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);

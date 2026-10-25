@@ -1,16 +1,16 @@
 /** シーズン進行(週の開始,結果の確定,オフシーズン,ドラフト). */
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX, TEAM_NAMES } from '../data/constants';
 import { applyGameResultToStanding } from './result';
-import { newGame, step, finish, userSide } from '../engine/game';
+import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
 import { agePlayer, ageFactor, condDrift, emptyStats, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
 import type { Career, Game, Player, Team } from '../types';
 import { clamp, pick, ri, shuffle } from '../util/random';
 import { emptyStanding, makeSchedule, standings } from './schedule';
-import { autoLineup, fielders, findPlayer, genTeam, pitchersOf, repairTeam } from './team';
+import { autoLineup, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export const teamById = (c: Career, id: number): Team => {
   const t = c.teams.find((x) => x.id === id);
@@ -25,7 +25,7 @@ const aiChem = (level: number): number => 20 + level * 12;
 export function newCareer(name: string): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
-    teams: [], schedule: [], stand: {}, userId: 0, last: null, off: null,
+    teams: [], schedule: [], stand: {}, userId: 0, last: null, off: null, hist: [], results: [],
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
   // プレイヤーのチームは伸びしろを多めにする
@@ -33,16 +33,17 @@ export function newCareer(name: string): Career {
   c.userId = u.id;
   c.teams = [u];
   buildLeague(c);
+  recordHist(c);
   return c;
 }
 
 /** 現在のリーグの相手チームと日程を作り直す */
 export function buildLeague(c: Career): void {
   const u = userTeam(c);
-  const base = LEAGUES[c.level].base;
-  const names = shuffle(TEAM_NAMES[c.level]).filter((n) => n !== u.name).slice(0, 5);
-  c.teams = [u, ...names.map((n) => genTeam(c, n, base, aiChem(c.level)))];
-  c.schedule = makeSchedule(shuffle(c.teams.map((t) => t.id)));
+  const lg = LEAGUES[c.level];
+  const names = shuffle(TEAM_NAMES[c.level]).filter((n) => n !== u.name).slice(0, lg.teams - 1);
+  c.teams = [u, ...names.map((n) => genTeam(c, n, lg.base, aiChem(c.level)))];
+  c.schedule = makeSchedule(shuffle(c.teams.map((t) => t.id)), lg.rounds);
   c.stand = {};
   for (const t of c.teams) c.stand[t.id] = emptyStanding();
 }
@@ -55,25 +56,31 @@ export function userMatch(c: Career): { home: boolean; opp: Team; pair: [number,
   return { home, opp: teamById(c, home ? pair[1] : pair[0]), pair };
 }
 
-/** 練習を行い,今週の試合を作る */
-export function startWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
-  const report = doTraining(userTeam(c), menu);
-  const { pair } = userMatch(c);
-  return { game: newGame(teamById(c, pair[0]), teamById(c, pair[1]), true), report };
+/** 今のチーム能力を記録する(グラフ用) */
+export function recordHist(c: Career): void {
+  const u = userTeam(c);
+  c.hist.push({ season: c.season, week: c.week, level: c.level, ovr: ovr(u), attrs: teamAttrs(u) });
+  if (c.hist.length > 400) c.hist.splice(0, c.hist.length - 400);
 }
 
-export function simGame(c: Career, home: Team, away: Team): Game {
-  const g = newGame(home, away, false);
-  let n = 0;
-  while (!g.over && n++ < 400) step(g);
-  if (!g.over) finish(g);
+export function simGame(c: Career, home: Team, away: Team, logOn = false): Game {
+  const g = newGame(home, away, logOn);
+  stepToEnd(g);
   applyGameResultToStanding(c, g);
   return g;
 }
 
-/** プレイヤーの試合結果を確定し,他の試合を進めて次の週へ */
-export function finalizeWeek(c: Career, g: Game): void {
-  applyGameResultToStanding(c, g);
+/** 練習をして今週の試合をすべて進める.試合の操作はなく,結果だけが返る. */
+export function playWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
+  const report = doTraining(userTeam(c), menu);
+  const { pair } = userMatch(c);
+  const game = simGame(c, teamById(c, pair[0]), teamById(c, pair[1]), true);
+  finalizeWeek(c, game);
+  return { game, report };
+}
+
+/** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ.(順位への反映は simGame で済んでいる) */
+function finalizeWeek(c: Career, g: Game): void {
   const us = userSide(g), them = us === g.home ? g.away : g.home, t = us.team;
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
@@ -83,7 +90,8 @@ export function finalizeWeek(c: Career, g: Game): void {
     if (e.p.pot[k] > e.p[k]) e.p[k] = Math.min(99, e.p[k] + 0.3 * ageFactor(e.p));
   }
   const res = us.runs > them.runs ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
-  c.last = `第${c.week + 1}週 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
+  c.last = `第${c.week + 1}戦 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
+  c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home });
 
   for (const [h, a] of c.schedule[c.week]) {
     if (h === c.userId || a === c.userId) continue;
@@ -96,6 +104,7 @@ export function finalizeWeek(c: Career, g: Game): void {
     }
   }
   c.week++;
+  recordHist(c);
   if (c.week >= c.schedule.length) finishSeason(c);
 }
 
@@ -168,7 +177,9 @@ export function newSeason(c: Career): void {
   c.week = 0;
   c.phase = 'season';
   c.off = null;
+  c.results = [];
   u.rotIdx = 0;
   buildLeague(c);
+  recordHist(c);
   c.last = notes.length ? `入団テストで ${notes.join(',')} が加入しました.` : null;
 }

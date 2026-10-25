@@ -1,14 +1,13 @@
 /** 画面の描画と操作の受け付け. */
 import { LEAGUES } from '../data/constants';
-import { changePitcher, defense, step, stepInning, stepToEnd } from '../engine/game';
 import type { MenuKey } from '../growth/training';
 import { standings } from '../league/schedule';
 import {
-  finalizeWeek, newCareer, newSeason, pickDraft, releasePlayer, startWeek, userTeam,
+  newCareer, newSeason, pickDraft, playWeek, releasePlayer, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, saveCareer } from '../save';
-import type { LineupPos, Tactic } from '../types';
+import type { LineupPos } from '../types';
 import { esc } from '../util/format';
 import { state, type Tab } from './state';
 import { renderGame } from './views/game';
@@ -17,10 +16,11 @@ import { renderOrder } from './views/order';
 import { renderPlayers } from './views/players';
 import { renderStart } from './views/start';
 import { renderTable } from './views/table';
+import { renderTeam } from './views/team';
 
 let root: HTMLElement;
 
-const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '試合'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位']];
+const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '結果'], ['team', 'チーム'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位']];
 
 function render(): void {
   const c = state.career;
@@ -31,6 +31,7 @@ function render(): void {
   const body = {
     home: () => renderHome(c),
     game: () => renderGame(),
+    team: () => renderTeam(c),
     players: () => renderPlayers(c),
     order: () => renderOrder(c),
     table: () => renderTable(c),
@@ -41,13 +42,13 @@ function render(): void {
     <div class="team">${esc(userTeam(c).name)}</div>
     <div class="cells">
       <div class="cell"><b>${c.season}</b><small>シーズン</small></div>
-      <div class="cell"><b>${weekLabel}</b><small>週</small></div>
+      <div class="cell"><b>${weekLabel}</b><small>試合</small></div>
       <div class="cell"><b>${rec.w}-${rec.l}-${rec.d}</b><small>勝-敗-分</small></div>
       <div class="cell"><b>${c.phase === 'season' ? rank : c.off?.rank}</b><small>位</small></div>
     </div>
   </header>
   <nav class="tabs" aria-label="画面切り替え">${TABS.map(([k, n]) =>
-    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}">${n}${k === 'game' && state.game && !state.game.over ? ' ●' : ''}</button>`).join('')}</nav>
+    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}">${n}</button>`).join('')}</nav>
   <main>${body}</main>`;
 }
 
@@ -58,7 +59,7 @@ function onClick(e: MouseEvent): void {
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-a]');
   if (!el || (el as HTMLButtonElement).disabled || el.tagName === 'SELECT') return;
   const a = el.dataset.a, k = el.dataset.k ?? '', i = Number(el.dataset.i), id = Number(el.dataset.id);
-  const c = state.career, g = state.game;
+  const c = state.career;
 
   switch (a) {
     case 'new': {
@@ -68,23 +69,19 @@ function onClick(e: MouseEvent): void {
     case 'tab': state.tab = k as Tab; state.sel = null; top(); break;
     case 'menu': state.menu = k as MenuKey; break;
     case 'start': {
-      if (!c) break;
-      const r = startWeek(c, state.menu);
-      state.game = r.game; state.report = { menu: state.menu, rep: r.report };
-      state.tab = 'game'; state.tac = 'none'; top(); break;
+      if (!c || c.phase !== 'season') break;
+      state.last = { ...playWeek(c, state.menu), menu: state.menu };
+      state.tab = 'game'; save(); top(); break;
+    }
+    case 'auto-season': {
+      if (!c || c.phase !== 'season') break;
+      while (c.phase === 'season') state.last = { ...playWeek(c, state.menu), menu: state.menu };
+      state.tab = 'home'; save(); top(); break;
     }
     case 'reset':
       if (confirm('保存データを消して最初からやり直します.よろしいですか?')) {
-        clearSave(); state.career = null; state.game = null;
+        clearSave(); state.career = null; state.last = null;
       }
-      break;
-    case 'tac': state.tac = k as Tactic; break;
-    case 's1': if (g) { step(g, state.tac); state.tac = 'none'; } break;
-    case 'sI': if (g) { stepInning(g, state.tac); state.tac = 'none'; } break;
-    case 'sA': if (g) { stepToEnd(g, state.tac); state.tac = 'none'; } break;
-    case 'chgP': if (g) { const d = defense(g); changePitcher(g, d, getPlayer(d.team, id)); } break;
-    case 'final':
-      if (c && g) { finalizeWeek(c, g); state.game = null; state.report = null; state.tab = 'home'; save(); top(); }
       break;
     case 'open': state.open = state.open === id ? null : id; break;
     case 'selL': {

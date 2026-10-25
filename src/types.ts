@@ -7,7 +7,6 @@ export type BatKey = 'meet' | 'power' | 'speed' | 'field';
 export type PitKey = 'velo' | 'ctrl' | 'stam';
 export type AttrKey = BatKey | PitKey;
 export type GrowthType = '早熟' | '普通' | '晩成';
-export type Tactic = 'none' | 'swing' | 'bunt' | 'steal' | 'ibb';
 
 export interface Stats {
   // 野手
@@ -68,6 +67,25 @@ export interface OffSeason {
   drafted: string | null;
 }
 
+/** 週ごとのチーム能力の記録(グラフ用).各能力は先発メンバーの平均. */
+export interface HistPoint {
+  season: number;
+  /** 消化した試合数 */
+  week: number;
+  level: number;
+  ovr: number;
+  attrs: Record<AttrKey, number>;
+}
+
+export interface ResultRow {
+  season: number;
+  week: number;
+  opp: string;
+  us: number;
+  them: number;
+  home: boolean;
+}
+
 export interface Career {
   version: number;
   nid: number;
@@ -82,6 +100,9 @@ export interface Career {
   userId: number;
   last: string | null;
   off: OffSeason | null;
+  hist: HistPoint[];
+  /** 今シーズンのプレイヤーの試合結果 */
+  results: ResultRow[];
 }
 
 /* ===== 試合 ===== */

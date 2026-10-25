@@ -17,7 +17,8 @@ import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
-import { DIFFS } from '../src/data/constants';
+import { DIFFS, MOVES } from '../src/data/constants';
+import { standings } from '../src/league/schedule';
 import { weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
@@ -1129,5 +1130,38 @@ describe('選手の顔・追加の出来事・入団会見', () => {
     const mine = c.off!.draft.picks.filter((p) => p.user);
     if (mine.length) expect(c.off!.press!.length).toBe(mine.length);
     expect(pressNote(userTeam(c).players[0])).toMatch(/入団会見/);
+  });
+});
+
+describe('昇格・降格の枠', () => {
+  beforeEach(() => setRandom(seeded(201)));
+  afterEach(() => resetRandom());
+
+  it('いちばん下のリーグには降格圏がなく,いちばん上のリーグには昇格圏がない', () => {
+    const c = newCareer('テスト');
+    const f0 = forecast(c, 60);
+    expect(f0.downN).toBe(0);
+    expect(f0.down).toBe(0);
+    expect(f0.upN).toBe(MOVES[0]);
+    c.level = LEAGUES.length - 1;
+    const f1 = forecast(c, 60);
+    expect(f1.upN).toBe(0);
+    expect(f1.up).toBe(0);
+    expect(f1.downN).toBe(MOVES[LEAGUES.length - 2]);
+  });
+
+  it('境目ごとに決まった数のチームだけが入れ替わり,各リーグのチーム数は変わらない', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const o = c.off!;
+    for (let l = 0; l < LEAGUES.length - 1; l++) {
+      const up = c.leagues[l].teamIds.filter((id) => o.next[id] === l + 1).length;
+      const down = c.leagues[l + 1].teamIds.filter((id) => o.next[id] === l).length;
+      expect(up).toBe(MOVES[l]);
+      expect(down).toBe(MOVES[l]);
+    }
+    // 最下位リーグの最下位は降格しない
+    const last = standings(c, 0).slice(-1)[0].t.id;
+    expect(o.next[last]).toBe(0);
   });
 });

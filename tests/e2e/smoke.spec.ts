@@ -87,8 +87,14 @@ test('1か月まとめて進められ,ホームは今週の内容にしぼられ
   const errs = watchErrors(page);
   await newGame(page);
   await expect(page.locator('.tiles')).toBeVisible();
-  await page.click('[data-a="month"]');
-  await expect(page.locator('header')).toContainText('2月', { timeout: 30_000 });
+  // 出来事や警告で途中で止まることがあるので,2月になるまで繰り返す
+  for (let i = 0; i < 6; i++) {
+    if (/2月/.test(await page.locator('header').innerText())) break;
+    if (await page.locator('[data-a="event"]').count()) await page.locator('[data-a="event"]').first().click();
+    await page.click('[data-a="month"]');
+    await expect(page.locator('#busybar')).toHaveCount(0, { timeout: 30_000 });
+  }
+  await expect(page.locator('header')).toContainText('2月');
   // 資金・施設・スタッフは GM 画面にある
   await expect(page.locator('main')).not.toContainText('スタッフ(監督・コーチ)');
   await page.click('[data-a="tab"][data-k="gm"]');

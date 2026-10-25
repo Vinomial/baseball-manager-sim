@@ -19,6 +19,7 @@ import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
 import { DIFFS, MOVES } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
+import { goalProgress } from '../src/league/goals';
 import { weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
@@ -1193,5 +1194,44 @@ describe('セーブの安全', () => {
     const c = newCareer('テスト');
     for (let s = 0; s < 6; s++) { playSeason(c, 'mix'); prepareNextSeason(c); }
     expect(JSON.stringify(c).length).toBeLessThan(4_000_000);
+  });
+});
+
+describe('オーナーの目標', () => {
+  beforeEach(() => setRandom(seeded(221)));
+  afterEach(() => resetRandom());
+
+  it('新しいシーズンごとに2つの目標が決まる', () => {
+    const c = newCareer('テスト');
+    expect(c.goals.length).toBe(2);
+    for (const g of c.goals) { expect(g.text.length).toBeGreaterThan(0); expect(g.reward.trust).toBeGreaterThan(0); expect(g.reward.funds).toBeGreaterThan(0); }
+    playSeason(c, 'mix');
+    prepareNextSeason(c);
+    expect(c.goals.length).toBe(2);
+  });
+
+  it('1年の終わりに判定され,達成した目標の報酬(資金)がもらえる', () => {
+    const c = newCareer('テスト');
+    c.goals = [{ kind: 'wins', target: 0, text: 'テスト', reward: { trust: 5, funds: 1000 } }, { kind: 'wins', target: 999, text: '無理', reward: { trust: 5, funds: 1000 } }];
+    const f0 = c.funds;
+    playSeason(c, 'mix');
+    const r = c.off!.review!;
+    expect(r.goals.map((g) => g.done)).toEqual([true, false]);
+    expect(c.funds).toBeGreaterThan(f0 + 999);
+  });
+
+  it('目標の進み具合の文章が作れる', () => {
+    const c = newCareer('テスト');
+    for (const g of c.goals) expect(goalProgress(c, g).length).toBeGreaterThan(0);
+  });
+
+  it('v16 のデータに目標を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 16;
+    delete old.goals;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.goals.length).toBe(2);
   });
 });

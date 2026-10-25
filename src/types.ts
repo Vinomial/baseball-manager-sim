@@ -298,9 +298,21 @@ export interface Review {
   mvp: { name: string; team: string; text: string } | null;
   rookie: { name: string; team: string; text: string } | null;
   growers: { name: string; delta: number }[];
+  goals: GoalResult[];
   fundsDelta: number;
   cupChampion: boolean;
 }
+
+/** 球団オーナーの目標(毎年) */
+export interface Goal {
+  kind: 'rank' | 'wins' | 'title' | 'cup' | 'grow';
+  target: number;
+  text: string;
+  /** 達成したときの報酬 */
+  reward: { trust: number; funds: number };
+}
+
+export interface GoalResult { text: string; done: boolean; rewardText: string; }
 
 export interface Career {
   version: number;
@@ -358,6 +370,8 @@ export interface Career {
   fac: Record<FacKey, number>;
   /** 食材の相場(1.0 が標準) */
   market: Record<Ingredient, number>;
+  /** 今年のオーナーの目標 */
+  goals: Goal[];
   missions: Mission[];
   /** 年末の全日本選手権の優勝の記録 */
   cups: CupRow[];

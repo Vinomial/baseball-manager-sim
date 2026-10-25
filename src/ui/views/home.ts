@@ -6,6 +6,7 @@ import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { weekInfo } from '../../league/calendar';
+import { goalsHTML, todoHTML } from './todo';
 import { term } from '../glossary';
 import { tutorialCard } from '../tutorial';
 import { hurtPlayers } from '../../league/health';
@@ -25,6 +26,7 @@ export function renderHome(c: Career): string {
   const info = weekInfo(c);
   let h = '';
   h += tutorialCard();
+  h += todoHTML(c);
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
   for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
   if (c.event) {
@@ -56,7 +58,8 @@ export function renderHome(c: Career): string {
   h += renderTraining(c);
   const w = c.results.filter((r) => r.us > r.them).length, l = c.results.filter((r) => r.us < r.them).length;
   const sumPantry = Object.values(c.pantry).reduce((a, b) => a + b, 0);
-  h += `<h2>ミッション・施設・食事</h2>`;
+  h += `<h2>目標・ミッション・施設・食事</h2>`;
+  h += fold('goals', 'オーナーの目標', `${c.goals.length}件`, goalsHTML(c), true);
   h += fold('missions', 'ミッション', `${c.missions.length}件 進行中`, missionsHTML(c));
   h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
   h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));

@@ -11,6 +11,7 @@ import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievem
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
+import { judgeGoals, makeGoals } from './goals';
 import { confirmMessage } from './warnings';
 import { DIFFS } from '../data/constants';
 import { maybeInjure, setInjuryScale } from './health';
@@ -29,7 +30,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -53,7 +54,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
     funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
-    missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
+    goals: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -65,6 +66,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
   refillMissions(c);
   recordHist(c);
   snapshotYear(c);
+  c.goals = makeGoals(c);
   return c;
 }
 
@@ -298,6 +300,8 @@ export function finishSeason(c: Career): void {
     c.news.push('メジャーリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
   const review = makeReview(c, champIds[from], cup.champion);
+  review.goals = judgeGoals(c, rank, rec.w, champIds[from] === c.userId, cup.wins, review);
+  for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
   c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [] };
   c.phase = 'off';
 }
@@ -319,6 +323,7 @@ function makeReview(c: Career, champId: number | undefined, cupChampion: boolean
     growers,
     fundsDelta: Math.round(c.funds - c.yearStart.funds),
     cupChampion,
+    goals: [],
   };
 }
 

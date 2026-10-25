@@ -2,6 +2,7 @@ import { newRecords, SAVE_VERSION, snapshotYear } from './league/season';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
+import { makeGoals } from './league/goals';
 import { emptyFac, emptyMarket } from './league/economy';
 import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
@@ -147,6 +148,13 @@ export function migrate(raw: unknown): Career | null {
     // v16: メジャーリーグを追加
     addMissingLeagues(c as unknown as Career);
     c.version = 16;
+  }
+  if (c.version === 16) {
+    // v17: オーナーの目標を追加
+    const cc = c as unknown as Career;
+    // 目標は,作れなければ空のまま(次のシーズンから出る)
+    try { cc.goals = cc.phase === 'season' ? makeGoals(cc) : []; } catch { cc.goals = []; }
+    c.version = 17;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

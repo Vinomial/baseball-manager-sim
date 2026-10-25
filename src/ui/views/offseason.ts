@@ -34,6 +34,7 @@ function reviewHTML(c: Career): string {
   <tr><td>MVP</td><td>${r.mvp ? `${esc(r.mvp.name)} <span class="small muted">${esc(r.mvp.team)} ${esc(r.mvp.text)}</span>` : '-'}</td></tr>
   <tr><td>新人王</td><td>${r.rookie ? `${esc(r.rookie.name)} <span class="small muted">${esc(r.rookie.team)} ${esc(r.rookie.text)}</span>` : '-'}</td></tr>
   <tr><td>資金の増減</td><td class="${r.fundsDelta >= 0 ? 'up' : 'dn'}">${r.fundsDelta >= 0 ? '+' : ''}${fmtYen(r.fundsDelta)}</td></tr>
+  ${r.goals.length ? `<tr><td>オーナーの目標</td><td>${r.goals.map((g) => `${g.done ? '✔' : '✘'} ${esc(g.text)}${g.done ? ` <span class="small up">${esc(g.rewardText)}</span>` : ''}`).join('<br>')}</td></tr>` : ''}
   <tr><td>よく伸びた選手</td><td>${r.growers.length ? r.growers.map((g) => `${esc(g.name)} <span class="up">+${g.delta}</span>`).join(' / ') : '-'}</td></tr>
   </tbody></table></div>`;
 }

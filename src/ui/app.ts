@@ -261,6 +261,7 @@ function onClick(e: MouseEvent): void {
     case 'diff': if (c) c.diff = k as Difficulty; if (c) save(); break;
     case 'auto-lineup': if (c) { c.auto.lineup = !c.auto.lineup; save(); } break;
     case 'auto-rest': if (c) { c.auto.rest = !c.auto.rest; save(); } break;
+    case 'jump': state.folds[k] = true; render(); document.querySelector(`[data-fold="${k}"]`)?.scrollIntoView({ block: 'start' }); return;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;

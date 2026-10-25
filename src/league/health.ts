@@ -9,6 +9,10 @@ const MAJOR = ['靭帯損傷', '骨折', '肩の故障', '肘の手術'];
 
 export const isHurt = (p: Player): boolean => !!p.inj && p.inj.weeks > 0;
 
+/** 難易度による怪我の起きやすさ(1 が標準).週の始めに設定する. */
+let injuryScale = 1;
+export const setInjuryScale = (v: number): void => { injuryScale = v; };
+
 /** 怪我の程度を決める.軽い怪我がほとんどで,大怪我はまれ. */
 export function newInjury(med = 0): Injury {
   const r = rand();
@@ -31,7 +35,7 @@ export const fatigueRisk = (p: Player): number => 1 + clamp((p.fatigue - 45) / 3
  */
 export function maybeInjure(p: Player, base: number, med = 0): boolean {
   if (isHurt(p)) return false;
-  if (rand() >= base * fatigueRisk(p) * (1 - med * 0.1)) return false;
+  if (rand() >= base * injuryScale * fatigueRisk(p) * (1 - med * 0.1)) return false;
   p.inj = newInjury(med);
   if (p.inj.major) {
     // 大怪我は,能力が少し落ちる

@@ -2,7 +2,7 @@
  * 世界の進行.プレイヤーのいるリーグ以外も,毎シーズン同じチーム・選手が続く.
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
-import { DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
+import { DIFFS, DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
@@ -93,7 +93,7 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
 /** 暦の週が進むたびに,すべてのチームで行うこと.疲れの回復,AI の練習と調子. */
 export function weeklyUpkeep(c: Career, menuRisk = 1): void {
   for (const lg of c.leagues) {
-    const mult = AI_YEAR_GAIN[lg.level] / WEEKS_PER_YEAR;
+    const mult = (AI_YEAR_GAIN[lg.level] * DIFFS[c.diff].ai) / WEEKS_PER_YEAR;
     for (const id of lg.teamIds) {
       const t = teamById(c, id);
       const med = t.med ?? 0;

@@ -15,6 +15,9 @@ import type { Player, Pos } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
+import { DIFFS } from '../src/data/constants';
+import { weeklyUpkeep } from '../src/league/world';
+import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
 import { resultSound, sfx, startBgm, stopBgm } from '../src/ui/sound';
 import { convertOptions, convertWeeks, startConvert, tickConvert } from '../src/league/convert';
@@ -996,5 +999,81 @@ describe('休養の忠告と音', () => {
 
   it('音の関数は,音の出せない環境(テスト)でも落ちない', () => {
     expect(() => { sfx.tap(); sfx.hr(); sfx.win(); sfx.lose(); resultSound(true); resultSound(null); startBgm(); stopBgm(); }).not.toThrow();
+  });
+});
+
+describe('難易度・おまかせ進行・1年の振り返り', () => {
+  beforeEach(() => setRandom(seeded(181)));
+  afterEach(() => resetRandom());
+
+  it('難易度で予算と信頼度の動きが変わる', () => {
+    const a = newCareer('テスト', 'easy'), b = newCareer('テスト', 'hard');
+    expect(budgetFor(a)).toBeGreaterThan(budgetFor(b));
+    a.trust = 50; b.trust = 50;
+    addTrust(a, 10); addTrust(b, 10);
+    expect(a.trust).toBeGreaterThan(b.trust);
+    a.trust = 50; b.trust = 50;
+    addTrust(a, -10); addTrust(b, -10);
+    expect(a.trust).toBeGreaterThan(b.trust);
+    for (const d of Object.values(DIFFS)) expect(d.name.length).toBeGreaterThan(0);
+  });
+
+  it('やさしいほど AI の成長が小さい', () => {
+    const grow = (d: 'easy' | 'hard') => {
+      const c = newCareer('テスト', d);
+      const t = c.teams.find((x) => !x.user)!;
+      const before = t.players.reduce((s, p) => s + p.meet + p.velo, 0);
+      for (let i = 0; i < 12; i++) weeklyUpkeep(c);
+      return t.players.reduce((s, p) => s + p.meet + p.velo, 0) - before;
+    };
+    let e = 0, h = 0;
+    for (let i = 0; i < 20; i++) { e += grow('easy'); h += grow('hard'); }
+    expect(h).toBeGreaterThan(e);
+  });
+
+  it('おまかせ休養は,疲れがたまったとき自動で休養にする', () => {
+    const c = newCareer('テスト');
+    c.auto.rest = true;
+    for (const p of userTeam(c).players) p.fatigue = 90;
+    const r = playWeek(c, 'bat');
+    expect(r.menu).toBe('rest');
+    expect(c.news.some((n) => n.includes('自動で休養'))).toBe(true);
+    c.auto.rest = false;
+    for (const p of userTeam(c).players) p.fatigue = 90;
+    expect(playWeek(c, 'bat').menu).toBe('bat');
+  });
+
+  it('おまかせオーダーで,週のはじめにオーダーが整う', () => {
+    const c = newCareer('テスト');
+    c.auto.lineup = true;
+    const u = userTeam(c);
+    u.lineup = [...u.lineup].reverse();
+    playWeek(c, 'mix');
+    expect(isLineupValid(u)).toBe(true);
+  });
+
+  it('1年を終えると振り返りができ,成長した選手が出る', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const r = c.off!.review!;
+    expect(r).toBeDefined();
+    expect(r.champion.length).toBeGreaterThan(0);
+    expect(r.growers.length).toBeGreaterThan(0);
+    for (const g of r.growers) expect(g.delta).toBeGreaterThan(0);
+    expect(Number.isFinite(r.fundsDelta)).toBe(true);
+    // 新人王が出ている(1年目の選手がいるため)
+    expect(c.awards.some((a) => a.kind === '新人王')).toBe(true);
+  });
+
+  it('v14 のデータに難易度とおまかせ進行を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 14;
+    delete old.diff; delete old.auto; delete old.yearStart;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.diff).toBe('normal');
+    expect(m!.auto.rest).toBe(false);
+    expect(Object.keys(m!.yearStart.attrs).length).toBeGreaterThan(0);
   });
 });

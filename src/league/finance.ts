@@ -1,4 +1,5 @@
 /** 年俸,予算,監督の信頼度,予想勝率.DOM に依存しない. */
+import { DIFFS } from '../data/constants';
 import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
 import { clamp, rand } from '../util/random';
@@ -29,7 +30,7 @@ export function budgetFor(c: Career): number {
   const level = c.off ? c.off.to : c.level;
   const ai = c.teams.filter((t) => !t.user && (c.off ? c.off.next[t.id] : c.leagues.find((l) => l.teamIds.includes(t.id))?.level) === level);
   const avg = ai.length ? ai.reduce((s, t) => s + payroll(t), 0) / ai.length : payroll(c.teams.find((t) => t.user)!);
-  return Math.round((avg * trustBudgetFactor(c.trust) * c.revenue) / 10) * 10;
+  return Math.round((avg * trustBudgetFactor(c.trust) * c.revenue * DIFFS[c.diff].budget) / 10) * 10;
 }
 
 /** 年俸をいまの力に合わせて更新する(契約更改). */
@@ -90,7 +91,8 @@ export function forecast(c: Career, runs = 250, moves = 2): Forecast {
 export const trustLabel = (t: number): string => (t >= 80 ? '厚い' : t >= 55 ? '安定' : t >= 30 ? 'ゆらぐ' : '解任の危機');
 
 export function addTrust(c: Career, d: number): void {
-  c.trust = clamp(c.trust + d, 0, 100);
+  const k = DIFFS[c.diff];
+  c.trust = clamp(c.trust + d * (d >= 0 ? k.trustUp : k.trustDown), 0, 100);
 }
 
 /** 試合の結果による信頼度の変化.勝つと思われていた試合に勝つほど上がる. */

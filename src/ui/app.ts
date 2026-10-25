@@ -11,7 +11,7 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, saveCareer } from '../save';
-import type { Career, FacKey, Ingredient, LineupPos, Pos } from '../types';
+import type { Career, Difficulty, FacKey, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { detailSheet } from './detail';
 import { esc } from '../util/format';
@@ -19,6 +19,7 @@ import { state, writeAutoOpen, type Screen, type Tab, type TeamSub } from './sta
 import { renderGame } from './views/game';
 import { renderHome } from './views/home';
 import { initReplay } from './replay';
+import { DIFFS } from '../data/constants';
 import { renderStart, renderTitle } from './views/start';
 import { confirmMessage } from '../league/warnings';
 import { userSide } from '../engine/game';
@@ -50,6 +51,12 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="gokitchen">🍙 台所とミッション</button>
   <button class="btn ghost" data-a="export">⬇ バックアップを保存</button>
   <label class="btn ghost filebtn">⬆ バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label>
+  <p class="small muted" style="margin:4px 0 0">難易度</p>
+  <div class="seg" role="group" aria-label="難易度">${(Object.keys(DIFFS) as Difficulty[]).map((d) => `<button class="btn ghost" data-a="diff" data-k="${d}" aria-pressed="${c.diff === d}">${DIFFS[d].name}</button>`).join('')}</div>
+  <p class="small muted" style="margin:0">${DIFFS[c.diff].desc}</p>
+  <p class="small muted" style="margin:4px 0 0">おまかせ進行</p>
+  <button class="btn ghost" data-a="auto-lineup" aria-pressed="${c.auto.lineup}">毎週オーダーを自動で組み直す: ${c.auto.lineup ? 'ON' : 'OFF'}</button>
+  <button class="btn ghost" data-a="auto-rest" aria-pressed="${c.auto.rest}">疲れがたまったら自動で休養: ${c.auto.rest ? 'ON' : 'OFF'}</button>
   <div class="seg" role="group" aria-label="テーマ">${(['auto', 'light', 'dark'] as Theme[]).map((t) => `<button class="btn ghost" data-a="theme" data-k="${t}" aria-pressed="${prefs.theme === t}">${t === 'auto' ? 'テーマ自動' : t === 'light' ? 'ライト' : 'ダーク'}</button>`).join('')}</div>
   <div class="seg" role="group" aria-label="文字サイズ">${(['s', 'm', 'l'] as FontSize[]).map((f) => `<button class="btn ghost" data-a="font" data-k="${f}" aria-pressed="${prefs.font === f}">文字${f === 's' ? '小' : f === 'm' ? '標準' : '大'}</button>`).join('')}</div>
   <button class="btn ghost" data-a="tut-again">📘 はじめてガイドをもう一度</button>
@@ -105,6 +112,7 @@ function render(): void {
   <main>${body}</main>
   <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
+  if (c.phase === 'off' && c.off && c.off.step === 0 && state.celebrated !== c.season && c.off.review && (c.off.review.ownTitle || c.off.review.cupChampion || c.off.move > 0)) { state.celebrated = c.season; sfx.level(); }
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
   if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
   if (state.term) root.insertAdjacentHTML('beforeend', state.term === '*' ? glossarySheet() : termSheet(state.term));
@@ -115,7 +123,7 @@ function render(): void {
 /** 今週を進める */
 function doStart(c: Career): void {
   const r = playWeek(c, state.menu, { practice: state.practice });
-  state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
+  state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: r.menu, report: r.report };
   state.menuTouched = false; state.practice = false;
   if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
   const g = r.games[r.games.length - 1];
@@ -138,7 +146,8 @@ function onClick(e: MouseEvent): void {
   switch (a) {
     case 'new': {
       const v = (document.getElementById('tname') as HTMLInputElement | null)?.value.trim() || 'マイチーム';
-      state.career = newCareer(v); state.last = null; state.tab = 'home'; state.screen = 'play'; state.menuOpen = false; save(); break;
+      const dv = (document.querySelector<HTMLInputElement>('input[name="diff"]:checked')?.value ?? 'normal') as Difficulty;
+      state.career = newCareer(v, dv); state.last = null; state.tab = 'home'; state.screen = 'play'; state.menuOpen = false; save(); break;
     }
     case 'screen': {
       state.screen = k as Screen; state.menuOpen = false;
@@ -171,6 +180,9 @@ function onClick(e: MouseEvent): void {
     case 'warn-rest': if (c) { state.menu = 'rest'; state.menuTouched = true; state.practice = false; state.warn = null; doStart(c); } break;
     case 'warn-go': if (c) { state.warn = null; doStart(c); } break;
     case 'warn-cancel': state.warn = null; break;
+    case 'diff': if (c) c.diff = k as Difficulty; if (c) save(); break;
+    case 'auto-lineup': if (c) { c.auto.lineup = !c.auto.lineup; save(); } break;
+    case 'auto-rest': if (c) { c.auto.rest = !c.auto.rest; save(); } break;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;

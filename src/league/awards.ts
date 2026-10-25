@@ -20,6 +20,16 @@ export function computeAwards(c: Career, champIds: Record<number, number>): Awar
     const add = (kind: string, p: Player, team: string, text: string) =>
       out.push({ season: c.season, level: lg.level, kind, pid: p.id, name: p.name, team, text, mine: mineIds.has(p.id) });
     for (const b of leaders(c, lg.level, 1)) if (b.rows[0]) add(kinds[b.key], b.rows[0].p, b.rows[0].team, b.rows[0].text);
+    // 新人王: 1 年目の選手(まだ過去の成績がない)で,いちばん活躍した選手
+    let rk: { p: Player; t: Team; v: number } | null = null;
+    for (const t of leagueTeams(c, lg.level)) {
+      for (const p of t.players) {
+        if (p.seasons.length > 0 || p.stats.g < 3) continue;
+        const v = seasonScore(p);
+        if (!rk || v > rk.v) rk = { p, t, v };
+      }
+    }
+    if (rk && rk.v > 0) add('新人王', rk.p, rk.t.name, rk.p.role === '野手' ? `${rk.p.stats.hr}本 ${rk.p.stats.rbi}打点` : `${rk.p.stats.w}勝 ${rk.p.stats.k}奪三振`);
     // MVP: 優勝チームの選手は少し有利
     let best: { p: Player; t: Team; v: number } | null = null;
     for (const t of leagueTeams(c, lg.level)) {

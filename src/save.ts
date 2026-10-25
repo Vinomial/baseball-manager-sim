@@ -1,4 +1,4 @@
-import { newRecords, SAVE_VERSION } from './league/season';
+import { newRecords, SAVE_VERSION, snapshotYear } from './league/season';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
@@ -104,6 +104,12 @@ export function migrate(raw: unknown): Career | null {
     // v14: 順位の遷移を追加
     for (const lg of ((c as unknown as Career).leagues ?? [])) lg.rankHist = {};
     c.version = 14;
+  }
+  if (c.version === 14) {
+    // v15: 難易度,おまかせ進行,1 年の振り返り用の記録を追加
+    Object.assign(c, { diff: 'normal', auto: { lineup: false, rest: false } });
+    snapshotYear(c as unknown as Career);
+    c.version = 15;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

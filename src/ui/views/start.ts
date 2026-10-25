@@ -1,4 +1,4 @@
-import { LEAGUES } from '../../data/constants';
+import { DIFFS, LEAGUES } from '../../data/constants';
 import { userTeam } from '../../league/season';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
@@ -12,6 +12,8 @@ export function renderStart(canCancel = false): string {
     <p>監督として毎週の練習メニューを決め,選手を育てます.試合は自動で進みます.リーグ上位2チームに入ると昇格です.</p>
     <label for="tname"><b>チーム名</b></label>
     <input id="tname" maxlength="14" value="マイチーム">
+    <p style="margin:0 0 4px"><b>難易度</b> <span class="small muted">あとからメニューで変えられます</span></p>
+    <div class="diffs">${(Object.keys(DIFFS) as (keyof typeof DIFFS)[]).map((k) => `<label class="diffopt"><input type="radio" name="diff" value="${k}" ${k === 'normal' ? 'checked' : ''}><span><b>${DIFFS[k].name}</b><br><span class="small muted">${DIFFS[k].desc}</span></span></label>`).join('')}</div>
     <div class="row"><button class="btn" data-a="new">このチームで始める</button>${canCancel ? '<button class="btn ghost" data-a="screen" data-k="title">タイトルに戻る</button>' : ''}</div>
     ${canCancel ? '<p class="small" style="color:var(--bad);margin:8px 0 0">いまのセーブは,新しく始めると上書きされます(先にバックアップを取れます).</p>' : ''}
   </div></div>`;

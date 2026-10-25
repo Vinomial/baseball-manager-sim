@@ -5,13 +5,15 @@ import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
 import { ageFactor, emptyStats, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
-import type { Career, DraftState, Game, GameKind, Team, TeamRecords } from '../types';
+import type { Career, DraftState, Difficulty, Game, GameKind, Review, Team, TeamRecords } from '../types';
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
-import { maybeInjure } from './health';
+import { confirmMessage } from './warnings';
+import { DIFFS } from '../data/constants';
+import { maybeInjure, setInjuryScale } from './health';
 import { refillMissions, updateMissions, type GameCtx } from './missions';
 import { cupSummary, playCupRound, startCup } from './cup';
 import { CUP_START, PLAYOFF_START, TRAIN_PER_WEEK, WEEKS_PER_YEAR, weekInfo } from './calendar';
@@ -27,7 +29,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -38,12 +40,19 @@ export const newRecords = (): TeamRecords => ({
   streak: 0, bestStreak: 0, total: { w: 0, l: 0, d: 0 }, bestWins: 0, bestSeason: 0, titles: LEAGUES.map(() => 0), proStreak: 0,
 });
 
-export function newCareer(name: string): Career {
+/** 年の初めの記録(振り返りで,成長や資金の増減を出すため) */
+export function snapshotYear(c: Career): void {
+  const attrs: Record<number, number> = {};
+  for (const p of userTeam(c).players) attrs[p.id] = keysOf(p).reduce((a, k) => a + p[k], 0);
+  c.yearStart = { funds: c.funds, attrs };
+}
+
+export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
-    funds: 3000, fac: emptyFac(), market: emptyMarket(),
+    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
     missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
@@ -55,6 +64,7 @@ export function newCareer(name: string): Career {
   pickRival(c);
   refillMissions(c);
   recordHist(c);
+  snapshotYear(c);
   return c;
 }
 
@@ -83,6 +93,8 @@ export function simGame(c: Career, home: Team, away: Team, logOn = false): Game 
 }
 
 export interface WeekResult {
+  /** 実際に行った練習(おまかせ休養のときは変わる) */
+  menu: MenuKey;
   /** プレイヤーが出た試合(プレーオフなどでは複数) */
   games: Game[];
   report: GrowthReport[];
@@ -119,8 +131,17 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   c.event = null;
   const info = weekInfo(c);
   const u = userTeam(c);
+  const dk = DIFFS[c.diff];
+  setInjuryScale(dk.injury);
   u.med = c.fac.clinic;
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c), trustCondBias(c.trust), c.meal);
+  // おまかせ進行:オーダーを組み直す,疲れがたまっていたら自動で休養にする
+  if (c.auto.lineup) { autoLineup(u); autoPitchers(u); }
+  if (c.auto.rest && menu !== 'rest' && confirmMessage(c, menu, !!opt.practice)) {
+    menu = 'rest';
+    opt = { ...opt, practice: false };
+    c.news.push('疲れがたまっていたため,自動で休養にしました.');
+  }
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal);
 
   let games: Game[] = [];
   let kind: GameKind | null = null;
@@ -167,7 +188,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
     enterWeek(c);
     rollEvent(c);
   }
-  return { games, report, kind };
+  return { games, report, kind, menu };
 }
 
 /** 新しい週に入るとき,プレーオフや全日本選手権の準備をする */
@@ -276,8 +297,29 @@ export function finishSeason(c: Career): void {
     c.ended = true;
     c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text };
+  const review = makeReview(c, champIds[from], cup.champion);
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review };
   c.phase = 'off';
+}
+
+/** 1 年の振り返りをまとめる(成績を記録に回す前に呼ぶ) */
+function makeReview(c: Career, champId: number | undefined, cupChampion: boolean): Review {
+  const u = userTeam(c);
+  const growers = u.players
+    .map((p) => ({ name: p.name, delta: Math.round(keysOf(p).reduce((a, k) => a + p[k], 0) - (c.yearStart.attrs[p.id] ?? Infinity)) }))
+    .filter((x) => Number.isFinite(x.delta) && x.delta > 0)
+    .sort((a, b) => b.delta - a.delta).slice(0, 3);
+  const aw = (kind: string) => c.awards.find((a) => a.season === c.season && a.level === c.level && a.kind === kind);
+  const m = aw('MVP'), r = aw('新人王');
+  return {
+    champion: champId !== undefined ? teamById(c, champId).name : '',
+    ownTitle: champId === c.userId,
+    mvp: m ? { name: m.name, team: m.team, text: m.text } : null,
+    rookie: r ? { name: r.name, team: r.team, text: r.text } : null,
+    growers,
+    fundsDelta: Math.round(c.funds - c.yearStart.funds),
+    cupChampion,
+  };
 }
 
 /** プレイヤーがドラフトで指名する.i が -1 なら見送り. */

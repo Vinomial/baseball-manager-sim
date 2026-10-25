@@ -14,6 +14,28 @@ import { state } from '../state';
 
 const tagHTML = (tags: string[]) => tags.map((t) => `<span class="rec">${esc(t)}</span>`).join('');
 
+const CONFETTI = ['#D9472F', '#F5C84C', '#2C8EA3', '#5F9A2C', '#C2407F', '#D9802A'];
+
+function confettiHTML(): string {
+  return `<div class="confetti" aria-hidden="true">${Array.from({ length: 28 }, (_, i) => `<i style="left:${(i * 37) % 100}%;background:${CONFETTI[i % CONFETTI.length]};animation-delay:${((i * 53) % 20) / 10}s;animation-duration:${2.4 + ((i * 17) % 10) / 10}s"></i>`).join('')}</div>`;
+}
+
+function reviewHTML(c: Career): string {
+  const o = c.off!, r = o.review;
+  if (!r) return '';
+  const party = r.ownTitle || r.cupChampion || o.move > 0;
+  const head = r.cupChampion ? '🏆 全日本選手権 優勝!' : r.ownTitle ? `🏆 ${LEAGUES[o.from].name} 優勝!` : o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格!` : '';
+  return `${party ? confettiHTML() : ''}${head ? `<div class="card celebrate"><p class="result px" style="margin:0">${head}</p></div>` : ''}
+  <div class="card"><h3 style="margin-top:0">1年の振り返り</h3>
+  <table class="results"><tbody>
+  <tr><td>リーグ優勝</td><td>${esc(r.champion || '-')}${r.ownTitle ? ' <span class="rec star">あなた</span>' : ''}</td></tr>
+  <tr><td>MVP</td><td>${r.mvp ? `${esc(r.mvp.name)} <span class="small muted">${esc(r.mvp.team)} ${esc(r.mvp.text)}</span>` : '-'}</td></tr>
+  <tr><td>新人王</td><td>${r.rookie ? `${esc(r.rookie.name)} <span class="small muted">${esc(r.rookie.team)} ${esc(r.rookie.text)}</span>` : '-'}</td></tr>
+  <tr><td>資金の増減</td><td class="${r.fundsDelta >= 0 ? 'up' : 'dn'}">${r.fundsDelta >= 0 ? '+' : ''}${fmtYen(r.fundsDelta)}</td></tr>
+  <tr><td>よく伸びた選手</td><td>${r.growers.length ? r.growers.map((g) => `${esc(g.name)} <span class="up">+${g.delta}</span>`).join(' / ') : '-'}</td></tr>
+  </tbody></table></div>`;
+}
+
 function resultHTML(c: Career): string {
   const o = c.off!;
   const mv = o.move > 0 ? `${LEAGUES[o.to].name}へ昇格!` : o.move < 0 ? `${LEAGUES[o.to].name}へ降格...` : `${LEAGUES[o.from].name}に残留.`;
@@ -22,7 +44,7 @@ function resultHTML(c: Career): string {
   <p style="text-align:center;margin:0"><b>${mv}</b></p><p class="small" style="text-align:center;margin:4px 0">${esc(o.playoff)}</p>
   <p class="small" style="text-align:center;margin:4px 0">全日本選手権: ${esc(o.cup || '出場')}(詳しくは「順位」タブ)</p>
   ${o.retired.length ? `<p class="small">引退: ${o.retired.map(esc).join(',')}</p>` : '<p class="small muted">今オフの引退選手はいません.</p>'}
-  <p class="small muted">全選手が1歳年をとりました.ピークを過ぎた選手は能力が少し落ちています.他のリーグの結果は「順位」タブで見られます.</p></div>`;
+  <p class="small muted">全選手が1歳年をとりました.ピークを過ぎた選手は能力が少し落ちています.他のリーグの結果は「順位」タブで見られます.</p></div>${reviewHTML(c)}`;
 }
 
 function draftHTML(c: Career): string {

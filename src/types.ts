@@ -182,6 +182,10 @@ export interface OffSeason {
   draft: DraftState;
   /** 全日本選手権でのプレイヤーの結果 */
   cup: string;
+  /** 1 年の振り返り */
+  review?: Review;
+  /** 新人の入団会見のコメント */
+  press?: string[];
   /** 自由契約で獲得した選手名 */
   signed: string[];
   /** 放出した選手名 */
@@ -284,6 +288,20 @@ export interface CupRow { season: number; champion: string; championId: number; 
 
 export type FacKey = 'stadium' | 'ground' | 'clinic' | 'canteen' | 'scout';
 
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+/** 1 年の振り返り */
+export interface Review {
+  /** プレイヤーのリーグの優勝チーム */
+  champion: string;
+  ownTitle: boolean;
+  mvp: { name: string; team: string; text: string } | null;
+  rookie: { name: string; team: string; text: string } | null;
+  growers: { name: string; delta: number }[];
+  fundsDelta: number;
+  cupChampion: boolean;
+}
+
 export interface Career {
   version: number;
   nid: number;
@@ -330,6 +348,12 @@ export interface Career {
   trust: number;
   /** 資金(万円).入場収入や食材の売却で増え,施設に使う. */
   funds: number;
+  /** 難易度 */
+  diff: Difficulty;
+  /** おまかせ進行 */
+  auto: { lineup: boolean; rest: boolean };
+  /** 年の初めの記録(振り返り用) */
+  yearStart: { funds: number; attrs: Record<number, number> };
   /** 施設のレベル(0〜5) */
   fac: Record<FacKey, number>;
   /** 食材の相場(1.0 が標準) */

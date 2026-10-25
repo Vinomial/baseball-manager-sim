@@ -58,3 +58,12 @@ export const MIN_PITCHERS = 5;
 
 export const SURNAMES = ['佐藤', '鈴木', '高橋', '田中', '伊藤', '渡辺', '山本', '中村', '小林', '加藤', '吉田', '山田', '佐々木', '山口', '松本', '井上', '木村', '林', '斎藤', '清水', '山崎', '森', '池田', '橋本', '阿部', '石川', '山下', '中島', '石井', '小川', '前田', '岡田', '長谷川', '藤田', '後藤', '近藤', '村上', '遠藤', '青木', '坂本', '福田', '西村', '太田', '原田', '柴田', '酒井', '工藤', '横山', '宮崎', '宮本', '内田', '高木', '安藤', '谷口', '大野', '丸山', '今井', '河野', '藤原', '小野'];
 export const GIVEN_NAMES = ['翔太', '大輝', '蓮', '悠斗', '陽翔', '湊', '颯', '健太', '拓海', '優斗', '直樹', '和也', '亮', '匠', '大和', '海斗', '樹', '隼人', '誠', '航', '慎吾', '智也', '俊介', '雄大', '光', '遼', '駿', '陸', '恭平', '聡', '涼', '啓太', '一輝', '賢人', '晴', '奏太', '壮真', '康介', '佑樹', '大地'];
+
+export interface DiffDef { name: string; desc: string; ai: number; budget: number; injury: number; trustUp: number; trustDown: number; growth: number; }
+
+/** 難易度.ai は AI チームの成長,injury は怪我の起きやすさ. */
+export const DIFFS: Record<'easy' | 'normal' | 'hard', DiffDef> = {
+  easy: { name: 'やさしい', desc: '相手は伸びにくく,予算と信頼度に余裕があります.怪我も少なめです.', ai: 0.8, budget: 1.1, injury: 0.6, trustUp: 1.25, trustDown: 0.8, growth: 1.1 },
+  normal: { name: 'ふつう', desc: 'ちょうどよい手ごたえです.', ai: 1, budget: 1, injury: 1, trustUp: 1, trustDown: 1, growth: 1 },
+  hard: { name: 'やり込み', desc: '相手は強く伸び,予算は厳しく,信頼度も下がりやすい.怪我も多めです.', ai: 1.2, budget: 0.93, injury: 1.3, trustUp: 0.9, trustDown: 1.2, growth: 0.95 },
+};

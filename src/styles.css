@@ -303,3 +303,12 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .seg{display:flex;gap:4px}
 .seg .btn{flex:1;padding:6px 4px;min-height:36px;text-align:center}
 .seg .btn[aria-pressed="true"]{background:var(--board);color:var(--board-num);border-color:var(--board)}
+
+.diffs{display:flex;flex-direction:column;gap:6px;margin:4px 0 12px}
+.diffopt{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel2)}
+.diffopt input{margin-top:4px}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:15;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:fall 3s linear 1}
+@keyframes fall{0%{transform:translateY(-10px) rotate(0)}100%{transform:translateY(110vh) rotate(540deg)}}
+.celebrate{border:2px solid var(--sel);text-align:center;background:color-mix(in srgb,var(--sel) 18%,var(--panel))}
+@media (prefers-reduced-motion:reduce){.confetti{display:none}}

@@ -67,15 +67,17 @@ function onClick(e: MouseEvent): void {
       state.career = newCareer(v); state.tab = 'home'; save(); break;
     }
     case 'tab': state.tab = k as Tab; state.sel = null; state.open = null; top(); break;
-    case 'menu': state.menu = k as MenuKey; break;
+    case 'menu': state.menu = k as MenuKey; state.menuTouched = true; break;
     case 'start': {
       if (!c || c.phase !== 'season') break;
       state.last = { ...playWeek(c, state.menu), menu: state.menu };
+      state.menuTouched = false;
       state.tab = 'game'; save(); top(); break;
     }
     case 'auto-season': {
       if (!c || c.phase !== 'season') break;
       while (c.phase === 'season') state.last = { ...playWeek(c, state.menu), menu: state.menu };
+      state.menuTouched = false;
       state.tab = 'home'; save(); top(); break;
     }
     case 'reset':

@@ -1,5 +1,5 @@
-import { LABEL, LEAGUES } from '../../data/constants';
-import { focusKeys, MENUS, type MenuKey } from '../../growth/training';
+import { LEAGUES } from '../../data/constants';
+import { MENUS } from '../../growth/training';
 import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
@@ -7,6 +7,7 @@ import { esc } from '../../util/format';
 import { gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
+import { renderTraining } from './training';
 
 export function renderHome(c: Career): string {
   if (c.phase === 'off') return renderOff(c);
@@ -19,11 +20,9 @@ export function renderHome(c: Career): string {
   <div class="card"><div class="row" style="justify-content:space-between">
     <div><b>${esc(opp.name)}</b> <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
     <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div></div>
-  <h2>今週の練習メニュー</h2><p class="small muted">選んだ練習の能力が重点的に伸び,それ以外の能力も少しずつ伸びます.試合は自動で進みます.</p>
-  <div class="menus" role="group" aria-label="練習メニュー">
-  ${(Object.entries(MENUS) as [MenuKey, (typeof MENUS)[MenuKey]][]).map(([k, m]) =>
-    `<button class="menu" data-a="menu" data-k="${k}" aria-pressed="${state.menu === k}"><b>${m.name}</b>${focusKeys(m).length ? `<span><span class="focus">重点</span>${focusKeys(m).map((x) => LABEL[x]).join('・')}</span>` : ''}<span>${m.desc}</span></button>`).join('')}
-  </div>
+  `;
+  h += renderTraining(c);
+  h += `
   <div class="row" style="margin-top:14px"><button class="btn" data-a="start">${MENUS[state.menu].name}をして試合へ</button>
   <button class="btn ghost" data-a="auto-season">この練習でシーズン終了まで進める</button></div>`;
   if (c.results.length) {

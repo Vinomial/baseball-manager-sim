@@ -1,4 +1,5 @@
 import { ALL_KEYS, BAT_KEYS, LABEL, LEAGUES, PIT_KEYS } from '../../data/constants';
+import { leagueAvgAttrs } from '../../growth/advisor';
 import { leagueTeams } from '../../league/schedule';
 import { ovr, teamAttrs } from '../../league/team';
 import { userTeam } from '../../league/season';
@@ -14,8 +15,8 @@ const LEAGUE = 'var(--accent)';
 export function renderTeam(c: Career): string {
   const u = userTeam(c);
   const mine = teamAttrs(u);
-  const lgTeams = leagueTeams(c, c.level), others = lgTeams.filter((t) => !t.user);
-  const lg = Object.fromEntries(ALL_KEYS.map((k) => [k, others.reduce((s, t) => s + teamAttrs(t)[k], 0) / others.length])) as Record<AttrKey, number>;
+  const lgTeams = leagueTeams(c, c.level);
+  const lg = leagueAvgAttrs(c);
 
   const radar: Series[] = [
     { name: esc(u.name), color: MINE, values: ALL_KEYS.map((k) => mine[k]) },

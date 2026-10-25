@@ -173,3 +173,18 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .rec{display:inline-block;font-size:11px;border-radius:3px;padding:0 5px;margin-right:4px;background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
 .rec.star{background:var(--sel);color:#2a1d00;border-color:transparent;font-weight:700}
 .pl.star{border-color:var(--sel)}
+
+/* training advisor */
+.advice{border-color:var(--sel);border-width:2px}
+.gap{display:flex;flex-direction:column;gap:3px;margin:6px 0}
+.gap-row{display:grid;grid-template-columns:5.5em 1fr 2.8em;align-items:center;gap:6px;font-size:13px}
+.gap-t{position:relative;height:12px;background:var(--panel2);border-radius:3px}
+.gap-t::before{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--muted)}
+.gap-b{position:absolute;top:0;bottom:0;border-radius:3px}
+.gap-b.pos{background:var(--btn)}.gap-b.neg{background:var(--bad)}
+.gap-v{text-align:right;font-weight:700}
+.mini-bars{display:flex;gap:3px;align-items:flex-end;height:34px;margin:6px 0 2px}
+.mb{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.mb i{display:block;width:100%;background:var(--btn);border-radius:2px 2px 0 0;min-height:2px}
+.mb small{font-size:9px;color:var(--muted);line-height:1.2}
+.bar.total{display:block;margin:4px 0;height:6px}

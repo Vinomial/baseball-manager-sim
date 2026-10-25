@@ -21,6 +21,8 @@ export interface AppState {
   last: LastWeek | null;
   tab: Tab;
   menu: MenuKey;
+  /** プレイヤーが練習を自分で選んだか(選んでいなければおすすめを選んでおく) */
+  menuTouched: boolean;
   sel: Selection | null;
   open: number | null;
   /** 順位タブで見ているリーグ.null ならプレイヤーのリーグ */
@@ -32,5 +34,5 @@ export interface AppState {
 }
 
 export const state: AppState = {
-  career: null, last: null, tab: 'home', menu: 'bat', sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, tab: 'home', menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
 };

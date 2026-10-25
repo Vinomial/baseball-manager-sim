@@ -7,6 +7,7 @@ import {
 import { makeSchedule } from '../src/league/schedule';
 import { isLineupValid, teamAttrs } from '../src/league/team';
 import { migrate } from '../src/save';
+import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
 import { resetRandom, seeded, setRandom } from '../src/util/random';
 import type { Career } from '../src/types';
@@ -219,5 +220,48 @@ describe('セーブデータの移行', () => {
   it('知らないバージョンは読み込まない', () => {
     expect(migrate({ version: 99 })).toBeNull();
     expect(migrate(null)).toBeNull();
+  });
+});
+
+describe('練習のおすすめ', () => {
+  beforeEach(() => setRandom(seeded(5)));
+  afterEach(() => resetRandom());
+
+  it('見込みは重点の能力が最も高く,どの練習でも他の能力も伸びる', () => {
+    const c = newCareer('テスト');
+    const t = userTeam(c);
+    const bat = projectGains(t, 'bat', 5, 1);
+    expect(bat.meet).toBeGreaterThan(bat.speed);
+    expect(bat.speed).toBeGreaterThan(0);
+    expect(bat.velo).toBeGreaterThan(0);
+  });
+
+  it('おすすめは全メニューの中から選ばれ,弱点の分析がそろう', () => {
+    const c = newCareer('テスト');
+    const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), 10, 1);
+    expect(Object.keys(MENUS)).toContain(adv.best);
+    expect(adv.reason.length).toBeGreaterThan(0);
+    for (const k of ALL_KEYS) expect(Number.isFinite(adv.gap[k])).toBe(true);
+  });
+
+  it('疲れが溜まっていると休養をすすめる', () => {
+    const c = newCareer('テスト');
+    const t = userTeam(c);
+    for (const p of t.players) { p.fatigue = 90; p.cond = 0; }
+    const adv = adviseTraining(t, leagueAvgAttrs(c), 10, 1);
+    expect(adv.best).toBe('rest');
+  });
+
+  it('見込みどおりに伸びる(平均的に)', () => {
+    let exp = 0, got = 0;
+    for (let i = 0; i < 20; i++) {
+      const c = newCareer('テスト');
+      const t = userTeam(c);
+      const before = teamAttrs(t);
+      exp += projectGains(t, 'mix', 5, 1).meet;
+      for (let w = 0; w < 5; w++) doTraining(t, 'mix');
+      got += teamAttrs(t).meet - before.meet;
+    }
+    expect(Math.abs(got - exp) / exp).toBeLessThan(0.25);
   });
 });

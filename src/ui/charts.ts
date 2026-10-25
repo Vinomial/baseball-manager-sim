@@ -70,3 +70,19 @@ export function legendHTML(series: Series[]): string {
   return `<div class="legend">${series.map((s) =>
     `<span><svg ${NS} width="22" height="8" aria-hidden="true"><line x1="1" x2="21" y1="4" y2="4" stroke="${s.color}" stroke-width="3" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linecap="round"/></svg>${esc(s.name)}</span>`).join('')}</div>`;
 }
+
+/** リーグ平均との差を,中央の線から左右に伸ばして示す. */
+export function gapBarsHTML(items: { label: string; value: number }[]): string {
+  const max = Math.max(10, ...items.map((i) => Math.abs(i.value)));
+  return `<div class="gap" role="img" aria-label="リーグ平均との差: ${items.map((i) => `${esc(i.label)} ${i.value >= 0 ? '+' : ''}${Math.round(i.value)}`).join(',')}">${items.map((i) => {
+    const w = Math.min(50, (Math.abs(i.value) / max) * 50);
+    const neg = i.value < 0;
+    return `<div class="gap-row"><span class="gap-l">${esc(i.label)}</span><span class="gap-t"><i class="gap-b ${neg ? 'neg' : 'pos'}" style="width:${w}%;${neg ? `right:50%` : `left:50%`}"></i></span><span class="gap-v ${neg ? 'dn' : 'up'}">${i.value >= 0 ? '+' : ''}${Math.round(i.value)}</span></div>`;
+  }).join('')}</div>`;
+}
+
+/** 練習メニューごとの,能力別の伸びの見込み.小さな棒グラフ. */
+export function miniBarsHTML(items: { label: string; value: number }[], max: number): string {
+  return `<div class="mini-bars" aria-hidden="true">${items.map((i) =>
+    `<span class="mb" title="${esc(i.label)} +${i.value.toFixed(1)}"><i style="height:${Math.max(2, Math.min(100, (i.value / max) * 100))}%"></i><small>${esc(i.label.slice(0, 1))}</small></span>`).join('')}</div>`;
+}

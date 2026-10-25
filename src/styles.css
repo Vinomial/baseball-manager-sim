@@ -129,7 +129,7 @@ table.std tr.me td{font-weight:700;background:color-mix(in srgb,var(--sel) 18%,t
 .stam{display:flex;align-items:center;gap:6px;font-size:13px}
 
 .start{max-width:520px;margin:30px auto}
-.start input{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:6px 0 12px}
+.start input:not([type=radio]){width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);margin:6px 0 12px}
 .notice{border-left:4px solid var(--sel);padding:6px 10px;background:var(--panel2);border-radius:4px;font-size:14px}
 @media (prefers-reduced-motion:no-preference){.flash{animation:fl .6s ease-out}@keyframes fl{from{background:color-mix(in srgb,var(--sel) 50%,transparent)}to{background:transparent}}}
 
@@ -315,3 +315,7 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 
 .avatar{vertical-align:middle;image-rendering:pixelated;border-radius:6px;background:var(--panel2);border:1px solid var(--line);margin-right:2px}
 .tag.newbie{background:var(--sel);color:#2a1d00;border-color:transparent}
+
+.start .diffopt input[type=radio]{width:20px;height:20px;flex:0 0 auto;padding:0;margin:2px 0 0;accent-color:var(--btn)}
+.diffopt{cursor:pointer}
+.diffopt:has(input:checked){border-color:var(--btn);background:var(--panel)}

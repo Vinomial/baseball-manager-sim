@@ -149,3 +149,11 @@ table.mini td:first-child,table.mini th:first-child{text-align:left}
 .results{width:100%;border-collapse:collapse;font-size:14px}
 .results td{padding:4px 6px;border-bottom:1px solid var(--line)}
 .results .w{color:var(--good);font-weight:700}.results .l{color:var(--bad)}
+
+.headline{text-align:center;margin:0 0 8px;font-weight:700}
+.recap{margin:0 0 8px;padding-left:1.2em}
+.recap li{margin:2px 0}
+.mvp{margin:6px 0 0}
+table.box{min-width:0;margin-bottom:8px}
+table.box th:nth-child(2),table.box td:nth-child(2){text-align:left}
+table.box:nth-of-type(2) th:first-child,table.box:nth-of-type(2) td:first-child{text-align:left}

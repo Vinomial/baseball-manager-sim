@@ -17,6 +17,12 @@ export function migrate(raw: unknown): Career | null {
     c.results = [];
     c.version = 2;
   }
+  if (c.version === 2) {
+    // v3: 投手成績に被安打と与四球を追加
+    const teams = (c.teams ?? []) as { players: { stats: Record<string, number> }[] }[];
+    for (const t of teams) for (const p of t.players) { p.stats.ha ??= 0; p.stats.bba ??= 0; }
+    c.version = 3;
+  }
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }
 

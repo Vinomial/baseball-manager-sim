@@ -10,7 +10,7 @@ import { clamp, pick, ri, shuffle } from '../util/random';
 import { emptyStanding, makeSchedule, standings } from './schedule';
 import { autoLineup, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export const teamById = (c: Career, id: number): Team => {
   const t = c.teams.find((x) => x.id === id);

@@ -35,8 +35,9 @@ export function makeSide(t: Team): Side {
 export function newGame(home: Team, away: Team, logOn = true): Game {
   const g: Game = {
     home: makeSide(home), away: makeSide(away),
-    inning: 1, half: 0, outs: 0, bases: [null, null, null], log: [], logOn, over: false,
+    inning: 1, half: 0, outs: 0, bases: [null, null, null], log: [], logOn, over: false, snap: {},
   };
+  for (const t of [home, away]) for (const p of t.players) g.snap[p.id] = { ...p.stats };
   g.away.inn.push(0);
   return g;
 }
@@ -48,8 +49,8 @@ export const userSide = (g: Game): Side => (g.home.team.user ? g.home : g.away);
 
 function log(g: Game, t: string, hl = false): void {
   if (!g.logOn) return;
-  g.log.unshift({ tag: `${g.inning}回${g.half ? '裏' : '表'}`, t, hl });
-  if (g.log.length > 120) g.log.length = 120;
+  g.log.unshift({ tag: `${g.inning}回${g.half ? '裏' : '表'}`, t, hl, a: g.away.runs, h: g.home.runs });
+  if (g.log.length > 400) g.log.length = 400;
 }
 
 function pitcherEff(def: Side): { V: number; C: number } {
@@ -133,12 +134,15 @@ export function step(g: Game): void {
   const pBB = clamp(0.105 + (M - C) * 0.0025, 0.02, 0.2);
   const r = rand();
   if (r < pBB) {
-    addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++;
-    text = `${nm},四球.`;
+    addPitches(def, 5); forceWalk(g, off, def, b); b.stats.bb++; def.pitcher.stats.bba++;
+    text = `${nm},${pick(['四球', 'フォアボール', '見極めて四球'])}.`;
   } else if (r < pBB + pK) {
     addPitches(def, 5); addOut(g, def, 1);
     b.stats.ab++; b.stats.so++; def.pitcher.stats.k++;
-    text = `${nm},${pick(['空振り三振', '見逃し三振'])}.`;
+    const fast = V >= 75;
+    text = `${nm},${pick(fast ? ['ストレートで空振り三振', '力でねじ伏せ三振'] : ['空振り三振', '見逃し三振', '変化球で空振り三振'])}.`;
+    const k = def.pitcher.stats.k - (g.snap[def.pitcher.id]?.k ?? 0);
+    if ([5, 8, 10, 12, 15].includes(k)) text += `(${k}個目の三振)`;
   } else {
     addPitches(def, 3); b.stats.ab++;
     const pH = clamp(0.3 + (M - V) * 0.0035 - (def.D - (M + V) / 2 - 4) * 0.0025 - (def.D - 50) * 0.0012, 0.15, 0.46);
@@ -155,7 +159,13 @@ export function step(g: Game): void {
   }
 
   const d = off.runs - before;
-  if (d > 0) { text += ` ${d}点!`; hl = true; }
+  if (d > 0) {
+    text += ` ${d}点!`; hl = true;
+    const prev = before - def.runs, now = off.runs - def.runs;
+    if (prev < 0 && now === 0) text += '同点!';
+    else if (prev < 0 && now > 0) text += '逆転!';
+    else if (prev === 0 && now > 0) text += '勝ち越し!';
+  }
   log(g, text, hl);
   off.bi = (off.bi + 1) % 9;
 
@@ -167,9 +177,19 @@ export function step(g: Game): void {
   if (g.outs >= 3) endHalf(g);
 }
 
+/** 今日のヒット数に応じた一言 */
+function hitNote(g: Game, b: Player): string {
+  const n = b.stats.h - (g.snap[b.id]?.h ?? 0);
+  return n === 2 ? '(今日2本目)' : n === 3 ? '(猛打賞!)' : n >= 4 ? `(今日${n}安打!)` : '';
+}
+
 function hit(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): string {
+  return hitText(g, off, def, b, Pw, Sp) + hitNote(g, b);
+}
+
+function hitText(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): string {
   const nm = b.name;
-  b.stats.h++; off.hits++;
+  b.stats.h++; off.hits++; def.pitcher.stats.ha++;
   const hr = clamp(0.045 + (Pw - 50) * 0.0016 + (Pw - eff(def.pitcher, 'velo')) * 0.002, 0.01, 0.3);
   const tr = clamp(0.02 + (Sp - 50) * 0.001, 0.005, 0.06);
   const db = clamp(0.18 + (Pw - 50) * 0.002, 0.08, 0.3);
@@ -181,7 +201,8 @@ function hit(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: number): 
     scoreRun(off, def, b);
     b.stats.hr++;
     g.bases = [null, null, null];
-    return `${nm},${n === 4 ? '満塁' : n === 1 ? 'ソロ' : n + 'ラン'}ホームラン!`;
+    const spot = pick(['バックスクリーン', 'レフトスタンド', 'ライトスタンド', '左中間スタンド', '右中間スタンド']);
+    return `${nm},${spot}へ${n === 4 ? '満塁' : n === 1 ? 'ソロ' : n + 'ラン'}ホームラン!(今季${b.stats.hr}号)`;
   }
   if (x < hr + tr) {
     for (const q of [r1, r2, r3]) if (q) scoreRun(off, def, b);

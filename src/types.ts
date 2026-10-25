@@ -15,6 +15,8 @@ export interface Stats {
   g: number;
   // 投手
   outs: number; r: number; k: number; w: number; l: number;
+  /** 被安打と与四球 */
+  ha: number; bba: number;
 }
 
 export interface Player {
@@ -132,7 +134,8 @@ export interface Side {
   inn: number[];
 }
 
-export interface LogEntry { tag: string; t: string; hl: boolean; }
+/** a, h はその時点の得点(ビジター,ホーム) */
+export interface LogEntry { tag: string; t: string; hl: boolean; a: number; h: number; }
 
 export interface Game {
   home: Side;
@@ -144,5 +147,7 @@ export interface Game {
   bases: (Player | null)[];
   log: LogEntry[];
   logOn: boolean;
+  /** 試合開始時の成績.試合内の成績は現在の成績との差で出す. */
+  snap: Record<number, Stats>;
   over: boolean;
 }

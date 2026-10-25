@@ -6,7 +6,7 @@ import { clamp, pick, rand, randn, ri } from '../util/random';
 export interface IdSource { nid: number; }
 
 export function emptyStats(): Stats {
-  return { pa: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0, g: 0, outs: 0, r: 0, k: 0, w: 0, l: 0 };
+  return { pa: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0, g: 0, outs: 0, r: 0, k: 0, w: 0, l: 0, ha: 0, bba: 0 };
 }
 
 export function keysOf(p: Player): AttrKey[] {

@@ -136,6 +136,19 @@ describe('セーブデータの移行', () => {
     expect(m!.results).toEqual([]);
   });
 
+  it('v2 のデータに投手の被安打と与四球を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 2;
+    for (const t of old.teams as { players: { stats: Record<string, number> }[] }[]) {
+      for (const p of t.players) { delete p.stats.ha; delete p.stats.bba; }
+    }
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.teams[0].players[0].stats.ha).toBe(0);
+    expect(m!.teams[0].players[0].stats.bba).toBe(0);
+  });
+
   it('知らないバージョンは読み込まない', () => {
     expect(migrate({ version: 99 })).toBeNull();
     expect(migrate(null)).toBeNull();

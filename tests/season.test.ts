@@ -20,6 +20,10 @@ import { cook, mealMult, RECIPES } from '../src/growth/meals';
 import { DIFFS, MOVES } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
+import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
+import { opsOf } from '../src/league/leaders';
+import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
+import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
 import { weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
@@ -48,7 +52,7 @@ function prepareNextSeason(c: Career): void {
     releasePlayer(c, p.id);
   }
   // 予算を超えているときは,高い年俸の控えから放出する
-  while (payroll(u) > budgetFor(c)) {
+  while (projectedPayroll(c) > budgetFor(c)) {
     const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
     const rest = u.players.filter((x) => !core.has(x.id)).sort((a, b) => b.salary - a.salary);
     // 人数の下限で放出できない選手は飛ばす
@@ -1233,5 +1237,88 @@ describe('オーナーの目標', () => {
     const m = migrate(old);
     expect(m).not.toBeNull();
     expect(m!.goals.length).toBe(2);
+  });
+});
+
+describe('選手の個性・契約更改・スカウト・成績の幅', () => {
+  beforeEach(() => setRandom(seeded(231)));
+  afterEach(() => resetRandom());
+
+  it('全員に性格とやる気があり,出られない選手はやる気が下がる', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players) { expect(Object.keys(PERS)).toContain(p.pers); expect(p.morale).toBeGreaterThan(0); }
+    const u = userTeam(c);
+    const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
+    const bench = u.players.find((p) => !core.has(p.id) && p.pers === 'fighter') ?? u.players.find((p) => !core.has(p.id))!;
+    const start = u.players.find((p) => core.has(p.id))!;
+    bench.pers = 'fighter'; bench.morale = 60; start.morale = 60;
+    for (let i = 0; i < 6; i++) updateMorale(c, null);
+    expect(bench.morale).toBeLessThan(start.morale);
+    expect(moraleLabel(10)).toContain('退団');
+    expect(moraleGrowth({ morale: 100 } as Player)).toBeGreaterThan(moraleGrowth({ morale: 0 } as Player));
+  });
+
+  it('やる気が低い選手は,不満の出来事になる', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players[0];
+    p.morale = 5;
+    let found = false;
+    for (let i = 0; i < 60 && !found; i++) { rollEvent(c); if (c.event?.kind === 'unrest') found = true; }
+    expect(found).toBe(true);
+    const before = p.morale;
+    resolveEvent(c, 'raise');
+    expect(p.morale).toBeGreaterThan(before);
+  });
+
+  it('年俸が大きく上がる選手は交渉待ちになり,受け入れるか値切るかを選べる', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'bat');
+    const o = c.off!;
+    expect(Array.isArray(o.contracts)).toBe(true);
+    const asks = o.contracts!;
+    if (!asks.length) return;
+    const a = asks[0];
+    const p = userTeam(c).players.find((x) => x.id === a.pid)!;
+    expect(p.salary).toBe(a.old);
+    expect(projectedPayroll(c)).toBeGreaterThan(payroll(userTeam(c)) - 1);
+    expect(bargainChance(p)).toBeGreaterThan(0);
+    negotiate(c, a.pid, 'accept');
+    expect(p.salary).toBe(a.ask);
+    expect(o.contracts!.some((x) => x.pid === a.pid)).toBe(false);
+  });
+
+  it('スカウトを出すと数週間で注目選手が戻り,ドラフトの候補に入る', () => {
+    const c = newCareer('テスト');
+    c.funds = 1e6;
+    expect(dispatchScout(c, '素質')).toBeNull();
+    expect(dispatchScout(c, '野手')).toContain('すでに');
+    expect(c.funds).toBe(1e6 - scoutCost(c, '素質'));
+    for (let i = 0; i < 3; i++) tickScout(c);
+    expect(c.scout).toBeNull();
+    expect(c.watch.length).toBe(1);
+    const name = c.watch[0].name;
+    playSeason(c, 'mix');
+    expect(c.off!.draft.pool.concat(c.fa).some((p) => p.name === name) || c.off!.draft.picks.some((p) => p.name === name)).toBe(true);
+    expect(c.watch.length).toBe(0);
+  });
+
+  it('二塁打と三塁打が記録され,OPS と WHIP が出せる', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 30; i++) playWeek(c, 'mix');
+    const all = c.teams.flatMap((t) => t.players);
+    expect(all.reduce((n, p) => n + p.stats.d2, 0)).toBeGreaterThan(0);
+    for (const p of all) if (p.role === '野手' && p.stats.ab > 10) { const v = opsOf(p.stats); expect(v).toBeGreaterThan(0); expect(v).toBeLessThan(5); }
+  });
+
+  it('v17 のデータに性格・やる気・記録の欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 17;
+    delete old.scout; delete old.watch;
+    for (const t of old.teams as { players: Record<string, unknown>[] }[]) for (const p of t.players) { delete p.pers; delete p.morale; }
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(Object.keys(PERS)).toContain(m!.teams[0].players[0].pers);
+    expect(m!.watch).toEqual([]);
   });
 });

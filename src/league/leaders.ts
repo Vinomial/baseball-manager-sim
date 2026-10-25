@@ -8,6 +8,14 @@ export interface Board { key: string; name: string; rows: LeaderRow[]; }
 
 const avg = (s: Stats) => (s.ab ? s.h / s.ab : 0);
 const era = (s: Stats) => (s.outs ? (s.r * 27) / s.outs : 99);
+/** 出塁率+長打率.二塁打・三塁打を数えていない古い記録は,単打として数える. */
+export function opsOf(s: Stats): number {
+  const obp = s.ab + s.bb ? (s.h + s.bb) / (s.ab + s.bb) : 0;
+  const slg = s.ab ? (s.h + (s.d2 ?? 0) + 2 * (s.t3 ?? 0) + 3 * s.hr) / s.ab : 0;
+  return obp + slg;
+}
+/** 1 イニングあたりに出した走者の数 */
+export const whipOf = (s: Stats): number => (s.outs ? ((s.ha + s.bba) * 3) / s.outs : 99);
 export const fmt3 = (v: number): string => (v >= 1 ? '1.000' : '.' + String(Math.round(v * 1000)).padStart(3, '0'));
 
 /** 今シーズンの個人成績ランキング.規定に満たない選手は打率・防御率から除く. */
@@ -28,11 +36,13 @@ export function leaders(c: Career, level: number, n = 5): Board[] {
   const qualPit = (s: Stats) => s.outs >= games * 2;
   return [
     { key: 'avg', name: '打率', rows: top(bats, avg, fmt3, false, qualBat) },
+    { key: 'ops', name: 'OPS', rows: top(bats, opsOf, (v) => v.toFixed(3), false, qualBat) },
     { key: 'hr', name: '本塁打', rows: top(bats, (s) => s.hr, (v) => `${v}本`) },
     { key: 'rbi', name: '打点', rows: top(bats, (s) => s.rbi, (v) => `${v}点`) },
     { key: 'sb', name: '盗塁', rows: top(bats, (s) => s.sb, (v) => `${v}個`) },
     { key: 'w', name: '勝利', rows: top(pits, (s) => s.w, (v) => `${v}勝`) },
     { key: 'era', name: '防御率', rows: top(pits, era, (v) => v.toFixed(2), true, qualPit) },
+    { key: 'whip', name: 'WHIP', rows: top(pits, whipOf, (v) => v.toFixed(2), true, qualPit) },
     { key: 'k', name: '奪三振', rows: top(pits, (s) => s.k, (v) => `${v}個`) },
   ];
 }

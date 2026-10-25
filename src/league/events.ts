@@ -2,7 +2,8 @@
 import { LABEL, MIN_FIELDERS, MIN_PITCHERS } from '../data/constants';
 import { maybeLearn } from '../growth/abilities';
 import { addChem } from '../growth/chemistry';
-import { futureValue, growAttr, keysOf, playerValue } from '../growth/player';
+import { futureValue, growAttr, keysOf, playerValue, salaryOf } from '../growth/player';
+import { PERS } from '../growth/personality';
 import type { AttrKey, Career, GameEvent, Player, Team } from '../types';
 import { clamp, pick, rand, ri, shuffle } from '../util/random';
 import { leagueTeams } from './schedule';
@@ -100,6 +101,21 @@ const makers: Maker[] = [
       ],
     };
   },
+  // 退団を考えるほどの不満
+  (_c, t) => {
+    const ps = t.players.filter((p) => p.morale <= 20 && !(p.inj && p.inj.weeks > 0));
+    if (!ps.length) return null;
+    const p = pick(ps);
+    return {
+      kind: 'unrest', pid: p.id, title: `${p.name}の不満`,
+      body: `${p.name}(${PERS[p.pers].name})が,待遇や出場機会に不満を募らせ,監督に直談判に来ました.`,
+      choices: [
+        { key: 'raise', label: '昇給を約束する', hint: '年俸が上がり,やる気が大きく戻る.' },
+        { key: 'talk', label: 'じっくり話を聞く', hint: 'やる気が少し戻る.うまくいけば大きく戻る.' },
+        { key: 'release', label: '放出する', hint: '自由契約にする.' },
+      ],
+    };
+  },
   // 怪我の相談
   (_c, t) => {
     const ps = t.players.filter((p) => p.inj && p.inj.weeks >= 2);
@@ -173,8 +189,11 @@ const makers: Maker[] = [
 /** 週のはじめに,確率で出来事を起こす. */
 export function rollEvent(c: Career): void {
   c.event = null;
-  if (rand() > EVENT_RATE) return;
   const t = userT(c);
+  // 不満が限界の選手がいると,出来事になりやすい
+  const angry = t.players.some((p) => p.morale <= 15);
+  if (rand() > (angry ? 0.5 : EVENT_RATE)) return;
+  if (angry) { for (const m of makers) { const e = m(c, t); if (e?.kind === 'unrest') { c.event = e; return; } } }
   for (const m of shuffle(makers)) {
     const e = m(c, t);
     if (e) { c.event = e; return; }
@@ -269,6 +288,17 @@ export function resolveEvent(c: Career, key: string): string {
         text = `${q.name}は${p.name}の教えで,技術を磨きました.${p.name}との間に師弟の絆が生まれました.`;
         if (!t.bonds.some(([a, b]) => a === p.id && b === q.id)) { t.bonds.push([p.id, q.id]); if (t.bonds.length > 4) t.bonds.shift(); }
       } else text = '今回は見送りました.';
+      break;
+    case 'unrest':
+      if (!p) break;
+      if (key === 'raise') { p.salary = Math.max(p.salary, Math.round(salaryOf(p) * 1.1 / 10) * 10); p.morale = clamp(p.morale + 35, 0, 100); text = `${p.name}は昇給を喜び,やる気を取り戻しました.`; }
+      else if (key === 'talk') { const ok = rand() < 0.4; p.morale = clamp(p.morale + (ok ? 30 : 10), 0, 100); text = ok ? `${p.name}は話を聞いてもらい,すっきりした表情です.` : `${p.name}は少し落ち着きました.`; }
+      else if (fielders(t).length > MIN_FIELDERS && p.role === '野手' || pitchersOf(t).length > MIN_PITCHERS && p.role === '投手') {
+        t.players = t.players.filter((x) => x !== p); t.pitchers = t.pitchers.filter((id) => id !== p.id); t.lineup = t.lineup.filter((x) => x.pid !== p.id);
+        p.prev = t.name; c.fa.push(p);
+        if (t.lineup.length < 9) autoLineup(t);
+        text = `${p.name}を放出しました.`;
+      } else text = `${p.name}は人数が足りないため,残ることになりました.`;
       break;
     case 'injTalk':
       if (!p || !p.inj) break;

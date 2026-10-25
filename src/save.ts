@@ -8,6 +8,7 @@ import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
 import { addMissingLeagues, fillOtherLeagues } from './league/world';
 import { genAbilities } from './growth/abilities';
+import { PERS_KEYS } from './growth/personality';
 import { playerValue, salaryOf } from './growth/player';
 import type { Career } from './types';
 
@@ -155,6 +156,19 @@ export function migrate(raw: unknown): Career | null {
     // 目標は,作れなければ空のまま(次のシーズンから出る)
     try { cc.goals = cc.phase === 'season' ? makeGoals(cc) : []; } catch { cc.goals = []; }
     c.version = 17;
+  }
+  if (c.version === 17) {
+    // v18: 選手の性格とやる気,二塁打・三塁打の記録,スカウト,契約更改を追加
+    const cc = c as unknown as Career;
+    const all: Player[] = [...cc.teams.flatMap((t) => t.players), ...cc.fa];
+    for (const p of all) {
+      p.pers ??= PERS_KEYS[Math.abs(p.id * 2654435761) % PERS_KEYS.length];
+      p.morale ??= 60;
+      p.stats.d2 ??= 0; p.stats.t3 ??= 0;
+      for (const l of p.seasons) { l.stats.d2 ??= 0; l.stats.t3 ??= 0; }
+    }
+    cc.scout = null; cc.watch = [];
+    c.version = 18;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

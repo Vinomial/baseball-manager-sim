@@ -257,12 +257,14 @@ function hitText(g: Game, off: Side, def: Side, b: Player, Pw: number, Sp: numbe
   }
   if (x < hr + tr) {
     for (const q of [r1, r2, r3]) if (q) scoreRun(off, def, b);
+    b.stats.t3++;
     g.bases = [null, null, b];
     return `${nm},${pick(['右中間', '左中間'])}三塁打!`;
   }
   if (x < hr + tr + db) {
     if (r3) scoreRun(off, def, b);
     if (r2) scoreRun(off, def, b);
+    b.stats.d2++;
     const nb: (Player | null)[] = [null, b, null];
     if (r1) {
       if (rand() < 0.4 + (eff(r1, 'speed') - 50) * 0.01) scoreRun(off, def, b);

@@ -13,6 +13,8 @@ import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitut
 import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
 import type { Career, Difficulty, FacKey, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
+import { negotiate } from '../league/contracts';
+import { dispatchScout } from '../league/scouting';
 import { detailSheet } from './detail';
 import { esc } from '../util/format';
 import { state, writeAutoOpen, type Screen, type Tab, type TeamSub } from './state';
@@ -262,6 +264,8 @@ function onClick(e: MouseEvent): void {
     case 'auto-lineup': if (c) { c.auto.lineup = !c.auto.lineup; save(); } break;
     case 'auto-rest': if (c) { c.auto.rest = !c.auto.rest; save(); } break;
     case 'jump': state.folds[k] = true; render(); document.querySelector(`[data-fold="${k}"]`)?.scrollIntoView({ block: 'start' }); return;
+    case 'scout': if (c) { const err = dispatchScout(c, k as '野手' | '投手' | '素質'); if (err) alert(err); else save(); } break;
+    case 'negotiate': if (c) { const t = negotiate(c, id, k as 'accept' | 'bargain'); if (t) { c.news.push(t); save(); } } break;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;

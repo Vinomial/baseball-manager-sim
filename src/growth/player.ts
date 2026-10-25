@@ -1,13 +1,14 @@
 import { BAT_KEYS, GIVEN_NAMES, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
 import type { AttrKey, Player, Pos, Role, Stats } from '../types';
 import { genAbilities } from './abilities';
+import { PERS_KEYS } from './personality';
 import { clamp, pick, rand, randn, ri } from '../util/random';
 
 /** 新しい ID を払い出すもの(Career が該当) */
 export interface IdSource { nid: number; }
 
 export function emptyStats(): Stats {
-  return { pa: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0, g: 0, outs: 0, r: 0, k: 0, w: 0, l: 0, ha: 0, bba: 0 };
+  return { pa: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, so: 0, sb: 0, g: 0, outs: 0, r: 0, k: 0, w: 0, l: 0, ha: 0, bba: 0, d2: 0, t3: 0 };
 }
 
 export function keysOf(p: Player): AttrKey[] {
@@ -40,6 +41,8 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
     salary: 0,
     pitches: {},
     skills: [],
+    pers: pick(PERS_KEYS),
+    morale: 60,
   };
   const keys = keysOf(p);
   for (const k of keys) p[k] = clamp(Math.round(base + randn() * 7), 8, 95);

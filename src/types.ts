@@ -10,6 +10,7 @@ export type PitchKey = 'slider' | 'curve' | 'fork' | 'change' | 'sinker' | 'cutt
 export type SkillKey =
   | 'clutch' | 'contact' | 'slugger' | 'eye' | 'runner' | 'glove'   // 野手
   | 'closer' | 'iron' | 'ace' | 'killer';                           // 投手
+export type Personality = 'fighter' | 'cool' | 'pace' | 'leader' | 'sensitive';
 export type GrowthType = '早熟' | '普通' | '晩成';
 
 export interface Stats {
@@ -21,6 +22,8 @@ export interface Stats {
   outs: number; r: number; k: number; w: number; l: number;
   /** 被安打と与四球 */
   ha: number; bba: number;
+  /** 二塁打と三塁打 */
+  d2: number; t3: number;
 }
 
 /** 過去のシーズンの成績 1 行 */
@@ -69,6 +72,12 @@ export interface Player {
   skills: SkillKey[];
   /** 自由契約になる前の所属チーム */
   prev?: string;
+  /** 性格 */
+  pers: Personality;
+  /** やる気 0〜100 */
+  morale: number;
+  /** スカウトが見つけた注目選手か */
+  watched?: boolean;
   /** 覚えたサブポジション(守備の落ち込みが小さい) */
   alt?: Pos[];
   /** コンバート(守備位置の転向)の最中.left 週で完了. */
@@ -186,6 +195,8 @@ export interface OffSeason {
   review?: Review;
   /** 新人の入団会見のコメント */
   press?: string[];
+  /** 契約更改の交渉待ち */
+  contracts?: ContractAsk[];
   /** 自由契約で獲得した選手名 */
   signed: string[];
   /** 放出した選手名 */
@@ -314,6 +325,9 @@ export interface Goal {
 
 export interface GoalResult { text: string; done: boolean; rewardText: string; }
 
+/** 契約更改で,選手が要求している年俸 */
+export interface ContractAsk { pid: number; old: number; ask: number; }
+
 export interface Career {
   version: number;
   nid: number;
@@ -372,6 +386,10 @@ export interface Career {
   market: Record<Ingredient, number>;
   /** 今年のオーナーの目標 */
   goals: Goal[];
+  /** スカウトの派遣中(あと何週で戻るか) */
+  scout: { weeks: number; type: '野手' | '投手' | '素質' } | null;
+  /** スカウトが見つけた注目選手(ドラフトに出る) */
+  watch: Player[];
   missions: Mission[];
   /** 年末の全日本選手権の優勝の記録 */
   cups: CupRow[];

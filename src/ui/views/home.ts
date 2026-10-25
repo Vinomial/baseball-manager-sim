@@ -14,6 +14,7 @@ import { warnings } from '../../league/warnings';
 import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
+import { scoutHTML, scoutSummary } from './scout';
 import { facilitiesHTML, facilitiesSummary } from './facilities';
 import { kitchenHTML, kitchenSummary, missionsHTML } from './kitchen';
 import { renderTraining } from './training';
@@ -61,6 +62,7 @@ export function renderHome(c: Career): string {
   h += `<h2>目標・ミッション・施設・食事</h2>`;
   h += fold('goals', 'オーナーの目標', `${c.goals.length}件`, goalsHTML(c), true);
   h += fold('missions', 'ミッション', `${c.missions.length}件 進行中`, missionsHTML(c));
+  h += fold('scout', 'スカウト', scoutSummary(c), scoutHTML(c));
   h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
   h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));
   h += `<h2>状況</h2>`;

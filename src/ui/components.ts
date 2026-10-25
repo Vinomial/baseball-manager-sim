@@ -2,7 +2,7 @@ import { COND, LABEL } from '../data/constants';
 import { keysOf } from '../growth/player';
 import { LEAGUES, POS_NAME } from '../data/constants';
 import { abilityLabels } from '../growth/abilities';
-import { careerStats, fmt3 } from '../league/leaders';
+import { careerStats, fmt3, opsOf, whipOf } from '../league/leaders';
 import type { Game, Player, Stats } from '../types';
 import { state } from './state';
 import { esc, fmtEra, grade } from '../util/format';
@@ -63,10 +63,10 @@ export function careerTable(p: Player, current: boolean): string {
   if (current && p.stats.g > 0) lines.push({ label: '今季', team: '', s: p.stats });
   if (!lines.length) return '<p class="small muted">まだ成績がありません.</p>';
   const tot = careerStats(p, current);
-  const head = bat ? '<th>年</th><th>所属</th><th>試</th><th>打率</th><th>本</th><th>点</th><th>盗</th>' : '<th>年</th><th>所属</th><th>登</th><th>勝-敗</th><th>防御率</th><th>三振</th>';
+  const head = bat ? '<th>年</th><th>所属</th><th>試</th><th>打率</th><th>本</th><th>点</th><th>盗</th><th>OPS</th>' : '<th>年</th><th>所属</th><th>登</th><th>勝-敗</th><th>防御率</th><th>WHIP</th><th>三振</th>';
   const row = (l: string, t: string, s: Stats, cls = '') => bat
-    ? `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${avgOf(s)}</td><td>${s.hr}</td><td>${s.rbi}</td><td>${s.sb}</td></tr>`
-    : `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${s.w}-${s.l}</td><td>${fmtEra(s.r, s.outs)}</td><td>${s.k}</td></tr>`;
+    ? `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${avgOf(s)}</td><td>${s.hr}</td><td>${s.rbi}</td><td>${s.sb}</td><td>${s.ab ? opsOf(s).toFixed(3).replace(/^0/, '') : '---'}</td></tr>`
+    : `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${s.w}-${s.l}</td><td>${fmtEra(s.r, s.outs)}</td><td>${s.outs ? whipOf(s).toFixed(2) : '-.--'}</td><td>${s.k}</td></tr>`;
   return `<div class="scroll"><table class="std box career"><thead><tr>${head}</tr></thead><tbody>${lines.map((x) => row(x.label, x.team, x.s)).join('')}${row('通算', '', tot, 'me')}</tbody></table></div>`;
 }
 

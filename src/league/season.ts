@@ -11,7 +11,10 @@ import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievem
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
+import { updateMorale } from '../growth/personality';
+import { tickScout } from './scouting';
 import { judgeGoals, makeGoals } from './goals';
+import { collectAsks, projectedPayroll, settleAll } from './contracts';
 import { confirmMessage } from './warnings';
 import { DIFFS } from '../data/constants';
 import { maybeInjure, setInjuryScale } from './health';
@@ -30,7 +33,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -54,7 +57,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
     funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
-    goals: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
+    goals: [], scout: null, watch: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -175,7 +178,9 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
   c.week = c.leagues[c.level].week;
+  updateMorale(c, kind === 'league' || kind === 'playoff' || kind === 'cup' ? ctx.some((x) => x.win) ? true : ctx.length ? false : null : null);
   tickConvert(c, menu);
+  tickScout(c);
   c.funds += weeklyIncome(c);
   stepMarket(c);
   weeklyUpkeep(c, menu === 'rest' ? 0.3 : menu === 'stam' ? 1.4 : 1);
@@ -270,7 +275,9 @@ export function finishSeason(c: Career): void {
     }
   }
   for (const p of c.fa) p.age++;
+  const beforeSalary = new Map(userTeam(c).players.map((p) => [p.id, p.salary] as [number, number]));
   renewContracts(c);
+  const contracts = collectAsks(c, beforeSalary);
 
   // 戦力外とドラフト.プレイヤーの来シーズンのリーグだけ,プレイヤーが参加する.
   for (const t of c.teams) if (!t.user) aiRelease(c, t);
@@ -278,7 +285,9 @@ export function finishSeason(c: Career): void {
   for (let level = 0; level < LEAGUES.length; level++) {
     const ids = c.teams.filter((t) => next[t.id] === level).map((t) => t.id);
     if (level === to) {
-      draft = { pool: genDraftClass(c, level, c.fac.scout), order: draftOrder(c, ids), idx: 0, picks: [], done: false };
+      draft = { pool: [...genDraftClass(c, level, c.fac.scout), ...c.watch], order: draftOrder(c, ids), idx: 0, picks: [], done: false };
+      c.watch = [];
+      c.scout = null;
       advanceDraft(c, draft);
     } else {
       runAiDraft(c, level, ids);
@@ -302,7 +311,7 @@ export function finishSeason(c: Career): void {
   const review = makeReview(c, champIds[from], cup.champion);
   review.goals = judgeGoals(c, rank, rec.w, champIds[from] === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [] };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
   c.phase = 'off';
 }
 
@@ -336,7 +345,7 @@ export function pickDraft(c: Career, i: number): void {
 export function signFreeAgent(c: Career, id: number): string | null {
   const u = userTeam(c), p = c.fa.find((x) => x.id === id);
   if (!p) return '選手が見つかりません.';
-  if (payroll(u) + p.salary > budgetFor(c)) return '年俸の予算を超えてしまいます.';
+  if (projectedPayroll(c) + p.salary > budgetFor(c)) return '年俸の予算を超えてしまいます.';
   const max = userRosterMax(c);
   if (u.players.length >= max) return `登録は${max}人までです.先に放出してください.`;
   c.fa = c.fa.filter((x) => x !== p);
@@ -364,7 +373,7 @@ export function releasePlayer(c: Career, id: number): string | null {
 /** 予算を超えていても,放出できる控えがもういないときは,信頼度を落として始められる. */
 export function overBudgetLocked(c: Career): boolean {
   const u = userTeam(c);
-  if (payroll(u) <= budgetFor(c)) return false;
+  if (projectedPayroll(c) <= budgetFor(c)) return false;
   const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
   return u.players.some((p) => !core.has(p.id) && (p.role === '野手' ? fielders(u).length > MIN_FIELDERS : pitchersOf(u).length > MIN_PITCHERS));
 }
@@ -376,6 +385,8 @@ export function newSeason(c: Career): void {
   const o = c.off;
   if (!o) return;
   const u = userTeam(c);
+  // 交渉が済んでいない契約は,要求どおりに結ぶ
+  settleAll(c);
   // 全チームの移動
   for (const lg of c.leagues) lg.teamIds = c.teams.filter((t) => o.next[t.id] === lg.level).map((t) => t.id);
   c.level = o.to;

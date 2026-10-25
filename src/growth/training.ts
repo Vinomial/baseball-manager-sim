@@ -4,6 +4,7 @@ import { addChem } from './chemistry';
 import { clamp } from '../util/random';
 import { isHurt } from '../league/health';
 import { maybeLearn } from './abilities';
+import { moraleCondBias, moraleGrowth } from './personality';
 import { condDrift, growAttr, keysOf } from './player';
 import { findByPos } from '../league/team';
 
@@ -53,8 +54,9 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
     const hurt = isHurt(p) ? 0.3 : 1;
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt);
-    condDrift(p, (m.rest ? 1 : 0) + condBias);
+    const mor = moraleGrowth(p);
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor);
+    condDrift(p, (m.rest ? 1 : 0) + condBias + moraleCondBias(p));
     // 練習の負担.休養は疲れをとる
     const load = LOAD[menu];
     p.fatigue = clamp(p.fatigue + (p.role === '野手' ? load[0] : load[1]), 0, 100);

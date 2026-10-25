@@ -1,4 +1,6 @@
 import { DRAFT_ROUNDS, LABEL, LEAGUES, POS_NAME } from '../../data/constants';
+import { bargainChance, projectedPayroll } from '../../league/contracts';
+import { PERS } from '../../growth/personality';
 import { adviseCuts } from '../../league/cuts';
 import { budgetFor, fmtYen, payroll } from '../../league/finance';
 import { advise } from '../../league/advice';
@@ -69,7 +71,7 @@ function draftHTML(c: Career): string {
   const adv = advise(u, d.pool);
   const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
   return `<h2>ドラフト会議</h2><p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>
-  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></span>
+  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.watched ? '<span class="tag newbie">スカウト済み</span>' : ''}</span>
     <button class="btn" data-a="draft" data-i="${i}">指名する</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
     <div class="attrs">${keysOf(p).map((k) => { const r = p.scout?.[k] ?? [p[k], p[k]]; return `<label>${LABEL[k]}</label><span class="g g${grade(r[0])}">${grade(r[0])}</span>〜<span class="g g${grade(r[1])}">${grade(r[1])}</span><span class="gv"></span>`; }).join('')}
     ${p.scoutPot ? `<label>${term('pot')}</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div>${abilitiesHTML(p)}</div>`).join('')}</div>
@@ -97,15 +99,29 @@ function faHTML(c: Career): string {
 const STEPS = ['結果', '戦力外', 'ドラフト', '自由契約'];
 
 function budgetBar(c: Career): string {
-  const u = userTeam(c), pay = payroll(u), bud = budgetFor(c);
+  const u = userTeam(c), pay = projectedPayroll(c), bud = budgetFor(c);
+  void u;
   return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div>
   <p class="small muted" style="margin:4px 0 0">${pay > bud ? `<b style="color:var(--bad)">予算を${fmtYen(pay - bud)}超えています.</b>新シーズンを始めるには,放出が必要です.` : `あと${fmtYen(bud - pay)}の余裕があります.`}</p></div>`;
+}
+
+function contractsHTML(c: Career): string {
+  const asks = c.off?.contracts ?? [];
+  if (!asks.length) return '';
+  const u = userTeam(c);
+  return `<h2>契約更改</h2><p class="small muted">力が上がった選手が,大きな昇給を求めています.値切ることもできますが,失敗するとやる気を落とします.交渉しないまま新シーズンに入ると,要求どおりに契約します.</p>
+  <div class="plist">${asks.map((a) => {
+    const p = u.players.find((x) => x.id === a.pid);
+    if (!p) return '';
+    return `<div class="pl"><div class="top"><span class="nm">${avatar(p, 30)} ${esc(p.name)}<span class="tag">${PERS[p.pers].name}</span></span><span class="small">${fmtYen(a.old)} → <b>${fmtYen(a.ask)}</b></span></div>
+    <div class="row" style="margin-top:6px"><button class="btn" data-a="negotiate" data-id="${p.id}" data-k="accept">要求を受ける</button><button class="btn ghost" data-a="negotiate" data-id="${p.id}" data-k="bargain">値切る(成功${Math.round(bargainChance(p) * 100)}%)</button></div></div>`;
+  }).join('')}</div>`;
 }
 
 function cutsHTML(c: Career): string {
   const u = userTeam(c), max = userRosterMax(c), rows = adviseCuts(c);
   const n = u.players.length;
-  return `<h2>戦力外・契約の整理</h2><p class="small muted">来シーズンは${LEAGUES[c.off!.to].name}で,登録は${max}人までです(いま${n}人).先発とローテーションの選手以外から,「おすすめ」を示しています.放出した選手は自由契約になります.</p>
+  return `${contractsHTML(c)}<h2>戦力外・契約の整理</h2><p class="small muted">来シーズンは${LEAGUES[c.off!.to].name}で,登録は${max}人までです(いま${n}人).先発とローテーションの選手以外から,「おすすめ」を示しています.放出した選手は自由契約になります.</p>
   ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を${n - max}人超えています.</p>` : ''}
   ${budgetBar(c)}
   <div class="plist">${rows.slice(0, 10).map((r) => `<div class="pl ${r.rec ? 'star' : ''}"><div class="top"><span class="nm">${r.rec ? '<span class="rec star">★おすすめ</span>' : ''}${esc(r.p.name)}<span class="tag">${POS_NAME[r.p.pos]}</span><span class="tag">${r.p.age}歳</span><span class="tag">${fmtYen(r.p.salary)}</span></span>

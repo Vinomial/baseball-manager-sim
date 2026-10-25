@@ -11,14 +11,14 @@ export function missionsHTML(c: Career): string {
 }
 
 export function kitchenSummary(c: Career): string {
-  return c.meal ? `${c.meal.name} あと${c.meal.weeks}試合` : `食材 ${Object.values(c.pantry).reduce((a, b) => a + b, 0)}個`;
+  return c.meal ? `${c.meal.name} あと${c.meal.weeks}週` : `食材 ${Object.values(c.pantry).reduce((a, b) => a + b, 0)}個`;
 }
 
 export function kitchenHTML(c: Career): string {
   const meal = c.meal;
   const pantry = INGREDIENTS.map((i) => `<span class="ing ${c.pantry[i.key] ? '' : 'none'}"><b>${i.name}</b>×${c.pantry[i.key]}</span>`).join('');
   return `<div class="kitchen">
-  ${meal ? `<p class="meal-on"><span class="rec star">効果中</span> <b>${esc(meal.name)}</b> <span class="small">あと${meal.weeks}試合 / ${esc(meal.desc)}</span></p>` : '<p class="small muted" style="margin:0 0 6px">いま効いている料理はありません.ミッションや試合で食材を集めて,料理を作りましょう.</p>'}
+  ${meal ? `<p class="meal-on"><span class="rec star">効果中</span> <b>${esc(meal.name)}</b> <span class="small">あと${meal.weeks}週 / ${esc(meal.desc)}</span></p>` : '<p class="small muted" style="margin:0 0 6px">いま効いている料理はありません.ミッションや試合で食材を集めて,料理を作りましょう.</p>'}
   <div class="pantry">${pantry}</div>
   <h3>料理を作る <span class="small muted">${RECIPES.filter((r) => canCook(c, r)).length}品 作れます</span></h3>
   <div class="plist">${RECIPES.map((r) => {

@@ -5,6 +5,7 @@ import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { weekInfo } from '../../league/calendar';
 import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
@@ -15,22 +16,31 @@ import { forecastHTML, forecastSummary, trustHTML, trustSummary, winProbHTML } f
 export function renderHome(c: Career): string {
   if (c.phase === 'off') return renderOff(c);
   const u = userTeam(c);
-  const { home, opp } = userMatch(c);
+  const m = userMatch(c);
+  const info = weekInfo(c);
   let h = '';
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
   for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
   if (c.event) {
     h += `<div class="card event"><p style="margin:0"><span class="rec star">出来事</span> <b>${esc(c.event.title)}</b></p><p class="small" style="margin:6px 0">${esc(c.event.body)}</p><div class="row">${c.event.choices.map((x) => `<button class="btn ghost ev" data-a="event" data-k="${x.key}"><b>${esc(x.label)}</b><span class="small muted">${esc(x.hint)}</span></button>`).join('')}</div><p class="small muted" style="margin:6px 0 0">選ばずに試合へ進むと,出来事は過ぎ去ります.</p></div>`;
   }
-  if (state.last && !state.autoOpen) {
+  if (state.last?.game && !state.autoOpen) {
     const r = recap(state.last.game);
     h += `<div class="card"><p style="margin:0"><b>前の試合</b> <span class="small muted">${esc(r.headline)}</span></p><button class="btn ghost" data-a="tab" data-k="game" style="margin-top:6px">詳しく見る</button></div>`;
   }
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
-  h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
-  <div class="card"><div class="row" style="justify-content:space-between">
-    <div><b>${esc(opp.name)}</b>${opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
-    <div class="small">総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, opp)}</div>`;
+  h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;
+  if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;
+  if (info.userGame === 'league' && m) {
+    h += `<div class="row" style="justify-content:space-between"><div><b>第${c.week + 1}戦 vs ${esc(m.opp.name)}</b>${m.opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${m.home ? 'ホーム' : 'ビジター'} / 全${total}戦 ${lg.teams}チーム)</span></div>
+    <div class="small">総合力 ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
+  } else if (info.userGame) {
+    h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : '全日本選手権に出場します'}</b></p>`;
+  } else {
+    if (m) h += `<p class="small muted" style="margin:0">次のリーグ戦: ${Math.floor(m.cal / 4) + 1}月 第${(m.cal % 4) + 1}週 vs ${esc(m.opp.name)}</p>`;
+    h += `<div class="row" style="margin-top:8px"><button class="btn ghost" data-a="practice" aria-pressed="${state.practice}">${state.practice ? '✔ 練習試合を組む' : '練習試合を組む'}</button><span class="small muted">試合の経験が積めますが,疲れがたまります.成績には入りません.</span></div>`;
+  }
+  h += `</div>`;
   h += renderTraining(c);
   const w = c.results.filter((r) => r.us > r.them).length, l = c.results.filter((r) => r.us < r.them).length;
   const sumPantry = Object.values(c.pantry).reduce((a, b) => a + b, 0);
@@ -43,13 +53,13 @@ export function renderHome(c: Career): string {
   if (c.results.length) {
     h += fold('results', '今シーズンの試合結果', `${w}勝${l}敗`, `<table class="results"><tbody>${[...c.results].reverse().slice(0, 10).map((r) => {
       const k = r.us > r.them ? 'w' : r.us < r.them ? 'l' : '';
-      return `<tr><td>第${r.week + 1}戦</td><td>${esc(r.opp)}<span class="tag">${r.home ? 'H' : 'A'}</span></td><td class="${k}">${r.us > r.them ? '勝' : r.us < r.them ? '負' : '分'}</td><td class="num">${r.us} - ${r.them}</td></tr>`;
+      return `<tr><td>${r.kind === 'playoff' ? 'PO' : r.kind === 'cup' ? '選手権' : `第${r.week + 1}戦`}</td><td>${esc(r.opp)}<span class="tag">${r.home ? 'H' : 'A'}</span></td><td class="${k}">${r.us > r.them ? '勝' : r.us < r.them ? '負' : '分'}</td><td class="num">${r.us} - ${r.them}</td></tr>`;
     }).join('')}</tbody></table>`);
   }
   h += fold('settings', '設定・データ', 'バックアップなど', `<div class="row"><button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button></div>
   <p class="small muted" style="margin:8px 0 4px">セーブはこの端末のブラウザに保存されます.機種変更やデータ消去に備えて,ときどきバックアップを取りましょう.</p>
   <div class="row"><button class="btn ghost" data-a="export">バックアップを保存</button><label class="btn ghost filebtn">バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label></div>
   <div class="row" style="margin-top:8px"><button class="btn danger" data-a="reset">データを消して最初から</button></div>`);
-  h += `<div class="actionbar"><button class="btn" data-a="start">▶ ${MENUS[state.menu].name}で試合へ</button><button class="btn ghost" data-a="auto-season" title="この練習のまま,シーズン最後まで進めます">⏩ 最後まで</button></div>`;
+  h += `<div class="actionbar"><button class="btn" data-a="start">▶ ${MENUS[state.menu].name}${info.userGame ? 'で試合へ' : state.practice ? 'と練習試合' : 'で1週進める'}</button><button class="btn ghost" data-a="auto-season" title="この練習のまま,今年の終わりまで進めます">⏩ 年末まで</button></div>`;
   return h;
 }

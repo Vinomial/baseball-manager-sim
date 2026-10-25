@@ -2,6 +2,7 @@
 import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
 import { cook } from '../growth/meals';
+import { weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
 import {
@@ -62,7 +63,7 @@ function render(): void {
   if (c.fired) { root.innerHTML = renderFired(c); return; }
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
   const rec = c.phase === 'season' ? c.leagues[c.level].stand[c.userId] : c.off!.rec;
-  const weekLabel = c.phase === 'season' ? `${c.week + 1}/${c.leagues[c.level].schedule.length}` : 'オフ';
+  const weekLabel = c.phase === 'season' ? weekInfo(c).label.replace(' 第', '') : 'オフ';
   const body = {
     home: () => renderHome(c),
     game: () => renderGame(c),
@@ -117,15 +118,20 @@ function onClick(e: MouseEvent): void {
     case 'menu': state.menu = k as MenuKey; state.menuTouched = true; break;
     case 'start': {
       if (!c || c.phase !== 'season') break;
-      state.last = { ...playWeek(c, state.menu), menu: state.menu };
-      state.menuTouched = false;
-      if (state.autoOpen) { state.tab = 'game'; top(); }
+      const r = playWeek(c, state.menu, { practice: state.practice });
+      state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
+      state.menuTouched = false; state.practice = false;
+      if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
       save(); break;
     }
+    case 'practice': state.practice = !state.practice; break;
+    case 'game-pick': if (state.last) state.last.game = state.last.games[i] ?? state.last.game; break;
     case 'auto-season': {
       if (!c || c.phase !== 'season') break;
-      while (c.phase === 'season') state.last = { ...playWeek(c, state.menu), menu: state.menu };
-      state.menuTouched = false;
+      let r;
+      while (c.phase === 'season' && !c.fired) r = playWeek(c, state.menu);
+      if (r) state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
+      state.menuTouched = false; state.practice = false;
       state.tab = 'home'; save(); top(); break;
     }
     case 'reset':

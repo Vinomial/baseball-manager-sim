@@ -2,6 +2,7 @@ import { newRecords, SAVE_VERSION } from './league/season';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
+import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
 import { fillOtherLeagues } from './league/world';
 import { genAbilities } from './growth/abilities';
@@ -84,6 +85,15 @@ export function migrate(raw: unknown): Career | null {
     if (off) off.cup = '';
     c.version = 11;
   }
+  if (c.version === 11) {
+    // v12: 1 年 48 週のカレンダー.各リーグの試合を暦の週に割り振る
+    const cc = c as unknown as Career;
+    for (const lg of cc.leagues) { lg.weeks = scheduleWeeks(lg.schedule?.length ?? 0); lg.po = null; }
+    const ul = cc.leagues[cc.level];
+    cc.cal = cc.phase === 'season' ? (ul.weeks[Math.min(ul.week, ul.weeks.length - 1)] ?? SEASON_START) : 0;
+    cc.cup = null;
+    c.version = 12;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }
@@ -109,7 +119,7 @@ function migrateV3(c: Record<string, unknown>): void {
   cc.fa = [];
   cc.champs = [];
   const userLeague: Career['leagues'][0] = {
-    level: old.level, teamIds: old.teams.map((t) => t.id), schedule: old.schedule, stand: old.stand, week: old.week,
+    level: old.level, teamIds: old.teams.map((t) => t.id), schedule: old.schedule ?? [], stand: old.stand ?? {}, week: old.week, weeks: [], po: null,
   };
   fillOtherLeagues(cc, userLeague, offseason);
 }

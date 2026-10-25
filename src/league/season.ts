@@ -5,12 +5,13 @@ import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
 import { ageFactor, emptyStats, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
-import type { Career, DraftState, Game, Team, TeamRecords } from '../types';
+import type { Career, DraftState, Game, GameKind, Team, TeamRecords } from '../types';
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
-import { refillMissions, updateMissions } from './missions';
-import { runCup, cupRow } from './cup';
+import { refillMissions, updateMissions, type GameCtx } from './missions';
+import { cupSummary, playCupRound, startCup } from './cup';
+import { CUP_START, PLAYOFF_START, TRAIN_PER_WEEK, WEEKS_PER_YEAR, weekInfo } from './calendar';
 import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
@@ -18,12 +19,12 @@ import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import {
-  advanceDraft, advanceWorld, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld, champRow,
-  computeNextLevels, draftOrder, genDraftClass, playRound, playoffText, pruneFreeAgents, resetLeague,
-  runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
+  advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
+  computeNextLevels, draftOrder, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
+  runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -36,7 +37,7 @@ export const newRecords = (): TeamRecords => ({
 
 export function newCareer(name: string): Career {
   const c: Career = {
-    version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
+    version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
     missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
@@ -53,20 +54,21 @@ export function newCareer(name: string): Career {
   return c;
 }
 
-/** 今週のプレイヤーの対戦カード */
-export function userMatch(c: Career): { home: boolean; opp: Team; pair: [number, number] } {
+/** 次のリーグ戦のプレイヤーの対戦カード(シーズンが終わっていれば null) */
+export function userMatch(c: Career): { home: boolean; opp: Team; pair: [number, number]; cal: number } | null {
   const lg = c.leagues[c.level];
+  if (lg.week >= lg.schedule.length) return null;
   const pair = lg.schedule[lg.week].find((x) => x.includes(c.userId));
-  if (!pair) throw new Error('今週の試合が見つかりません');
+  if (!pair) return null;
   const home = pair[0] === c.userId;
-  return { home, opp: teamById(c, home ? pair[1] : pair[0]), pair };
+  return { home, opp: teamById(c, home ? pair[1] : pair[0]), pair, cal: lg.weeks[lg.week] };
 }
 
 /** 今のチーム能力を記録する(グラフ用) */
 export function recordHist(c: Career): void {
   const u = userTeam(c);
-  c.hist.push({ season: c.season, week: c.week, level: c.level, ovr: ovr(u), attrs: teamAttrs(u) });
-  if (c.hist.length > 400) c.hist.splice(0, c.hist.length - 400);
+  c.hist.push({ season: c.season, week: c.cal, level: c.level, ovr: ovr(u), attrs: teamAttrs(u) });
+  if (c.hist.length > 480) c.hist.splice(0, c.hist.length - 480);
 }
 
 export function simGame(c: Career, home: Team, away: Team, logOn = false): Game {
@@ -76,24 +78,98 @@ export function simGame(c: Career, home: Team, away: Team, logOn = false): Game 
   return g;
 }
 
-/** 練習をして今週の試合をすべて進める.試合の操作はなく,結果だけが返る. */
-export function playWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
-  c.news = [];
-  c.event = null;
-  const lg = c.leagues[c.level];
-  // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
-  const report = doTraining(userTeam(c), menu, (10 / lg.schedule.length) * trustGrowth(c.trust), trustCondBias(c.trust), c.meal);
-  const { pair } = userMatch(c);
-  const home = teamById(c, pair[0]), away = teamById(c, pair[1]);
-  const prob = winProb(userTeam(c), home.user ? away : home);
-  const game = simGame(c, home, away, true);
-  afterUserGame(c, game, prob, menu);
-  return { game, report };
+export interface WeekResult {
+  /** プレイヤーが出た試合(プレーオフなどでは複数) */
+  games: Game[];
+  report: GrowthReport[];
+  kind: GameKind | null;
 }
 
-/** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ. */
-function afterUserGame(c: Career, g: Game, prob: number, menu: string): void {
+/** 練習試合.本物の選手には影響させず,疲れと小さな経験だけを返す. */
+function playPractice(c: Career): Game {
+  const u = userTeam(c);
+  const others = leagueTeams(c, c.level).filter((t) => !t.user);
+  const opp = pick(others);
+  const g = newGame(structuredClone(u), structuredClone(opp), true);
+  stepToEnd(g);
+  const us = userSide(g);
+  for (const p of us.used) {
+    const real = findPlayer(u, p.id);
+    if (real) real.fatigue = clamp(real.fatigue + (us.pcBy[p.id] ?? 0) * 0.6, 0, 100);
+  }
+  for (const e of us.lineup) {
+    const real = findPlayer(u, e.p.id);
+    if (!real) continue;
+    const k = pick(keysOf(real));
+    if (real.pot[k] > real[k]) real[k] = Math.min(99, real[k] + 0.35 * ageFactor(real));
+  }
+  return g;
+}
+
+/** 練習をして,この週を進める.試合の操作はなく,結果だけが返る. */
+export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } = {}): WeekResult {
+  c.news = [];
+  c.event = null;
+  const info = weekInfo(c);
+  const u = userTeam(c);
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult, trustCondBias(c.trust), c.meal);
+
+  let games: Game[] = [];
+  let kind: GameKind | null = null;
+  let userLeagueGame = false;
+  if (c.cal === PLAYOFF_START || c.cal === PLAYOFF_START + 1) {
+    games = playPlayoffWeek(c, c.cal === PLAYOFF_START ? 'semi' : 'final');
+    if (games.length) kind = 'playoff';
+  } else if (info.kind === 'cup') {
+    games = playCupRound(c);
+    if (games.length) kind = 'cup';
+  } else if (info.userGame === 'league') {
+    const m = userMatch(c)!;
+    const g = simGame(c, teamById(c, m.pair[0]), teamById(c, m.pair[1]), true);
+    games = [g];
+    kind = 'league';
+    userLeagueGame = true;
+  } else if (opt.practice) {
+    games = [playPractice(c)];
+    kind = 'practice';
+  }
+  // 公式戦の後始末(信頼度,記録,ミッションなど)
+  const ctx: GameCtx[] = [];
+  for (const g of games) {
+    if (kind === 'practice') break;
+    ctx.push(afterOfficialGame(c, g, menu, kind!));
+  }
+  if (kind === 'practice') c.last = `練習試合: ${userSide(games[0]).runs} - ${(userSide(games[0]) === games[0].home ? games[0].away : games[0].home).runs}`;
+
+  // 世界のほかの試合と,毎週の整理
+  stepLeagues(c, userLeagueGame);
+  c.week = c.leagues[c.level].week;
+  weeklyUpkeep(c);
+  updateMissions(c, { menu, games: ctx });
+  c.lastMenus.push(menu);
+  if (c.lastMenus.length > 5) c.lastMenus.shift();
+  tickMeal(c);
+  c.cal++;
+  recordHist(c);
+  if (c.cal >= WEEKS_PER_YEAR) finishSeason(c);
+  else {
+    enterWeek(c);
+    rollEvent(c);
+  }
+  return { games, report, kind };
+}
+
+/** 新しい週に入るとき,プレーオフや全日本選手権の準備をする */
+function enterWeek(c: Career): void {
+  if (c.cal === PLAYOFF_START) { stepLeagues(c, false); startPlayoffs(c); }
+  if (c.cal === CUP_START) startCup(c);
+}
+
+/** 公式戦 1 試合ぶんの後始末.ミッション用の情報を返す. */
+function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): GameCtx {
   const us = userSide(g), them = us === g.home ? g.away : g.home, t = us.team;
+  const opp = them.team;
+  const prob = winProb(t, opp);
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
   // 試合経験による小さな成長
@@ -101,61 +177,42 @@ function afterUserGame(c: Career, g: Game, prob: number, menu: string): void {
     const k = pick(keysOf(e.p));
     if (e.p.pot[k] > e.p[k]) e.p[k] = Math.min(99, e.p[k] + 0.3 * ageFactor(e.p));
   }
-  const res = us.runs > them.runs ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
-  c.last = `第${c.week + 1}戦 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
-  c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home, prob });
+  const win = us.runs > them.runs;
+  const res = win ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
+  const tag = kind === 'league' ? `第${c.week + 1}戦` : kind === 'playoff' ? 'プレーオフ' : '全日本選手権';
+  c.last = `${tag} vs ${opp.name}: ${us.runs} - ${them.runs} で${res}`;
+  c.results.push({ season: c.season, week: c.week, opp: opp.name, us: us.runs, them: them.runs, home: us === g.home, prob, kind });
   addTrust(c, trustAfterGame(prob, us.runs, them.runs));
-  checkFired(c, `${c.season}年目の第${c.week + 1}戦のあと,チームの信頼を失い解任されました.`);
-  recordGame(c, them.team.id, us.runs, them.runs);
+  checkFired(c, `${c.season}年目,チームの信頼を失い解任されました.`);
+  recordGame(c, opp.id, us.runs, them.runs);
   const r = c.rec;
-  if (us.runs > them.runs) { r.total.w++; r.streak++; r.bestStreak = Math.max(r.bestStreak, r.streak); }
-  else if (us.runs < them.runs) { r.total.l++; r.streak = 0; }
-  else r.total.d++;
-  checkGame(c, g, them.team.id, boxScore(g, us).bat);
-  updateMissions(c, {
-    win: us.runs > them.runs, us: us.runs, them: them.runs, prob, menu,
-    hr: boxScore(g, us).bat.reduce((n, x) => n + x.hr, 0), k: boxScore(g, us).pit.reduce((n, x) => n + x.k, 0),
-  });
-  c.lastMenus.push(menu);
-  if (c.lastMenus.length > 5) c.lastMenus.shift();
-  tickMeal(c);
-
-  const lg = c.leagues[c.level];
-  // 同じ週の他のカードと,各チームの疲労・調子・練習
-  playRound(c, lg, true);
-  c.week = lg.week;
-  advanceWorld(c);
-  recordHist(c);
-  if (c.week >= lg.schedule.length) finishSeason(c);
-  else rollEvent(c);
+  if (win) { r.streak++; r.bestStreak = Math.max(r.bestStreak, r.streak); } else if (us.runs < them.runs) r.streak = 0;
+  if (kind === 'league') {
+    if (win) r.total.w++; else if (us.runs < them.runs) r.total.l++; else r.total.d++;
+  }
+  const box = boxScore(g, us);
+  checkGame(c, g, opp.id, box.bat);
+  void menu;
+  return { win, us: us.runs, them: them.runs, prob, hr: box.bat.reduce((n, x) => n + x.hr, 0), k: box.pit.reduce((n, x) => n + x.k, 0) };
 }
 
-/** シーズンを締めて,プレーオフ,昇格・降格,加齢,引退,ドラフトの準備を行う. */
+/** 1 年を締めて,昇格・降格,表彰,加齢,引退,ドラフトの準備を行う. */
 export function finishSeason(c: Career): void {
-  advanceWorld(c);
+  stepLeagues(c, false);
   const tbl = standings(c);
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
   const rec = { ...c.leagues[c.level].stand[c.userId] };
 
-  // プレーオフ
-  let playoff = '';
+  // プレーオフと全日本選手権の結果
   const champIds: Record<number, number> = {};
-  for (const lg of c.leagues) {
-    const r = runPlayoffs(c, lg.level);
-    c.champs.push(champRow(c, lg.level, r));
-    champIds[lg.level] = r.champion.id;
-    if (lg.level === c.level) playoff = playoffText(c, lg.level, r);
-  }
-  // 全日本選手権(全リーグのチームが 1 つのトーナメントで戦う)
-  const cup = runCup(c);
-  c.cups.push(cupRow(c, cup));
-  c.cupBracket = cup.matches;
-  if (c.cups.length > 60) c.cups.shift();
-  if (cup.userWins > 0) {
-    addTrust(c, cup.userWins * 1.5 + cup.giantKills * 3 + (cup.champion.user ? 8 : 0));
-    c.pantry.meat += cup.userWins;
-    c.pantry.rice += cup.userWins;
-    if (cup.champion.user) c.revenue = Math.min(1.3, c.revenue + 0.1);
+  for (const lg of c.leagues) if (lg.po?.champion != null) champIds[lg.level] = lg.po.champion;
+  const playoff = playoffText(c, c.leagues[c.level]);
+  const cup = cupSummary(c);
+  if (cup.wins > 0) {
+    addTrust(c, cup.wins * 1.5 + cup.giantKills * 3 + (cup.champion ? 8 : 0));
+    c.pantry.meat += cup.wins;
+    c.pantry.rice += cup.wins;
+    if (cup.champion) c.revenue = Math.min(1.3, c.revenue + 0.1);
   }
   // 表彰(成績を記録に回す前に行う)
   c.awards.push(...computeAwards(c, champIds));
@@ -200,12 +257,12 @@ export function finishSeason(c: Career): void {
   if (userTitle) c.rec.titles[from]++;
   if (from === LEAGUES.length - 1) c.rec.proStreak = userTitle ? c.rec.proStreak + 1 : 0;
   if (rec.w > c.rec.bestWins) { c.rec.bestWins = rec.w; c.rec.bestSeason = c.season; }
-  checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from, { cupChamp: cup.champion.user, cupWins: cup.userWins, giant: cup.giantKills });
+  checkSeason(c, from, userTitle, rec.l === 0 && rec.d === 0 && rec.w > 0, to - from, { cupChamp: cup.champion, cupWins: cup.wins, giant: cup.giantKills });
   if (!c.ended && c.rec.titles[LEAGUES.length - 1] >= PRO_TITLES_FOR_HALL) {
     c.ended = true;
     c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.userRound };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text };
   c.phase = 'off';
 }
 
@@ -280,6 +337,8 @@ export function newSeason(c: Career): void {
   }
   c.season++;
   c.week = 0;
+  c.cal = 0;
+  c.cup = null;
   pickRival(c);
   c.phase = 'season';
   c.off = null;

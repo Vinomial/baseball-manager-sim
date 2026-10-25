@@ -76,7 +76,7 @@ export function adviseTraining(t: Team, lgAvg: Gains, weeks: number, scale: numb
   const mine = teamAttrs(t);
   const gap = zero();
   for (const k of ALL_KEYS) gap[k] = mine[k] - lgAvg[k];
-  const horizon = Math.max(1, Math.min(weeks, 10));
+  const horizon = Math.max(1, Math.min(weeks, 8));
   const menus = {} as Record<MenuKey, MenuAdvice>;
   const rest = needsRest(t);
   for (const key of Object.keys(MENUS) as MenuKey[]) {

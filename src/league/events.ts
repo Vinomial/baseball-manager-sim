@@ -9,7 +9,7 @@ import { leagueTeams } from './schedule';
 import { autoLineup, autoPitchers, fielders, findByPos, findPlayer, pitchersOf } from './team';
 
 /** 1 週ごとに出来事が起きる確率 */
-export const EVENT_RATE = 0.3;
+export const EVENT_RATE = 0.2;
 
 const userT = (c: Career): Team => c.teams.find((t) => t.user)!;
 const bestKey = (p: Player): AttrKey => keysOf(p).reduce((a, b) => (p[b] > p[a] ? b : a));

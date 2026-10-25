@@ -4,17 +4,18 @@
  */
 import { DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
-import { agePlayer, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
-import type { Career, ChampRow, DraftState, LeagueState, Player, Team } from '../types';
+import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
+import type { Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
-import { applyGameResultToStanding } from './result';
+import { applyGameEffects, applyGameResultToStanding } from './result';
+import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 
 /** 昇格・降格するチーム数(上位 k チームが上がり,下位 k チームが下がる) */
 export const MOVES = 2;
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
-export const AI_SEASON_GAIN = [3, 3.5, 4.2, 5];
+export const AI_YEAR_GAIN = [3, 3.5, 4.2, 5];
 
 /** AI チームの連携の初期値はリーグが上がるほど高い */
 export const aiChem = (level: number): number => 20 + level * 12;
@@ -24,6 +25,8 @@ export const aiChem = (level: number): number => 20 + level * 12;
 export function resetLeague(lg: LeagueState): void {
   const L = LEAGUES[lg.level];
   lg.schedule = makeSchedule(shuffle(lg.teamIds), L.rounds);
+  lg.weeks = scheduleWeeks(lg.schedule.length);
+  lg.po = null;
   lg.stand = {};
   for (const id of lg.teamIds) lg.stand[id] = emptyStanding();
   lg.week = 0;
@@ -39,7 +42,7 @@ export function buildWorld(c: Career, user: Team): void {
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     c.leagues.push({
-      level, teamIds: [...(level === 0 ? [user.id] : []), ...ts.map((t) => t.id)], schedule: [], stand: {}, week: 0,
+      level, teamIds: [...(level === 0 ? [user.id] : []), ...ts.map((t) => t.id)], schedule: [], stand: {}, week: 0, weeks: [], po: null,
     });
   });
   for (const lg of c.leagues) resetLeague(lg);
@@ -59,7 +62,7 @@ export function fillOtherLeagues(c: Career, userLeague: LeagueState, fresh = fal
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     const ids = [...(isUser && user ? [user.id] : []), ...ts.map((t) => t.id)];
-    const lg: LeagueState = { level, teamIds: ids, schedule: [], stand: {}, week: 0 };
+    const lg: LeagueState = { level, teamIds: ids, schedule: [], stand: {}, week: 0, weeks: [], po: null };
     resetLeague(lg);
     c.leagues.push(lg);
   });
@@ -67,12 +70,12 @@ export function fillOtherLeagues(c: Career, userLeague: LeagueState, fresh = fal
 
 /* ===== 週ごとの進行 ===== */
 
-/** AI チームの練習.リーグの試合数が違っても,1シーズンの成長量はほぼ同じになる. */
+/** AI チームの練習.1 年の成長量は,リーグの試合数に関わらずほぼ同じになる. */
 function aiTrain(t: Team, mult: number): void {
   for (const p of t.players) for (const k of keysOf(p)) growAttr(p, k, mult);
 }
 
-/** リーグの1週分を進める.プレイヤーの試合は skipUser で除く(別に行うため). */
+/** リーグの 1 節(1 週ぶんの全カード)を進める.プレイヤーの試合は skipUser で除く(別に行うため). */
 export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
   for (const [h, a] of lg.schedule[lg.week]) {
     if (skipUser && (h === c.userId || a === c.userId)) continue;
@@ -80,71 +83,109 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
     stepToEnd(g);
     applyGameResultToStanding(c, g);
   }
-  const mult = AI_SEASON_GAIN[lg.level] / lg.schedule.length;
-  for (const id of lg.teamIds) {
-    const t = teamById(c, id);
-    for (const p of t.players) p.fatigue = Math.max(0, p.fatigue - 45);
-    if (!t.user) aiTrain(t, mult);
-  }
   lg.week++;
 }
 
-/** プレイヤーのリーグの進み具合に合わせて,他のリーグも進める. */
-export function advanceWorld(c: Career): void {
-  const u = c.leagues[c.level];
+/** 暦の週が進むたびに,すべてのチームで行うこと.疲れの回復,AI の練習と調子. */
+export function weeklyUpkeep(c: Career): void {
   for (const lg of c.leagues) {
-    if (lg === u) continue;
-    const target = c.week >= u.schedule.length ? lg.schedule.length : Math.floor((c.week * lg.schedule.length) / u.schedule.length);
-    while (lg.week < target) playRound(c, lg, false);
+    const mult = AI_YEAR_GAIN[lg.level] / WEEKS_PER_YEAR;
+    for (const id of lg.teamIds) {
+      const t = teamById(c, id);
+      for (const p of t.players) p.fatigue = Math.max(0, p.fatigue - 45);
+      if (!t.user) { aiTrain(t, mult); for (const p of t.players) condDrift(p, 0); }
+    }
   }
 }
 
-/* ===== プレーオフ ===== */
-
-function playSeriesGame(home: Team, away: Team): boolean {
-  for (const t of [home, away]) for (const p of t.players) p.fatigue = 0;
-  const g = newGame(home, away, false);
-  stepToEnd(g);
-  // プレーオフの成績はシーズンの成績に入れない
-  for (const t of [home, away]) for (const p of t.players) if (g.snap[p.id]) p.stats = { ...g.snap[p.id] };
-  home.rotIdx++; away.rotIdx++;
-  return g.home.runs !== g.away.runs ? g.home.runs > g.away.runs : pick([true, false]);
+/** この週に予定されているリーグ戦を進める(プレイヤーの試合は済んでいれば除く). */
+export function stepLeagues(c: Career, userPlayed: boolean): void {
+  for (const lg of c.leagues) {
+    while (lg.week < lg.schedule.length && lg.weeks[lg.week] <= c.cal) {
+      const mine = lg.level === c.level && userPlayed && lg.weeks[lg.week] === c.cal;
+      playRound(c, lg, mine);
+      if (mine) break;
+    }
+  }
 }
 
-/** 先に wins 勝した方(上位シードを先にホーム)が勝つ. */
-function playSeries(hi: Team, lo: Team, wins: number): Team {
+/* ===== プレーオフ(上位 4 チーム.準決勝は 3 戦先に 2 勝,決勝は 5 戦先に 3 勝) ===== */
+
+/** 公式戦の 1 試合を行う.引き分けならやり直し.成績には入るが順位には入らない. */
+function playOfficial(c: Career, home: Team, away: Team, log: boolean): Game {
+  let g = newGame(home, away, log);
+  for (let i = 0; i < 3; i++) {
+    stepToEnd(g);
+    if (g.home.runs !== g.away.runs) break;
+    g = newGame(home, away, log);
+  }
+  if (g.home.runs === g.away.runs) g.home.runs += pick([0, 1]) ? 0 : 1;
+  applyGameEffects(g);
+  void c;
+  return g;
+}
+
+export interface SeriesResult { winner: Team; /** プレイヤーが出た試合(実況付き) */ games: Game[]; /** 最後の試合 */ last: Game; }
+
+/** 先に wins 勝した方が勝つ.上位シードが先にホーム.プレイヤーが出る試合は実況付き. */
+export function playSeries(c: Career, hi: Team, lo: Team, wins: number): SeriesResult {
   let a = 0, b = 0, i = 0;
+  const games: Game[] = [];
+  let last!: Game;
+  const log = hi.user || lo.user;
   while (a < wins && b < wins) {
     const hiHome = i % 2 === 0 || i === wins * 2 - 2;
-    const hiWon = hiHome ? playSeriesGame(hi, lo) : !playSeriesGame(lo, hi);
+    const g = hiHome ? playOfficial(c, hi, lo, log) : playOfficial(c, lo, hi, log);
+    const hiWon = hiHome ? g.home.runs > g.away.runs : g.away.runs > g.home.runs;
+    if (log) games.push(g);
+    last = g;
     if (hiWon) a++; else b++;
     i++;
   }
-  return a > b ? hi : lo;
+  return { winner: a > b ? hi : lo, games, last };
 }
 
-export interface PlayoffResult { champion: Team; runnerUp: Team; semis: Team[]; }
-
-/** 上位4チームのプレーオフ(準決勝は3戦先に2勝,決勝は5戦先に3勝). */
-export function runPlayoffs(c: Career, level: number): PlayoffResult {
-  const top = standings(c, level).map((r) => r.t);
-  const [s1, s2, s3, s4] = top;
-  const w1 = playSeries(s1, s4, 2), w2 = playSeries(s2, s3, 2);
-  const hiFirst = top.indexOf(w1) < top.indexOf(w2);
-  const champion = hiFirst ? playSeries(w1, w2, 3) : playSeries(w2, w1, 3);
-  return { champion, runnerUp: champion === w1 ? w2 : w1, semis: [s1, s2, s3, s4] };
+/** 週のはじめにプレーオフの組み合わせを決める */
+export function startPlayoffs(c: Career): void {
+  for (const lg of c.leagues) {
+    lg.po = { seeds: standings(c, lg.level).slice(0, 4).map((r) => r.t.id), semiWinners: [], champion: null, runnerUp: null };
+  }
 }
 
-export function playoffText(c: Career, level: number, r: PlayoffResult): string {
-  const me = c.userId;
-  if (r.champion.id === me) return `プレーオフを勝ち抜き,${LEAGUES[level].name}で優勝!`;
-  if (r.runnerUp.id === me) return 'プレーオフ決勝で敗れ,準優勝でした.';
-  if (r.semis.some((t) => t.id === me)) return 'プレーオフ準決勝で敗退しました.';
+/** その週のプレーオフを,全リーグ分進める.プレイヤーが出る試合(実況付き)を返す. */
+export function playPlayoffWeek(c: Career, stage: 'semi' | 'final'): Game[] {
+  const out: Game[] = [];
+  for (const lg of c.leagues) {
+    const po = lg.po;
+    if (!po) continue;
+    const T = (id: number) => teamById(c, id);
+    if (stage === 'semi') {
+      po.semiWinners = [[0, 3], [1, 2]].map(([x, y]) => {
+        const r = playSeries(c, T(po.seeds[x]), T(po.seeds[y]), 2);
+        out.push(...r.games);
+        return r.winner.id;
+      });
+    } else {
+      const [x, y] = po.semiWinners;
+      const hiId = po.seeds.indexOf(x) < po.seeds.indexOf(y) ? x : y;
+      const loId = hiId === x ? y : x;
+      const r = playSeries(c, T(hiId), T(loId), 3);
+      out.push(...r.games);
+      po.champion = r.winner.id;
+      po.runnerUp = r.winner.id === hiId ? loId : hiId;
+      c.champs.push({ season: c.season, level: lg.level, team: T(po.champion).name, teamId: po.champion, runnerUp: T(po.runnerUp).name });
+    }
+  }
+  return out;
+}
+
+export function playoffText(c: Career, lg: LeagueState): string {
+  const po = lg.po, me = c.userId;
+  if (!po) return 'プレーオフには進めませんでした.';
+  if (po.champion === me) return `プレーオフを勝ち抜き,${LEAGUES[lg.level].name}で優勝!`;
+  if (po.runnerUp === me) return 'プレーオフ決勝で敗れ,準優勝でした.';
+  if (po.seeds.includes(me)) return 'プレーオフ準決勝で敗退しました.';
   return 'プレーオフには進めませんでした.';
-}
-
-export function champRow(c: Career, level: number, r: PlayoffResult): ChampRow {
-  return { season: c.season, level, team: r.champion.name, teamId: r.champion.id, runnerUp: r.runnerUp.name };
 }
 
 /* ===== 昇格・降格 ===== */

@@ -1,5 +1,5 @@
 /** ミッション.達成すると食材がもらえて,料理で練習の伸びを大きくできる. */
-import { emptyPantry, ingName } from '../growth/meals';
+import { ingName } from '../growth/meals';
 import type { Career, Ingredient, Mission } from '../types';
 import { pick, rand, ri, shuffle } from '../util/random';
 
@@ -43,45 +43,51 @@ export function rewardText(r: Partial<Record<Ingredient, number>>): string {
   return (Object.entries(r) as [Ingredient, number][]).map(([k, n]) => `${ingName(k)}${n}`).join(' ');
 }
 
-export interface MissionCtx {
+export interface GameCtx {
   win: boolean;
   us: number;
   them: number;
   hr: number;
   k: number;
   prob: number;
-  menu: string;
 }
 
-/** 試合のあとにミッションの進み具合を更新する.達成したものは報酬を渡して知らせる. */
-export function updateMissions(c: Career, x: MissionCtx): void {
-  const streak = c.rec.streak;
+export interface WeekCtx {
+  menu: string;
+  /** その週の公式戦(なければ空) */
+  games: GameCtx[];
+}
+
+/** 1 週のあとに,ミッションの進み具合を更新する.達成したものは報酬を渡して知らせる. */
+export function updateMissions(c: Career, w: WeekCtx): void {
   for (const m of c.missions) {
-    switch (m.kind) {
-      case 'win': if (x.win) m.progress++; break;
-      case 'streak': m.progress = Math.max(m.progress, Math.min(m.target, streak)); break;
-      case 'shutout': if (x.win && x.them === 0) m.progress++; break;
-      case 'score': if (x.win && x.us >= Number(m.title.match(/\d+/)?.[0] ?? 5)) m.progress++; break;
-      case 'hr': m.progress += x.hr; break;
-      case 'k': m.progress += x.k; break;
-      case 'upset': if (x.win && x.prob < 0.4) m.progress++; break;
-      case 'train': m.progress = consecutive(c.lastMenus, x.menu); break;
-      case 'rest': if (x.menu === 'rest') m.progress++; break;
-      default: break;
+    for (const x of w.games) {
+      switch (m.kind) {
+        case 'win': if (x.win) m.progress++; break;
+        case 'streak': m.progress = Math.max(m.progress, Math.min(m.target, c.rec.streak)); break;
+        case 'shutout': if (x.win && x.them === 0) m.progress++; break;
+        case 'score': if (x.win && x.us >= Number(m.title.match(/\d+/)?.[0] ?? 5)) m.progress++; break;
+        case 'hr': m.progress += x.hr; break;
+        case 'k': m.progress += x.k; break;
+        case 'upset': if (x.win && x.prob < 0.4) m.progress++; break;
+        default: break;
+      }
     }
+    if (m.kind === 'train') m.progress = consecutive(c.lastMenus, w.menu);
+    if (m.kind === 'rest' && w.menu === 'rest') m.progress++;
   }
   const done = c.missions.filter((m) => m.progress >= m.target);
   for (const m of done) {
-    if (!c.pantry) c.pantry = emptyPantry();
     for (const [k, n] of Object.entries(m.reward) as [Ingredient, number][]) c.pantry[k] += n;
     c.news.push(`ミッション達成「${m.title}」 食材 ${rewardText(m.reward)} を手に入れた!`);
   }
   c.missions = c.missions.filter((m) => m.progress < m.target);
-  // 試合のたびに,勝てば食材が少し手に入る
-  if (x.win || rand() < 0.3) {
+  // 公式戦のたびに,勝てば食材が少し手に入る.試合のない週は,たまに.
+  const won = w.games.some((x) => x.win);
+  if (won || rand() < (w.games.length ? 0.3 : 0.12)) {
     const k = shuffle(ING)[0];
     c.pantry[k] += 1;
-    c.news.push(`${x.win ? '勝利の差し入れ' : '差し入れ'}: ${ingName(k)}を1つもらった.`);
+    c.news.push(`${won ? '勝利の差し入れ' : '差し入れ'}: ${ingName(k)}を1つもらった.`);
   }
   refillMissions(c);
 }

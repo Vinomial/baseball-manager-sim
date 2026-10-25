@@ -32,6 +32,16 @@ export function renderTable(c: Career): string {
   h += `<h2>個人成績 <span class="small muted">(${L.name})</span></h2><div class="boards">${leaders(c, level).map((b) =>
     `<div class="board2"><h4>${b.name}</h4>${b.rows.length ? `<ol>${b.rows.map((r) => `<li><span>${esc(r.p.name)} <span class="muted">${esc(r.team.slice(0, 4))}</span></span><b>${r.text}</b></li>`).join('')}</ol>` : '<span class="small muted">まだありません</span>'}</div>`).join('')}</div>`;
 
+  const po = lg.po;
+  if (po) {
+    const nm = (id: number) => teamById(c, id).name;
+    const row = (id: number) => `<span class="${id === c.userId ? 'w' : ''}">${esc(nm(id))}</span>`;
+    h += `<h2>プレーオフ <span class="small muted">(${L.name})</span></h2><div class="card"><table class="results"><tbody>
+    <tr><td class="muted small">準決勝</td><td>${row(po.seeds[0])} vs ${row(po.seeds[3])}</td></tr>
+    <tr><td class="muted small">準決勝</td><td>${row(po.seeds[1])} vs ${row(po.seeds[2])}</td></tr>
+    <tr><td class="muted small">決勝</td><td>${po.semiWinners.length ? po.semiWinners.map(row).join(' vs ') : '(準決勝のあと)'}</td></tr>
+    ${po.champion != null ? `<tr><td class="muted small">優勝</td><td><b>${row(po.champion)}</b></td></tr>` : ''}</tbody></table></div>`;
+  }
   const champs = c.champs.filter((x) => x.level === level).slice().reverse().slice(0, 12);
   h += `<h2>歴代の優勝 <span class="small muted">(${L.name})</span></h2><div class="card">${champs.length
     ? `<table class="results"><tbody>${champs.map((x) => `<tr><td>第${x.season}季</td><td class="${x.teamId === c.userId ? 'w' : ''}">${esc(x.team)}</td><td class="muted small">準優勝 ${esc(x.runnerUp)}</td></tr>`).join('')}</tbody></table>`

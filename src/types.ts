@@ -104,6 +104,7 @@ export interface ResultRow {
   home: boolean;
   /** 試合前の予想勝率(0〜1) */
   prob?: number;
+  kind?: GameKind;
 }
 
 export interface DraftPick { round: number; teamId: number; team: string; pid: number; name: string; user: boolean; }
@@ -118,6 +119,26 @@ export interface DraftState {
   done: boolean;
 }
 
+export type GameKind = 'league' | 'playoff' | 'cup' | 'practice';
+
+/** プレーオフの進み具合(上位4チーム) */
+export interface PlayoffState {
+  /** 順位の高い順の 4 チーム */
+  seeds: number[];
+  semiWinners: number[];
+  champion: number | null;
+  runnerUp: number | null;
+}
+
+/** 年末の全日本選手権の進行 */
+export interface CupLive {
+  /** いま残っているチーム(対戦表の並び.不戦勝の空きは null) */
+  slots: (number | null)[];
+  /** 次に行う回戦(0 から) */
+  round: number;
+  done: boolean;
+}
+
 export interface LeagueState {
   level: number;
   teamIds: number[];
@@ -125,6 +146,9 @@ export interface LeagueState {
   stand: Record<number, Standing>;
   /** 消化した試合数 */
   week: number;
+  /** 各試合が行われる暦の週(0〜47) */
+  weeks: number[];
+  po: PlayoffState | null;
 }
 
 export interface ChampRow { season: number; level: number; team: string; teamId: number; runnerUp: string; }
@@ -251,6 +275,10 @@ export interface Career {
   season: number;
   /** プレイヤーのリーグで消化した試合数 */
   week: number;
+  /** 暦の週(0〜47).12か月×4週. */
+  cal: number;
+  /** 全日本選手権の進行 */
+  cup: CupLive | null;
   /** プレイヤーの今のリーグ(オフの間は昇格前) */
   level: number;
   phase: 'season' | 'off';

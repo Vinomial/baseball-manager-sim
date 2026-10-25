@@ -24,14 +24,14 @@ export interface Recipe {
 }
 
 export const RECIPES: Recipe[] = [
-  { key: 'onigiri', name: 'おにぎり', need: { rice: 1 }, weeks: 1, mult: { all: 1.2 }, desc: '1試合,全能力の伸びが2割増える' },
-  { key: 'katsu', name: 'カツ丼', need: { rice: 1, meat: 1, egg: 1 }, weeks: 2, mult: { meet: 1.7, power: 1.7, all: 1.1 }, desc: '2試合,ミートとパワーの伸びが大きい' },
-  { key: 'steak', name: 'ステーキ', need: { meat: 2 }, weeks: 1, mult: { power: 2.2, velo: 2.2, all: 1.0 }, desc: '1試合,パワーと球威が大きく伸びる' },
-  { key: 'fish', name: '焼き魚定食', need: { rice: 1, fish: 1, veg: 1 }, weeks: 2, mult: { ctrl: 1.8, meet: 1.5, all: 1.1 }, desc: '2試合,制球とミートの伸びが大きい' },
-  { key: 'curry', name: '野菜カレー', need: { rice: 1, veg: 2 }, weeks: 2, mult: { stam: 2, speed: 1.8, field: 1.3, all: 1.1 }, desc: '2試合,スタミナと走力の伸びが大きい' },
-  { key: 'sushi', name: '寿司盛り合わせ', need: { rice: 1, fish: 2 }, weeks: 2, mult: { all: 1.5 }, desc: '2試合,全能力の伸びが5割増える' },
-  { key: 'parfait', name: 'フルーツパフェ', need: { fruit: 2, egg: 1 }, weeks: 1, mult: { all: 1.3 }, desc: '1試合,全能力が伸び,疲れと調子も整う', recover: true },
-  { key: 'bento', name: '豪華弁当', need: { rice: 2, meat: 1, fish: 1, veg: 1, egg: 1 }, weeks: 3, mult: { all: 1.7 }, desc: '3試合,全能力の伸びが7割増える(特別な一品)' },
+  { key: 'onigiri', name: 'おにぎり', need: { rice: 1 }, weeks: 2, mult: { all: 1.2 }, desc: '2週間,全能力の伸びが2割増える' },
+  { key: 'katsu', name: 'カツ丼', need: { rice: 1, meat: 1, egg: 1 }, weeks: 4, mult: { meet: 1.7, power: 1.7, all: 1.1 }, desc: '4週間,ミートとパワーの伸びが大きい' },
+  { key: 'steak', name: 'ステーキ', need: { meat: 2 }, weeks: 2, mult: { power: 2.2, velo: 2.2, all: 1.0 }, desc: '2週間,パワーと球威が大きく伸びる' },
+  { key: 'fish', name: '焼き魚定食', need: { rice: 1, fish: 1, veg: 1 }, weeks: 4, mult: { ctrl: 1.8, meet: 1.5, all: 1.1 }, desc: '4週間,制球とミートの伸びが大きい' },
+  { key: 'curry', name: '野菜カレー', need: { rice: 1, veg: 2 }, weeks: 4, mult: { stam: 2, speed: 1.8, field: 1.3, all: 1.1 }, desc: '4週間,スタミナと走力の伸びが大きい' },
+  { key: 'sushi', name: '寿司盛り合わせ', need: { rice: 1, fish: 2 }, weeks: 4, mult: { all: 1.5 }, desc: '4週間,全能力の伸びが5割増える' },
+  { key: 'parfait', name: 'フルーツパフェ', need: { fruit: 2, egg: 1 }, weeks: 2, mult: { all: 1.3 }, desc: '2週間,全能力が伸び,疲れと調子も整う', recover: true },
+  { key: 'bento', name: '豪華弁当', need: { rice: 2, meat: 1, fish: 1, veg: 1, egg: 1 }, weeks: 6, mult: { all: 1.7 }, desc: '6週間,全能力の伸びが7割増える(特別な一品)' },
 ];
 
 export function canCook(c: Career, r: Recipe): boolean {

@@ -8,6 +8,8 @@ import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
+import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
+import { keysOf } from '../src/growth/player';
 import { cook, mealMult } from '../src/growth/meals';
 import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
@@ -71,7 +73,7 @@ describe('シーズン進行', () => {
     expect(c.leagues[0].schedule.length).toBe(gamesPerSeason(0));
     playSeason(c);
     expect(c.phase).toBe('off');
-    expect(c.results.length).toBe(gamesPerSeason(0));
+    expect(c.results.filter((r) => r.kind === 'league').length).toBe(gamesPerSeason(0));
     for (const lg of c.leagues) {
       for (const id of lg.teamIds) {
         const s = lg.stand[id];
@@ -294,7 +296,7 @@ describe('記録と実績', () => {
     expect(c.rec.bestWins).toBe(c.off!.rec.w);
     expect(c.rival).not.toBeNull();
     const games = Object.values(c.h2h).reduce((n, r) => n + r.w + r.l + r.d, 0);
-    expect(games).toBe(gamesPerSeason(0));
+    expect(games).toBeGreaterThanOrEqual(gamesPerSeason(0));
   });
 
   it('実績は一度だけ解除され,知らせが出る', () => {
@@ -592,7 +594,7 @@ describe('ミッションと料理', () => {
     const m = cook(c, 'katsu');
     expect(m).not.toBeNull();
     expect(c.pantry).toEqual({ rice: 0, meat: 0, fish: 0, veg: 0, fruit: 0, egg: 0 });
-    expect(c.meal!.weeks).toBe(2);
+    expect(c.meal!.weeks).toBe(4);
     expect(mealMult(c.meal, 'meet')).toBeGreaterThan(1.5);
     expect(mealMult(null, 'meet')).toBe(1);
 
@@ -655,11 +657,11 @@ describe('全日本選手権', () => {
     expect(c.off!.cup.length).toBeGreaterThan(0);
   });
 
-  it('選手権の試合は成績や疲れに残らない', () => {
+  it('リーグ戦・プレーオフ・選手権の試合数が,出場数の上限になる', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
     // シーズンの試合数以上の登板・出場は記録されていない
-    for (const t of c.teams) for (const p of t.players) expect(p.stats.g).toBeLessThanOrEqual(gamesPerSeason(c.leagues.findIndex((l) => l.teamIds.includes(t.id))));
+    for (const t of c.teams) for (const p of t.players) expect(p.stats.g).toBeLessThanOrEqual(gamesPerSeason(c.leagues.findIndex((l) => l.teamIds.includes(t.id))) + 8 + 5);
   });
 
   it('v10 のデータに選手権の欄を足す', () => {
@@ -670,5 +672,80 @@ describe('全日本選手権', () => {
     const m = migrate(old);
     expect(m).not.toBeNull();
     expect(m!.cups).toEqual([]);
+  });
+});
+
+
+describe('1年48週のカレンダー', () => {
+  beforeEach(() => setRandom(seeded(131)));
+  afterEach(() => resetRandom());
+
+  it('各リーグの試合は,4月から10月までの週に割り振られる', () => {
+    const c = newCareer('テスト');
+    for (const lg of c.leagues) {
+      expect(lg.weeks.length).toBe(lg.schedule.length);
+      for (let i = 0; i < lg.weeks.length; i++) {
+        expect(lg.weeks[i]).toBeGreaterThanOrEqual(SEASON_START);
+        expect(lg.weeks[i]).toBeLessThan(PLAYOFF_START);
+        if (i) expect(lg.weeks[i]).toBeGreaterThan(lg.weeks[i - 1]);
+      }
+    }
+    // 試合数が最も多いプロリーグは毎週試合がある
+    expect(c.leagues[3].weeks).toEqual(Array.from({ length: 28 }, (_, i) => SEASON_START + i));
+  });
+
+  it('1年は48週で終わり,プレーオフと全日本選手権まで終わる', () => {
+    const c = newCareer('テスト');
+    let weeks = 0;
+    while (c.phase === 'season') { playWeek(c, 'mix'); weeks++; }
+    expect(weeks).toBe(WEEKS_PER_YEAR);
+    for (const lg of c.leagues) {
+      expect(lg.po?.champion).not.toBeNull();
+      expect(lg.week).toBe(lg.schedule.length);
+    }
+    expect(c.cup?.done).toBe(true);
+    expect(c.cupBracket.length).toBe(27);
+  });
+
+  it('試合のない週は,練習試合を選べて,成績には入らず疲れだけがたまる', () => {
+    const c = newCareer('テスト');
+    // 草野球は最初の週(1月)に公式戦がない
+    expect(weekInfo(c).userGame).toBeNull();
+    const u = userTeam(c);
+    for (const p of u.players) p.fatigue = 0;
+    const r = playWeek(c, 'mix', { practice: true });
+    expect(r.kind).toBe('practice');
+    expect(r.games.length).toBe(1);
+    for (const p of u.players) expect(p.stats.g).toBe(0);
+    expect(u.players.some((p) => p.fatigue > 0)).toBe(true);
+    expect(c.results.length).toBe(0);
+  });
+
+  it('強いチームはプレーオフに出て,その週はプレイヤーの試合が行われる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) for (const k of keysOf(p)) { p[k] = 95; p.pot[k] = 99; }
+    let po: ReturnType<typeof playWeek> | null = null;
+    while (c.phase === 'season') {
+      const cal = c.cal;
+      const r = playWeek(c, 'mix');
+      if (cal === PLAYOFF_START) po = r;
+    }
+    expect(po).not.toBeNull();
+    expect(po!.kind).toBe('playoff');
+    expect(po!.games.length).toBeGreaterThanOrEqual(2);
+    expect(c.results.some((r) => r.kind === 'playoff')).toBe(true);
+  });
+
+  it('v11 のデータにカレンダーを足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 11;
+    delete old.cal; delete old.cup;
+    for (const lg of old.leagues as Record<string, unknown>[]) { delete lg.weeks; delete lg.po; }
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.cal).toBeGreaterThanOrEqual(SEASON_START);
+    expect(m!.leagues[0].weeks.length).toBe(m!.leagues[0].schedule.length);
   });
 });

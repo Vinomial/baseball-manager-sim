@@ -1,5 +1,5 @@
 import type { GrowthReport, MenuKey } from '../growth/training';
-import type { Career, Game } from '../types';
+import type { Career, Game, GameKind } from '../types';
 
 export type Tab = 'home' | 'game' | 'team' | 'table' | 'rec';
 export type Screen = 'title' | 'new' | 'play';
@@ -12,7 +12,11 @@ export type Selection =
 
 /** 直近の試合の結果と練習の成果 */
 export interface LastWeek {
-  game: Game;
+  /** プレーオフなどでは複数 */
+  games: Game[];
+  /** 見ている試合(games の中の 1 つ).試合のない週は null */
+  game: Game | null;
+  kind: GameKind | null;
   menu: MenuKey;
   report: GrowthReport[];
 }
@@ -43,6 +47,8 @@ export interface AppState {
   faRole: '野手' | '投手';
   /** 試合のあとに結果を自動で開くか(切ると,試合を見ずに次へ進める) */
   autoOpen: boolean;
+  /** 試合のない週に練習試合を組むか */
+  practice: boolean;
 }
 
 const AUTO_KEY = 'baseball-manager-sim/autoOpen';
@@ -56,4 +62,5 @@ export function writeAutoOpen(v: boolean): void {
 export const state: AppState = {
   career: null, last: null, screen: 'title', menuOpen: false, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
+  practice: false,
 };

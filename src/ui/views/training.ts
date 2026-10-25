@@ -1,6 +1,7 @@
 import { ALL_KEYS, LABEL, LEAGUES } from '../../data/constants';
 import { adviseTraining, leagueAvgAttrs } from '../../growth/advisor';
 import { focusKeys, MENUS, type MenuKey } from '../../growth/training';
+import { TRAIN_PER_WEEK, WEEKS_PER_YEAR, weekInfo } from '../../league/calendar';
 import { trustGrowth } from '../../league/finance';
 import { userTeam } from '../../league/season';
 import type { Career } from '../../types';
@@ -11,11 +12,10 @@ import { state } from '../state';
 
 /** 練習メニューの選択.おすすめと,見込みのグラフを添える. */
 export function renderTraining(c: Career): string {
-  const lg = c.leagues[c.level];
-  const left = lg.schedule.length - c.week;
-  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, (10 / lg.schedule.length) * trustGrowth(c.trust), c.meal);
+  const left = WEEKS_PER_YEAR - c.cal;
+  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, TRAIN_PER_WEEK * trustGrowth(c.trust) * weekInfo(c).trainMult, c.meal);
   if (!state.menuTouched) state.menu = adv.best;
-  const horizon = Math.max(1, Math.min(left, 10));
+  const horizon = Math.max(1, Math.min(left, 8));
   const maxGain = Math.max(0.5, ...Object.values(adv.menus).flatMap((m) => ALL_KEYS.map((k) => m.gains[k])));
   const best = MENUS[adv.best];
 
@@ -25,7 +25,7 @@ export function renderTraining(c: Career): string {
       <b>${m.name}${k === adv.best ? ' <span class="rec star">★</span>' : ''}</b>
       ${focusKeys(m).length ? `<span><span class="focus">重点</span>${focusKeys(m).map((x) => LABEL[x]).join('・')}</span>` : '<span>&nbsp;</span>'}
       ${miniBarsHTML(ALL_KEYS.map((x) => ({ label: LABEL[x], value: a.gains[x] })), maxGain)}
-      <span>${horizon}試合で平均 <b>+${(a.total / ALL_KEYS.length).toFixed(1)}</b></span></button>`;
+      <span>${horizon}週で平均 <b>+${(a.total / ALL_KEYS.length).toFixed(1)}</b></span></button>`;
   }).join('');
 
   const weakest = ALL_KEYS.reduce((a, b) => (adv.gap[b] < adv.gap[a] ? b : a));

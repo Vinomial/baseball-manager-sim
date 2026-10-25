@@ -6,6 +6,7 @@ import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { weekInfo } from '../../league/calendar';
+import { hurtPlayers } from '../../league/health';
 import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
@@ -27,6 +28,11 @@ export function renderHome(c: Career): string {
   if (state.last?.game && !state.autoOpen) {
     const r = recap(state.last.game);
     h += `<div class="card"><p style="margin:0"><b>前の試合</b> <span class="small muted">${esc(r.headline)}</span></p><button class="btn ghost" data-a="tab" data-k="game" style="margin-top:6px">詳しく見る</button></div>`;
+  }
+  const hurt = hurtPlayers(u);
+  const tiredN = u.players.filter((p) => p.fatigue >= 70 && !(p.inj && p.inj.weeks > 0)).length;
+  if (hurt.length || tiredN) {
+    h += `<div class="card"><p style="margin:0"><b>コンディション</b> <span class="small muted">怪我人は,控えが自動で代わりに出ます.</span></p>${hurt.map((p) => `<p class="small" style="margin:4px 0 0">🩹 ${esc(p.name)} ${esc(p.inj!.name)} あと${p.inj!.weeks}週</p>`).join('')}${tiredN ? `<p class="small" style="margin:4px 0 0">疲労70以上の選手が${tiredN}人います.休養で回復できます.</p>` : ''}</div>`;
   }
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;

@@ -5,7 +5,8 @@
 import { getChem } from '../growth/chemistry';
 import { eff } from '../growth/player';
 import { findCombos, sumFx } from '../league/combos';
-import { fit, getPlayer } from '../league/team';
+import { effectiveLineup, fit, getPlayer } from '../league/team';
+import { isHurt } from '../league/health';
 import type { PitchKey } from '../types';
 import type { Game, PlayKind, Player, Side, Team } from '../types';
 import { clamp, pick, rand } from '../util/random';
@@ -25,7 +26,8 @@ export function pitchFx(p: Player): { V: number; C: number; hit: number; dp: num
 }
 
 export function makeSide(t: Team): Side {
-  const lineup = t.lineup.map((e) => ({ p: getPlayer(t, e.pid), pos: e.pos }));
+  const eLineup = effectiveLineup(t);
+  const lineup = eLineup.map((e) => ({ p: getPlayer(t, e.pid), pos: e.pos }));
   const F = lineup.filter((e) => e.pos !== '指');
   const get = (x: string) => {
     const e = lineup.find((y) => y.pos === x);
@@ -35,11 +37,14 @@ export function makeSide(t: Team): Side {
   const sec = get('二'), ss = get('遊');
   const glove = F.filter((e) => e.p.skills.includes('glove')).length * 6 / F.length;
   let D = F.reduce((s, e) => s + eff(e.p, 'field') + fit(e.p, e.pos), 0) / F.length + getChem(t, sec.id, ss.id) * 0.06 + glove;
-  let sp = getPlayer(t, t.pitchers[t.rotIdx % 3]);
+  // 先発ローテーション(怪我人は飛ばす)
+  const healthy = t.pitchers.filter((id) => !isHurt(getPlayer(t, id)));
+  const rot = (healthy.length >= 3 ? healthy : t.pitchers).slice(0, 3);
+  let sp = getPlayer(t, rot[t.rotIdx % rot.length]);
   if (sp.fatigue > 60) {
-    sp = t.pitchers.slice(0, 3).map((id) => getPlayer(t, id)).sort((a, b) => a.fatigue - b.fatigue)[0];
+    sp = rot.map((id) => getPlayer(t, id)).sort((a, b) => a.fatigue - b.fatigue)[0];
   }
-  const cs = findCombos(t, sp.id);
+  const cs = findCombos({ ...t, lineup: eLineup }, sp.id);
   const fx = sumFx(cs);
   D += fx.def;
   return {
@@ -52,7 +57,7 @@ export function makeSide(t: Team): Side {
 export function newGame(home: Team, away: Team, logOn = true): Game {
   const g: Game = {
     home: makeSide(home), away: makeSide(away),
-    inning: 1, half: 0, outs: 0, bases: [null, null, null], log: [], logOn, over: false, snap: {},
+    inning: 1, half: 0, outs: 0, bases: [null, null, null], log: [], logOn, over: false, snap: {}, injured: [],
   };
   for (const t of [home, away]) for (const p of t.players) g.snap[p.id] = { ...p.stats };
   g.away.inn.push(0);
@@ -109,7 +114,7 @@ function pitcherEff(def: Side): { V: number; C: number; K: number; hit: number; 
 function relievers(def: Side): Player[] {
   return def.team.pitchers.slice(3)
     .map((id) => getPlayer(def.team, id))
-    .filter((x) => !def.used.includes(x) && x.fatigue < 70);
+    .filter((x) => !def.used.includes(x) && x.fatigue < 70 && !isHurt(x));
 }
 
 function changePitcher(g: Game, def: Side, np: Player): void {

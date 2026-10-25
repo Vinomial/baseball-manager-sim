@@ -276,3 +276,7 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .sheet .btn{width:100%;text-align:left}
 .toast{position:fixed;left:50%;bottom:calc(var(--navh) + 80px);transform:translateX(-50%);background:var(--board);color:var(--board-num);padding:8px 16px;border-radius:20px;z-index:60;font-weight:700;box-shadow:0 2px 10px #0006}
 .sheet-h .btn{width:auto;min-width:44px;text-align:center}
+
+.injtag{font-size:11px;border-radius:3px;padding:0 5px;background:var(--bad);color:#fff;white-space:nowrap}
+.tiredtag{font-size:11px;border-radius:3px;padding:0 5px;background:var(--sel);color:#2a1d00;white-space:nowrap}
+.tiredtag.bad{background:#D9472F;color:#fff}

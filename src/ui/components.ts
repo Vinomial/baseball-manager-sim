@@ -28,7 +28,9 @@ export function attrsHTML(p: Player): string {
 
 export function condHTML(p: Player): string {
   const [n, i] = COND[p.cond];
-  return `<span class="cond c${p.cond}">${i}${n}</span>`;
+  const hurt = p.inj && p.inj.weeks > 0 ? `<span class="injtag">🩹${esc(p.inj.name)} あと${p.inj.weeks}週</span> ` : '';
+  const tired = p.fatigue >= 60 ? `<span class="tiredtag ${p.fatigue >= 80 ? 'bad' : ''}">疲労${Math.round(p.fatigue)}</span> ` : '';
+  return `${hurt}${tired}<span class="cond c${p.cond}">${i}${n}</span>`;
 }
 
 export function fieldSVG(g: Game): string {

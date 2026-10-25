@@ -8,6 +8,9 @@ import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
+import { fatigueRisk, isHurt } from '../src/league/health';
+import { effectiveLineup } from '../src/league/team';
+import type { Player } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult } from '../src/growth/meals';
@@ -747,5 +750,60 @@ describe('1年48週のカレンダー', () => {
     expect(m).not.toBeNull();
     expect(m!.cal).toBeGreaterThanOrEqual(SEASON_START);
     expect(m!.leagues[0].weeks.length).toBe(m!.leagues[0].schedule.length);
+  });
+});
+
+describe('疲労と怪我', () => {
+  beforeEach(() => setRandom(seeded(141)));
+  afterEach(() => resetRandom());
+
+  it('1年のあいだに,怪我が起きて治る', () => {
+    const c = newCareer('テスト');
+    let hurtSeen = 0;
+    while (c.phase === 'season') {
+      playWeek(c, 'mix');
+      for (const t of c.teams) hurtSeen += t.players.filter(isHurt).length;
+    }
+    expect(hurtSeen).toBeGreaterThan(0);
+    // 怪我の週数は必ず正で,有限
+    for (const t of c.teams) for (const p of t.players) if (p.inj) { expect(p.inj.weeks).toBeGreaterThan(0); expect(p.inj.weeks).toBeLessThanOrEqual(20); }
+  });
+
+  it('怪我人は試合に出ず,控えが代わりに出る', () => {
+    const c = newCareer('テスト');
+    const t = c.teams[1];
+    const star = t.players.find((p) => t.lineup.some((e) => e.pid === p.id))!;
+    star.inj = { name: 'テスト', weeks: 3, major: false };
+    const eff = effectiveLineup(t);
+    expect(eff.some((e) => e.pid === star.id)).toBe(false);
+    expect(eff.length).toBe(9);
+    for (let i = 0; i < 20; i++) {
+      const g = newGame(t, c.teams[2], false);
+      expect(g.home.lineup.some((e) => e.p.id === star.id)).toBe(false);
+      stepToEnd(g);
+    }
+  });
+
+  it('疲れがたまると怪我の確率が上がる', () => {
+    const lo = { fatigue: 0 } as Player, hi = { fatigue: 90 } as Player;
+    expect(fatigueRisk(hi)).toBeGreaterThan(fatigueRisk(lo) * 2);
+  });
+
+  it('休養は疲れをとり,きつい練習は疲れをためる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) p.fatigue = 50;
+    doTraining(u, 'rest', 1);
+    expect(u.players.every((p) => p.fatigue < 50)).toBe(true);
+    for (const p of u.players) p.fatigue = 50;
+    doTraining(u, 'stam', 1);
+    expect(u.players.every((p) => p.fatigue > 50)).toBe(true);
+  });
+
+  it('怪我人が多い・疲れているときは休養をすすめる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) p.fatigue = 75;
+    expect(adviseTraining(u, leagueAvgAttrs(c), 10, 1).best).toBe('rest');
   });
 });

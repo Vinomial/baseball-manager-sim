@@ -1,6 +1,8 @@
 import type { AttrKey, Meal, Team } from '../types';
 import { mealMult } from './meals';
 import { addChem } from './chemistry';
+import { clamp } from '../util/random';
+import { isHurt } from '../league/health';
 import { maybeLearn } from './abilities';
 import { condDrift, growAttr, keysOf } from './player';
 import { findByPos } from '../league/team';
@@ -34,6 +36,11 @@ export const MENUS: Record<MenuKey, Menu> = {
 /** 重点の能力名(表示用) */
 export const focusKeys = (m: Menu): AttrKey[] => Object.keys(m.focus) as AttrKey[];
 
+/** 練習ごとの疲れの増え方 [野手, 投手] */
+export const LOAD: Record<MenuKey, [number, number]> = {
+  bat: [12, 4], run: [12, 6], field: [12, 4], pitch: [4, 14], stam: [16, 18], mix: [10, 10], rest: [-40, -40],
+};
+
 export interface GrowthReport { name: string; ups: [AttrKey, number][]; /** 球種や特殊能力を身につけたときの知らせ */ note?: string; }
 
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
@@ -45,9 +52,12 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
   for (const p of t.players) {
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k));
+    const hurt = isHurt(p) ? 0.3 : 1;
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt);
     condDrift(p, (m.rest ? 1 : 0) + condBias);
-    if (m.rest) p.fatigue = Math.max(0, p.fatigue - 40);
+    // 練習の負担.休養は疲れをとる
+    const load = LOAD[menu];
+    p.fatigue = clamp(p.fatigue + (p.role === '野手' ? load[0] : load[1]), 0, 100);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);
     const note = maybeLearn(p, menu, 0.012 * scale) ?? undefined;
     if (ups.length || note) rep.push({ name: p.name, ups, note });

@@ -2,6 +2,7 @@ import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, POS } from '../data/constants';
 import { genPlayer, type IdSource } from '../growth/player';
 import type { AttrKey, LineupPos, Player, Team } from '../types';
 import { ri } from '../util/random';
+import { isHurt } from './health';
 
 export interface TeamIdSource extends IdSource { tid: number; }
 
@@ -81,6 +82,26 @@ export function ovr(t: Team): number {
   const ps = t.pitchers.slice(0, 5).map((id) => findPlayer(t, id)).filter((p): p is Player => !!p);
   const pv = ps.reduce((s, p) => s + (p.velo + p.ctrl + p.stam) / 3, 0) / ps.length;
   return ps.length ? (b + pv) / 2 : b;
+}
+
+/** 怪我人を控えの選手と入れ替えた,実際に出場するオーダー(チームのオーダーそのものは変えない). */
+export function effectiveLineup(t: Team): { pid: number; pos: LineupPos }[] {
+  const hurt = new Set(t.players.filter(isHurt).map((p) => p.id));
+  if (!t.lineup.some((e) => hurt.has(e.pid))) return t.lineup;
+  const taken = new Set(t.lineup.map((e) => e.pid));
+  const bench = fielders(t).filter((p) => !taken.has(p.id) && !hurt.has(p.id));
+  return t.lineup.map((e) => {
+    if (!hurt.has(e.pid)) return e;
+    let best: Player | null = null, bv = -1e9;
+    for (const p of bench) {
+      if (taken.has(p.id)) continue;
+      const v = batVal(p) + (p.field + fit(p, e.pos)) * 0.9;
+      if (v > bv) { bv = v; best = p; }
+    }
+    if (!best) return e;
+    taken.add(best.id);
+    return { pid: best.id, pos: e.pos };
+  });
 }
 
 /** 能力ごとの平均.打撃系は先発の野手,投手系は先発・中継ぎの上位5人で出す. */

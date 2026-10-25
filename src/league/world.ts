@@ -7,6 +7,7 @@ import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
+import { heal, isHurt, maybeInjure } from './health';
 import { applyGameEffects, applyGameResultToStanding } from './result';
 import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from './schedule';
@@ -87,12 +88,21 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
 }
 
 /** 暦の週が進むたびに,すべてのチームで行うこと.疲れの回復,AI の練習と調子. */
-export function weeklyUpkeep(c: Career): void {
+export function weeklyUpkeep(c: Career, menuRisk = 1): void {
   for (const lg of c.leagues) {
     const mult = AI_YEAR_GAIN[lg.level] / WEEKS_PER_YEAR;
     for (const id of lg.teamIds) {
       const t = teamById(c, id);
-      for (const p of t.players) p.fatigue = Math.max(0, p.fatigue - 45);
+      const med = t.med ?? 0;
+      for (const p of t.players) {
+        // AI チームも練習で疲れる
+        if (!t.user) p.fatigue = Math.min(100, p.fatigue + 11);
+        p.fatigue = Math.max(0, p.fatigue - 18);
+        if (heal(p, med) && t.user) c.news.push(`${p.name}の怪我が治りました.`);
+        else if (!isHurt(p) && maybeInjure(p, 0.0025 * (t.user ? menuRisk : 1), med) && t.user) {
+          c.news.push(`${p.name}が${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
+        }
+      }
       if (!t.user) { aiTrain(t, mult); for (const p of t.players) condDrift(p, 0); }
     }
   }

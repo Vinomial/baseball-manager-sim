@@ -32,6 +32,8 @@ export interface SeasonLine {
   stats: Stats;
 }
 
+export interface Injury { name: string; weeks: number; /** 大怪我(能力が下がる)か */ major: boolean; }
+
 export interface Player {
   id: number;
   name: string;
@@ -42,8 +44,10 @@ export interface Player {
   pos: Pos | '投';
   /** 調子 0(絶不調)〜4(絶好調) */
   cond: number;
-  /** 疲労 0〜100(主に投手) */
+  /** 疲労 0〜100 */
   fatigue: number;
+  /** 怪我(治るまでの週数).なければ null. */
+  inj?: Injury | null;
   meet: number; power: number; speed: number; field: number;
   velo: number; ctrl: number; stam: number;
   /** 能力ごとの上限(プレイヤーには直接見せない) */
@@ -81,6 +85,8 @@ export interface Team {
   baseChem: number;
   /** 選手同士の絆(師弟など).[選手ID, 選手ID] */
   bonds: [number, number][];
+  /** 医務室のレベル(怪我の起きにくさ・治りの早さ).プレイヤーのチームだけ. */
+  med?: number;
 }
 
 export interface Standing { w: number; l: number; d: number; rf: number; ra: number; }
@@ -391,5 +397,7 @@ export interface Game {
   logOn: boolean;
   /** 試合開始時の成績.試合内の成績は現在の成績との差で出す. */
   snap: Record<number, Stats>;
+  /** この試合で怪我をした選手 */
+  injured: Player[];
   over: boolean;
 }

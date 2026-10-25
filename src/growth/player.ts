@@ -105,7 +105,9 @@ export function roomWord(p: Player): string {
 }
 
 /** 試合で使う実効値(調子込み) */
-export const eff = (p: Player, k: AttrKey): number => p[k] + (p.cond - 2) * 4;
+/** 疲れがたまると,力が出なくなる */
+export const tiredPenalty = (p: Player): number => Math.max(0, p.fatigue - 40) * 0.1;
+export const eff = (p: Player, k: AttrKey): number => p[k] + (p.cond - 2) * 4 - tiredPenalty(p);
 
 /** 今の力.野手は打撃と守備,投手は球威・制球・スタミナの重み付き平均. */
 export function playerValue(p: Player): number {

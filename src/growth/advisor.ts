@@ -57,12 +57,12 @@ export interface Advice {
   gap: Gains;
 }
 
-/** 疲れや不調で休ませたいかどうか */
+/** 疲れや不調,怪我人が多くて,休ませたいかどうか */
 function needsRest(t: Team): { rest: boolean; why: string } {
-  const ps = t.pitchers.slice(0, 5).map((id) => t.players.find((p) => p.id === id)).filter((p) => !!p);
-  const fat = ps.length ? ps.reduce((s, p) => s + p!.fatigue, 0) / ps.length : 0;
+  const fat = t.players.reduce((s, p) => s + p.fatigue, 0) / t.players.length;
+  const tired = t.players.filter((p) => p.fatigue >= 70).length;
   const cond = t.players.reduce((s, p) => s + p.cond, 0) / t.players.length;
-  if (fat >= 55) return { rest: true, why: '先発投手の疲れがたまっています' };
+  if (fat >= 50 || tired >= 4) return { rest: true, why: `疲れがたまっています(平均${Math.round(fat)},疲労70以上が${tired}人)` };
   if (cond <= 1.3) return { rest: true, why: 'チーム全体の調子が落ちています' };
   return { rest: false, why: '' };
 }

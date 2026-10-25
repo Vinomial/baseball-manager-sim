@@ -9,6 +9,7 @@ import type { Career, DraftState, Game, GameKind, Team, TeamRecords } from '../t
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
+import { maybeInjure } from './health';
 import { refillMissions, updateMissions, type GameCtx } from './missions';
 import { cupSummary, playCupRound, startCup } from './cup';
 import { CUP_START, PLAYOFF_START, TRAIN_PER_WEEK, WEEKS_PER_YEAR, weekInfo } from './calendar';
@@ -95,7 +96,10 @@ function playPractice(c: Career): Game {
   const us = userSide(g);
   for (const p of us.used) {
     const real = findPlayer(u, p.id);
-    if (real) real.fatigue = clamp(real.fatigue + (us.pcBy[p.id] ?? 0) * 0.6, 0, 100);
+    if (real) {
+      real.fatigue = clamp(real.fatigue + (us.pcBy[p.id] ?? 0) * 0.6, 0, 100);
+      if (maybeInjure(real, 0.003)) c.news.push(`${real.name}が練習試合で${real.inj!.name}をしました(${real.inj!.weeks}週間).`);
+    }
   }
   for (const e of us.lineup) {
     const real = findPlayer(u, e.p.id);
@@ -144,7 +148,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
   c.week = c.leagues[c.level].week;
-  weeklyUpkeep(c);
+  weeklyUpkeep(c, menu === 'rest' ? 0.3 : menu === 'stam' ? 1.4 : 1);
   updateMissions(c, { menu, games: ctx });
   c.lastMenus.push(menu);
   if (c.lastMenus.length > 5) c.lastMenus.shift();
@@ -190,6 +194,7 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
   if (kind === 'league') {
     if (win) r.total.w++; else if (us.runs < them.runs) r.total.l++; else r.total.d++;
   }
+  for (const p of g.injured) if (t.players.includes(p)) c.news.push(`${p.name}が試合中に${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
   const box = boxScore(g, us);
   checkGame(c, g, opp.id, box.bat);
   void menu;

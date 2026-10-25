@@ -4,6 +4,7 @@ import { standings, teamById } from '../../league/schedule';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { playoffOdds } from '../../league/playoffs';
 import { rankSVG } from '../charts';
 import { gradeHTML } from '../components';
 import { state } from '../state';
@@ -40,13 +41,17 @@ export function renderTable(c: Career): string {
   }
   const po = lg.po;
   if (po) {
+    const odds = playoffOdds(c, lg);
     const nm = (id: number) => teamById(c, id).name;
     const row = (id: number) => `<span class="${id === c.userId ? 'w' : ''}">${esc(nm(id))}</span>`;
+    const pc = (v: number) => `${Math.round(v * 100)}%`;
     h += `<h2>プレーオフ <span class="small muted">(${L.name})</span></h2><div class="card"><table class="results"><tbody>
     <tr><td class="muted small">準決勝</td><td>${row(po.seeds[0])} vs ${row(po.seeds[3])}</td></tr>
     <tr><td class="muted small">準決勝</td><td>${row(po.seeds[1])} vs ${row(po.seeds[2])}</td></tr>
     <tr><td class="muted small">決勝</td><td>${po.semiWinners.length ? po.semiWinners.map(row).join(' vs ') : '(準決勝のあと)'}</td></tr>
-    ${po.champion != null ? `<tr><td class="muted small">優勝</td><td><b>${row(po.champion)}</b></td></tr>` : ''}</tbody></table></div>`;
+    ${po.champion != null ? `<tr><td class="muted small">優勝</td><td><b>${row(po.champion)}</b></td></tr>` : ''}</tbody></table>
+    <h3>優勝する確率</h3>${odds.map((o) => `<div class="chem"><span class="who ${o.team.id === c.userId ? 'me' : ''}">${esc(o.team.name)}</span><span class="bar"><i style="width:${o.champion * 100}%"></i></span><span class="small">${pc(o.champion)}</span></div>`).join('')}
+    <p class="small muted" style="margin:4px 0 0">チームの総合力の差から計算した,目安の確率です.</p></div>`;
   }
   const champs = c.champs.filter((x) => x.level === level).slice().reverse().slice(0, 12);
   h += `<h2>歴代の優勝 <span class="small muted">(${L.name})</span></h2><div class="card">${champs.length

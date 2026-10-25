@@ -31,6 +31,8 @@ export interface AppState {
   menuOpen: boolean;
   /** 詳細を開いている選手の ID */
   detail: number | null;
+  /** 入団したばかりで,育成方針をこれから決める選手(ID) */
+  planQueue: number[];
   /** トレードの組み立て中の内容 */
   trade: { teamId: number | null; want: number | null; give: number[] };
   /** 進む前の確認(疲れがたまっているときなど) */
@@ -79,7 +81,7 @@ export function writeAutoOpen(v: AutoOpen): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
   practice: false,
 };

@@ -103,3 +103,17 @@ test('練習の決め方を切り替えられる', async ({ page }) => {
   await page.click('[data-a="train-mode"][data-k="manual"]');
   await expect(page.locator('[data-a="train-mode"][data-k="manual"]')).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('ドラフトで指名すると,育成方針を決めるシートが出る', async ({ page }) => {
+  const errs = watchErrors(page);
+  await newGame(page);
+  await page.click('[data-a="auto-season"]');
+  await expect(page.locator('[data-a="ostep"]').first()).toBeVisible({ timeout: 90_000 });
+  await page.click('[data-a="ostep"][data-k="1"]');
+  await page.click('[data-a="ostep"][data-k="1"]');
+  await page.locator('[data-a="draft"]').first().click();
+  await expect(page.locator('.sheet[aria-label="育成方針を決める"]')).toBeVisible();
+  await page.locator('[data-a="plan-set"]').first().click();
+  await expect(page.locator('.sheet[aria-label="育成方針を決める"]')).toHaveCount(0);
+  expect(errs).toEqual([]);
+});

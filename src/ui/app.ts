@@ -1,5 +1,8 @@
 /** 画面の描画と操作の受け付け. */
-import { LEAGUES } from '../data/constants';
+import { LEAGUES, POS_NAME } from '../data/constants';
+import { planDef, plansFor, suggestPlan } from '../growth/plans';
+import { avatar } from './avatar';
+import { attrsHTML, playerStars } from './components';
 import type { MenuKey } from '../growth/training';
 import { cook } from '../growth/meals';
 import { sellIngredient, upgrade } from '../league/economy';
@@ -12,7 +15,7 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
-import type { AttrKey, Career, Difficulty, FacKey, PlanKey, StaffRole, Ingredient, LineupPos, Pos } from '../types';
+import type { AttrKey, Career, Difficulty, FacKey, PlanKey, Player, StaffRole, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { extendContract, negotiate } from '../league/contracts';
 import { doTrade, extendHelper, hireHelper } from '../league/trade';
@@ -93,6 +96,18 @@ function menuSheet(c: Career): string {
   ${'vibrate' in navigator ? `<button class="btn ghost" data-a="vib" aria-pressed="${sound.vib}">📳 振動: ${sound.vib ? 'ON' : 'OFF'}</button>` : ''}
   <button class="btn ghost" data-a="autoopen">試合後の結果画面: ${state.autoOpen === 'all' ? 'いつも開く' : state.autoOpen === 'important' ? '重要な試合だけ開く' : '開かない(スキップ)'}</button>
   <p class="small muted" style="margin:6px 0 0">進行は自動でセーブされます.第${c.season}シーズン.</p></div>`;
+}
+
+/** 入団したばかりの選手の,育成方針を決めるシート */
+function planSheet(p: Player): string {
+  const sug = suggestPlan(p);
+  return `<div class="sheet-bg" data-a="plan-later"></div><div class="sheet" role="dialog" aria-label="育成方針を決める">
+  <div class="sheet-h"><b>${avatar(p, 40)} ${esc(p.name)}が入団しました</b><button class="btn ghost" data-a="plan-later" aria-label="あとで決める">✕</button></div>
+  <p style="margin:0">${playerStars(p)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></p>
+  ${attrsHTML(p)}
+  <p class="small" style="margin:0">どんな選手に育てますか?いまの能力に合うおすすめは「<b>${esc(planDef(sug).name)}</b>」です.あとから,選手の詳細画面で変えられます.</p>
+  <div class="plist">${plansFor(p).map((d) => `<button class="btn ${d.key === sug ? '' : 'ghost'}" data-a="plan-set" data-id="${p.id}" data-k="${d.key}" style="text-align:left"><b>${esc(d.name)}${d.key === sug ? ' ★おすすめ' : ''}</b><br><span class="small" style="font-weight:400">${esc(d.desc)}</span></button>`).join('')}</div>
+  <button class="btn ghost" data-a="plan-later">あとで決める</button></div>`;
 }
 
 /** セーブの問題を知らせる */
@@ -194,6 +209,10 @@ function renderInner(): void {
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k || (k === 'home' && state.tab === 'game')}">${iconSVG(k)}<span>${n}</span>${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (c.phase === 'off' && c.off && c.off.step === 0 && state.celebrated !== c.season && c.off.review && (c.off.review.ownTitle || c.off.review.cupChampion || c.off.move > 0)) { state.celebrated = c.season; sfx.level(); }
   if (state.busy) root.insertAdjacentHTML('beforeend', busyOverlay());
+  if (state.planQueue.length) {
+    const p = findPlayer(userTeam(c), state.planQueue[0]);
+    if (p) root.insertAdjacentHTML('beforeend', planSheet(p)); else { state.planQueue.shift(); }
+  }
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
   if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
   if (state.term) root.insertAdjacentHTML('beforeend', state.term === '*' ? glossarySheet() : termSheet(state.term));
@@ -340,8 +359,8 @@ function onClick(e: MouseEvent): void {
     case 'trade-team': state.trade = { teamId: id, want: null, give: [] }; break;
     case 'trade-want': state.trade.want = id < 0 ? null : id; state.trade.give = []; break;
     case 'trade-give': state.trade.give = state.trade.give.includes(id) ? state.trade.give.filter((x) => x !== id) : [...state.trade.give, id]; break;
-    case 'trade-do': if (c && state.trade.teamId !== null && state.trade.want !== null) { const err = doTrade(c, state.trade.teamId, state.trade.want, state.trade.give); if (err) alert(err); else { state.trade = { teamId: null, want: null, give: [] }; sfx.ok(); save(); } } break;
-    case 'helper-hire': if (c) { const err = hireHelper(c, id); if (err) alert(err); else { sfx.coin(); save(); } } break;
+    case 'trade-do': if (c && state.trade.teamId !== null && state.trade.want !== null) { const wantId = state.trade.want; const err = doTrade(c, state.trade.teamId, state.trade.want, state.trade.give); if (err) alert(err); else { state.planQueue.push(wantId); state.trade = { teamId: null, want: null, give: [] }; sfx.ok(); save(); } } break;
+    case 'helper-hire': if (c) { const err = hireHelper(c, id); if (err) alert(err); else { sfx.coin(); state.planQueue.push(id); save(); } } break;
     case 'helper-ext': if (c) { const err = extendHelper(c, id); if (err) alert(err); else save(); } break;
     case 'extend': if (c) { const err = extendContract(c, id, i); if (err) alert(err); else { sfx.ok(); save(); } } break;
     case 'se': setSe(!sound.se); break;
@@ -389,7 +408,14 @@ function onClick(e: MouseEvent): void {
       break;
     }
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
-    case 'draft': if (c) { pickDraft(c, i); save(); } break;
+    case 'draft': if (c) {
+      const had = new Set((c.off?.draft.picks ?? []).filter((x) => x.user).map((x) => x.pid));
+      pickDraft(c, i);
+      for (const x of c.off?.draft.picks ?? []) if (x.user && !had.has(x.pid)) state.planQueue.push(x.pid);
+      save();
+    } break;
+    case 'plan-set': if (c) { const p = findPlayer(userTeam(c), id); if (p) { p.plan = k as PlanKey; save(); } state.planQueue.shift(); } break;
+    case 'plan-later': state.planQueue.shift(); break;
     case 'cook': if (c) { const m = cook(c, k); if (m) { c.news = [`${m.name}を食べた!${m.desc}.`]; save(); } } break;
     case 'upgrade': if (c) { const err = upgrade(c, k as FacKey); if (err) alert(err); else save(); } break;
     case 'sell': if (c) { const err = sellIngredient(c, k as Ingredient, i); if (err) alert(err); else save(); } break;
@@ -405,7 +431,7 @@ function onClick(e: MouseEvent): void {
     case 'sign': {
       if (!c) break;
       const err = signFreeAgent(c, id);
-      if (err) alert(err); else save();
+      if (err) alert(err); else { state.planQueue.push(id); sfx.coin(); save(); }
       break;
     }
     case 'faRole': state.faRole = k as '野手' | '投手'; break;

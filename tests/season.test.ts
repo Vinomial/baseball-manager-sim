@@ -22,6 +22,7 @@ import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
 import { opsOf } from '../src/league/leaders';
+import { playoffOdds, seriesWinProb, userSeries } from '../src/league/playoffs';
 import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeValue } from '../src/league/trade';
 import { departures, extendContract, leavingRisk } from '../src/league/contracts';
 import { renewContracts } from '../src/league/finance';
@@ -1803,5 +1804,59 @@ describe('外国人選手・総合値・盗塁', () => {
     const slow = all.filter((p) => p.speed < 30).reduce((n, p) => n + p.stats.sb, 0) / Math.max(1, all.filter((p) => p.speed < 30).length);
     expect(fast).toBeGreaterThanOrEqual(slow);
     expect(runs / 150).toBeGreaterThan(3);
+  });
+});
+
+describe('プレーオフの勝率と,入団時の育成方針', () => {
+  beforeEach(() => setRandom(seeded(321)));
+  afterEach(() => resetRandom());
+
+  it('シリーズを勝ち抜く確率は,1 試合の勝率より極端になり,対称', () => {
+    expect(seriesWinProb(0.5, 2)).toBeCloseTo(0.5, 6);
+    expect(seriesWinProb(0.5, 3)).toBeCloseTo(0.5, 6);
+    expect(seriesWinProb(0.7, 2)).toBeGreaterThan(0.7);
+    expect(seriesWinProb(0.7, 3)).toBeGreaterThan(seriesWinProb(0.7, 2));
+    expect(seriesWinProb(0.3, 3)).toBeLessThan(0.3);
+    expect(seriesWinProb(0.62, 2) + seriesWinProb(0.38, 2)).toBeCloseTo(1, 6);
+    expect(seriesWinProb(1, 3)).toBeCloseTo(1, 6);
+    expect(seriesWinProb(0, 3)).toBeCloseTo(0, 6);
+  });
+
+  it('プレーオフの優勝確率は,4 チーム合わせて 100%', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 40; i++) playWeek(c, 'mix');
+    expect(c.cal).toBe(40);
+    const lg = c.leagues[c.level];
+    const odds = playoffOdds(c, lg);
+    expect(odds.length).toBe(4);
+    expect(odds.reduce((s, o) => s + o.champion, 0)).toBeCloseTo(1, 6);
+    // 準決勝のあとは 2 チームだけになる
+    playWeek(c, 'mix');
+    const after = playoffOdds(c, lg);
+    expect(after.filter((o) => o.champion > 0).length).toBe(2);
+    expect(after.reduce((s, o) => s + o.champion, 0)).toBeCloseTo(1, 6);
+  });
+
+  it('プレーオフに出る週は,相手と勝率が出る', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) for (const k of keysOf(p)) { p[k] = 95; p.pot[k] = 99; }
+    for (let i = 0; i < 40; i++) playWeek(c, 'mix');
+    const s = userSeries(c);
+    expect(s).not.toBeNull();
+    expect(s!.kind).toBe('playoff');
+    expect(s!.opp).not.toBeNull();
+    expect(s!.pGame).toBeGreaterThan(0.5);
+    expect(s!.pSeries).toBeGreaterThanOrEqual(s!.pGame);
+    expect(s!.wins).toBe(2);
+  });
+
+  it('全日本選手権の週も,相手と勝率が出る', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) for (const k of keysOf(p)) { p[k] = 95; p.pot[k] = 99; }
+    for (let i = 0; i < 42; i++) playWeek(c, 'mix');
+    const s = userSeries(c);
+    if (s) { expect(s.kind).toBe('cup'); expect(s.wins).toBe(1); expect(s.pSeries).toBeCloseTo(s.pGame, 6); }
   });
 });

@@ -16,6 +16,7 @@ import { term } from '../glossary';
 import { state } from '../state';
 import { tutorialCard } from '../tutorial';
 import { renderOff } from './offseason';
+import { userSeries } from '../../league/playoffs';
 import { winProbHTML } from './status';
 import { storyHTML, todoHTML } from './todo';
 import { renderTraining } from './training';
@@ -67,7 +68,17 @@ export function renderHome(c: Career): string {
     h += `<div class="row" style="justify-content:space-between"><div><b>第${c.week + 1}戦 vs ${esc(m.opp.name)}</b>${m.opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${m.home ? 'ホーム' : 'ビジター'} / 全${total}戦 ${lg.teams}チーム)</span></div>
     <div class="small">${term('ovr')} 相手 ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
   } else if (info.userGame) {
+    const sr = userSeries(c);
     h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : '全日本選手権に出場します'}</b></p>`;
+    if (sr) {
+      if (!sr.opp) h += '<p class="small muted" style="margin:4px 0 0">この回戦は不戦勝(シード)です.</p>';
+      else {
+        const pc = (v: number) => `${Math.round(v * 100)}%`;
+        h += `<p class="small" style="margin:6px 0 0">${esc(sr.label)} vs <b>${esc(sr.opp.name)}</b> <span class="small muted">総合力 相手 ${Math.round(ovr(sr.opp))} / 自チーム ${Math.round(ovr(u))}</span></p>
+        <div class="prob" role="img" aria-label="1試合の予想勝率 ${pc(sr.pGame)}"><span class="small">1試合の勝率</span><span class="bar"><i style="width:${sr.pGame * 100}%;${sr.pGame < 0.5 ? 'background:var(--bad)' : ''}"></i></span><b>${pc(sr.pGame)}</b></div>
+        ${sr.wins > 1 ? `<div class="prob" role="img" aria-label="シリーズを勝ち抜く確率 ${pc(sr.pSeries)}"><span class="small">シリーズ突破</span><span class="bar"><i style="width:${sr.pSeries * 100}%;${sr.pSeries < 0.5 ? 'background:var(--bad)' : ''}"></i></span><b>${pc(sr.pSeries)}</b></div>` : ''}`;
+      }
+    }
   } else {
     if (m) h += `<p class="small muted" style="margin:0">次のリーグ戦: ${Math.floor(m.cal / 4) + 1}月 第${(m.cal % 4) + 1}週 vs ${esc(m.opp.name)}</p>`;
     h += `<div class="row" style="margin-top:8px"><button class="btn ghost" data-a="practice" aria-pressed="${state.practice}">${state.practice ? '✔ 練習試合を組む' : '練習試合を組む'}</button><span class="small muted">試合の経験が積めますが,疲れがたまります.成績には入りません.</span></div>`;

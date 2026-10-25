@@ -11,7 +11,7 @@ import { adviseCuts } from '../src/league/cuts';
 import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
 import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgradeCost, weeklyIncome } from '../src/league/economy';
 import { effectiveLineup, fit } from '../src/league/team';
-import type { Player } from '../src/types';
+import type { Player, Pos } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
@@ -910,7 +910,7 @@ describe('コンバートと選手の詳細・順位の遷移', () => {
     for (let i = 0; i < 60; i++) {
       const c = newCareer('テスト');
       const p = userTeam(c).players.find((x) => x.role === '野手' && x.pos === '遊')!;
-      const before = p.pos;
+      const before = p.pos as Pos;
       expect(startConvert(c, p.id, '二')).toBeNull();
       expect(startConvert(c, p.id, '三')).toContain('すでに');
       for (let w = 0; w < 6; w++) tickConvert(c, 'mix');

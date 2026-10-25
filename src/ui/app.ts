@@ -9,9 +9,11 @@ import { standings } from '../league/schedule';
 import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
-import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
+import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, saveCareer } from '../save';
-import type { Career, FacKey, Ingredient, LineupPos } from '../types';
+import type { Career, FacKey, Ingredient, LineupPos, Pos } from '../types';
+import { cancelConvert, startConvert } from '../league/convert';
+import { detailSheet } from './detail';
 import { esc } from '../util/format';
 import { state, writeAutoOpen, type Screen, type Tab, type TeamSub } from './state';
 import { renderGame } from './views/game';
@@ -83,6 +85,7 @@ function render(): void {
   <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
+  if (state.detail !== null) root.insertAdjacentHTML('beforeend', detailSheet(c, state.detail));
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
 }
 
@@ -105,6 +108,10 @@ function onClick(e: MouseEvent): void {
       if (k === 'title') save();
       top(); break;
     }
+    case 'detail': state.detail = id; break;
+    case 'detail-close': state.detail = null; break;
+    case 'convert': if (c) { const err = startConvert(c, id, k as Pos); if (err) alert(err); else save(); } break;
+    case 'convert-cancel': if (c) { const p = findPlayer(userTeam(c), id); if (p) { cancelConvert(p); save(); } } break;
     case 'menu-open': state.menuOpen = true; break;
     case 'menu-close': state.menuOpen = false; break;
     case 'savenow': save(); state.menuOpen = false; toast('セーブしました'); break;
@@ -236,7 +243,7 @@ export function mount(el: HTMLElement): void {
   state.screen = 'title';
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.menuOpen) { state.menuOpen = false; render(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null)) { state.menuOpen = false; state.detail = null; render(); } });
   // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)
   document.addEventListener('toggle', (e) => {
     const d = e.target as HTMLElement;

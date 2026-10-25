@@ -284,3 +284,8 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .sells{display:flex;flex-direction:column;gap:4px;margin-top:6px}
 .sell{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
 .sell .btn{padding:4px 10px;min-height:36px}
+
+.sheet.detail{max-height:90vh}
+.drow{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:14px}
+.abrow{display:flex;flex-direction:column;gap:2px;margin:4px 0}
+.mini{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:2px 8px;min-height:32px}

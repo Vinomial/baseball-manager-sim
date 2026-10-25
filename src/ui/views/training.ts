@@ -35,6 +35,7 @@ export function renderTraining(c: Career): string {
   return `<h2>今週の練習</h2>
   <div class="card advice"><p style="margin:0"><span class="rec star">★おすすめ</span> <b>${best.name}</b> <span class="small muted">${esc(adv.reason)}</span></p>
   ${state.menu === adv.best ? '' : `<button class="btn ghost" data-a="menu" data-k="${adv.best}" style="margin-top:6px">${best.name}にする</button>`}</div>
+  ${c.meal ? `<p class="small" style="margin:0 0 6px"><span class="rec star">料理の効果込み</span> 「${esc(c.meal.name)}」の効き目(あと${c.meal.weeks}週)を含めた見込みです.</p>` : ''}
   <div class="menus" role="group" aria-label="練習メニュー">${cards}</div>
   <p class="small muted" style="margin:6px 0 0">棒は左から ${ALL_KEYS.map((k) => LABEL[k].slice(0, 1)).join('・')} の伸び.選んだ能力が重点的に伸び,ほかも少しずつ伸びます.</p>
   ${gap}`;

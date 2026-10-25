@@ -5,7 +5,7 @@
 import { DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
-import type { Career, DraftState, Game, LeagueState, Player, Team } from '../types';
+import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
 import { heal, isHurt, maybeInjure } from './health';
 import { applyGameEffects, applyGameResultToStanding } from './result';
@@ -28,6 +28,7 @@ export function resetLeague(lg: LeagueState): void {
   lg.schedule = makeSchedule(shuffle(lg.teamIds), L.rounds);
   lg.weeks = scheduleWeeks(lg.schedule.length);
   lg.po = null;
+  lg.rankHist = {};
   lg.stand = {};
   for (const id of lg.teamIds) lg.stand[id] = emptyStanding();
   lg.week = 0;
@@ -43,7 +44,7 @@ export function buildWorld(c: Career, user: Team): void {
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     c.leagues.push({
-      level, teamIds: [...(level === 0 ? [user.id] : []), ...ts.map((t) => t.id)], schedule: [], stand: {}, week: 0, weeks: [], po: null,
+      level, teamIds: [...(level === 0 ? [user.id] : []), ...ts.map((t) => t.id)], schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {},
     });
   });
   for (const lg of c.leagues) resetLeague(lg);
@@ -63,7 +64,7 @@ export function fillOtherLeagues(c: Career, userLeague: LeagueState, fresh = fal
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     const ids = [...(isUser && user ? [user.id] : []), ...ts.map((t) => t.id)];
-    const lg: LeagueState = { level, teamIds: ids, schedule: [], stand: {}, week: 0, weeks: [], po: null };
+    const lg: LeagueState = { level, teamIds: ids, schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} };
     resetLeague(lg);
     c.leagues.push(lg);
   });
@@ -85,6 +86,8 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
     applyGameResultToStanding(c, g);
   }
   lg.week++;
+  // 順位の遷移を記録する
+  standings(c, lg.level).forEach((r, i) => { (lg.rankHist[r.t.id] ??= []).push(i + 1); });
 }
 
 /** 暦の週が進むたびに,すべてのチームで行うこと.疲れの回復,AI の練習と調子. */
@@ -216,7 +219,11 @@ export function computeNextLevels(c: Career): Record<number, number> {
 
 export function archiveSeason(c: Career, t: Team, level: number): void {
   for (const p of t.players) {
-    if (p.stats.g > 0) p.seasons.push({ season: c.season, level, team: t.name, age: p.age, stats: { ...p.stats } });
+    if (p.stats.g > 0) {
+      const attrs: Partial<Record<AttrKey, number>> = {};
+      for (const k of keysOf(p)) attrs[k] = Math.round(p[k]);
+      p.seasons.push({ season: c.season, level, team: t.name, age: p.age, stats: { ...p.stats }, attrs });
+    }
   }
 }
 

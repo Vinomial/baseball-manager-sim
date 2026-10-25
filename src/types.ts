@@ -30,6 +30,8 @@ export interface SeasonLine {
   team: string;
   age: number;
   stats: Stats;
+  /** その年の終わりの能力(成長のグラフ用) */
+  attrs?: Partial<Record<AttrKey, number>>;
 }
 
 export interface Injury { name: string; weeks: number; /** 大怪我(能力が下がる)か */ major: boolean; }
@@ -67,6 +69,10 @@ export interface Player {
   skills: SkillKey[];
   /** 自由契約になる前の所属チーム */
   prev?: string;
+  /** 覚えたサブポジション(守備の落ち込みが小さい) */
+  alt?: Pos[];
+  /** コンバート(守備位置の転向)の最中.left 週で完了. */
+  conv?: { to: Pos; left: number } | null;
 }
 
 export interface LineupEntry { pid: number; pos: LineupPos; }
@@ -154,6 +160,8 @@ export interface LeagueState {
   week: number;
   /** 各試合が行われる暦の週(0〜47) */
   weeks: number[];
+  /** 節ごとの各チームの順位(順位の遷移グラフ用) */
+  rankHist: Record<number, number[]>;
   po: PlayoffState | null;
 }
 

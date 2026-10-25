@@ -10,6 +10,7 @@ import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
+import { tickConvert } from './convert';
 import { maybeInjure } from './health';
 import { refillMissions, updateMissions, type GameCtx } from './missions';
 import { cupSummary, playCupRound, startCup } from './cup';
@@ -26,7 +27,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -151,6 +152,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
   c.week = c.leagues[c.level].week;
+  tickConvert(c, menu);
   c.funds += weeklyIncome(c);
   stepMarket(c);
   weeklyUpkeep(c, menu === 'rest' ? 0.3 : menu === 'stam' ? 1.4 : 1);

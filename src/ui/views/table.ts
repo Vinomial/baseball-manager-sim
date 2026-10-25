@@ -4,6 +4,7 @@ import { standings, teamById } from '../../league/schedule';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { rankSVG } from '../charts';
 import { gradeHTML } from '../components';
 import { state } from '../state';
 import { rosterHTML } from './players';
@@ -32,6 +33,10 @@ export function renderTable(c: Career): string {
   h += `<h2>個人成績 <span class="small muted">(${L.name})</span></h2><div class="boards">${leaders(c, level).map((b) =>
     `<div class="board2"><h4>${b.name}</h4>${b.rows.length ? `<ol>${b.rows.map((r) => `<li><span>${esc(r.p.name)} <span class="muted">${esc(r.team.slice(0, 4))}</span></span><b>${r.text}</b></li>`).join('')}</ol>` : '<span class="small muted">まだありません</span>'}</div>`).join('')}</div>`;
 
+  const rh = lg.teamIds.map((id) => ({ name: teamById(c, id).name, values: lg.rankHist[id] ?? [], user: id === c.userId }));
+  if (rh.some((r) => r.values.length > 1)) {
+    h += `<h2>順位の遷移 <span class="small muted">(${L.name})</span></h2><div class="card">${rankSVG(rh, lg.teamIds.length)}<p class="small muted" style="margin:4px 0 0">1節ごとの順位です.太い線があなたのチームです.</p></div>`;
+  }
   const po = lg.po;
   if (po) {
     const nm = (id: number) => teamById(c, id).name;

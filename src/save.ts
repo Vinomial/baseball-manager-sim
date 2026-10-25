@@ -100,6 +100,11 @@ export function migrate(raw: unknown): Career | null {
     Object.assign(c, { funds: 3000, fac: emptyFac(), market: emptyMarket() });
     c.version = 13;
   }
+  if (c.version === 13) {
+    // v14: 順位の遷移を追加
+    for (const lg of ((c as unknown as Career).leagues ?? [])) lg.rankHist = {};
+    c.version = 14;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }
@@ -125,7 +130,7 @@ function migrateV3(c: Record<string, unknown>): void {
   cc.fa = [];
   cc.champs = [];
   const userLeague: Career['leagues'][0] = {
-    level: old.level, teamIds: old.teams.map((t) => t.id), schedule: old.schedule ?? [], stand: old.stand ?? {}, week: old.week, weeks: [], po: null,
+    level: old.level, teamIds: old.teams.map((t) => t.id), schedule: old.schedule ?? [], stand: old.stand ?? {}, week: old.week, weeks: [], po: null, rankHist: {},
   };
   fillOtherLeagues(cc, userLeague, offseason);
 }

@@ -10,11 +10,13 @@ import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
 import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
 import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgradeCost, weeklyIncome } from '../src/league/economy';
-import { effectiveLineup } from '../src/league/team';
+import { effectiveLineup, fit } from '../src/league/team';
 import type { Player } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
-import { cook, mealMult } from '../src/growth/meals';
+import { cook, mealMult, RECIPES } from '../src/growth/meals';
+import { convertOptions, convertWeeks, startConvert, tickConvert } from '../src/league/convert';
+import { detailSheet } from '../src/ui/detail';
 import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
 import { salaryOf } from '../src/growth/player';
@@ -883,5 +885,77 @@ describe('資金と施設', () => {
     expect(m).not.toBeNull();
     expect(m!.funds).toBeGreaterThan(0);
     expect(m!.fac.stadium).toBe(0);
+  });
+});
+
+describe('コンバートと選手の詳細・順位の遷移', () => {
+  beforeEach(() => setRandom(seeded(161)));
+  afterEach(() => resetRandom());
+
+  it('コンバート候補は向いている順で,現在の位置は含まれない', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    const o = convertOptions(p);
+    expect(o.length).toBe(7);
+    expect(o.some((x) => x.to === p.pos)).toBe(false);
+    for (let i = 1; i < o.length; i++) expect(o[i - 1].score).toBeGreaterThanOrEqual(o[i].score);
+    for (const x of o) { expect(x.chance).toBeGreaterThan(0); expect(x.chance).toBeLessThan(1); }
+    // 同じ内野どうしは,外野に出るより早い
+    expect(convertWeeks('遊', '二')).toBeLessThan(convertWeeks('遊', '左'));
+    expect(convertWeeks('捕', '一')).toBeGreaterThan(convertWeeks('遊', '左'));
+  });
+
+  it('コンバートは週が進んで完了し,成功すると本職が変わり前の位置はサブポジに残る', () => {
+    let changed = 0;
+    for (let i = 0; i < 60; i++) {
+      const c = newCareer('テスト');
+      const p = userTeam(c).players.find((x) => x.role === '野手' && x.pos === '遊')!;
+      const before = p.pos;
+      expect(startConvert(c, p.id, '二')).toBeNull();
+      expect(startConvert(c, p.id, '三')).toContain('すでに');
+      for (let w = 0; w < 6; w++) tickConvert(c, 'mix');
+      expect(p.conv).toBeNull();
+      if (p.pos === '二') { changed++; expect(p.alt).toContain(before); expect(fit(p, before)).toBe(-3); }
+    }
+    expect(changed).toBeGreaterThan(20);
+  });
+
+  it('投手はコンバートできない', () => {
+    const c = newCareer('テスト');
+    const pit = userTeam(c).players.find((x) => x.role === '投手')!;
+    expect(startConvert(c, pit.id, '一')).toContain('投手');
+    expect(convertOptions(pit)).toEqual([]);
+  });
+
+  it('節ごとの順位の遷移が記録される', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 20; i++) playWeek(c, 'mix');
+    const lg = c.leagues[3];
+    expect(Object.keys(lg.rankHist).length).toBe(lg.teamIds.length);
+    for (const id of lg.teamIds) {
+      expect(lg.rankHist[id].length).toBe(lg.week);
+      for (const r of lg.rankHist[id]) { expect(r).toBeGreaterThanOrEqual(1); expect(r).toBeLessThanOrEqual(lg.teamIds.length); }
+    }
+  });
+
+  it('シーズンを終えると,その年の能力が記録に残り,詳細画面が作れる', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const p = userTeam(c).players.find((x) => x.seasons.length > 0)!;
+    expect(p.seasons[0].attrs).toBeDefined();
+    c.phase = 'season';
+    const html = detailSheet(c, p.id);
+    expect(html.length).toBeGreaterThan(500);
+    expect(html).not.toMatch(/NaN|undefined/);
+  });
+
+  it('料理はどれも材料が正しく,効き目の期間が正', () => {
+    const keys = new Set(['rice', 'meat', 'fish', 'veg', 'fruit', 'egg']);
+    expect(RECIPES.length).toBeGreaterThanOrEqual(15);
+    for (const r of RECIPES) {
+      expect(r.weeks).toBeGreaterThan(0);
+      for (const k of Object.keys(r.need)) expect(keys.has(k)).toBe(true);
+    }
+    expect(new Set(RECIPES.map((r) => r.key)).size).toBe(RECIPES.length);
   });
 });

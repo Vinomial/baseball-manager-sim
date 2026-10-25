@@ -1,6 +1,6 @@
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, POS } from '../data/constants';
 import { genPlayer, type IdSource } from '../growth/player';
-import type { AttrKey, LineupPos, Player, Team } from '../types';
+import type { AttrKey, LineupPos, Player, Pos, Team } from '../types';
 import { ri } from '../util/random';
 import { isHurt } from './health';
 
@@ -37,6 +37,7 @@ export const batVal = (p: Player): number => p.meet * 0.55 + p.power * 0.45 + p.
 /** 守備位置の適性による守備力の補正(0 が本職) */
 export function fit(p: Player, pos: LineupPos): number {
   if (pos === '指' || p.pos === pos) return 0;
+  if (p.alt?.includes(pos as Pos)) return -3;
   if (pos === '捕' || p.pos === '捕') return -35;
   const inf = '一二三遊';
   return inf.includes(pos) === inf.includes(p.pos) ? -12 : -25;

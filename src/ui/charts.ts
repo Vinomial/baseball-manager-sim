@@ -88,3 +88,21 @@ export function miniBarsHTML(items: { label: string; value: number }[], max: num
   return `<div class="mini-bars" aria-hidden="true">${items.map((i) =>
     `<span class="mb" title="${esc(i.label)} +${i.value.toFixed(1)}"><i style="height:${Math.max(2, Math.min(100, (i.value / max) * 100))}%"></i><small>${esc(i.label.slice(0, 1))}</small></span>`).join('')}</div>`;
 }
+
+/** 順位の遷移.上が 1 位.プレイヤーのチームは太く,線の右端にチーム名を出す. */
+export function rankSVG(series: { name: string; values: number[]; user: boolean }[], n: number): string {
+  const W = 340, H = 220, L = 22, R = 78, T = 10, B = 22;
+  const len = Math.max(...series.map((s) => s.values.length));
+  if (len < 2) return '';
+  const X = (i: number) => L + (i / (len - 1)) * (W - L - R);
+  const Y = (r: number) => T + ((r - 1) / Math.max(1, n - 1)) * (H - T - B);
+  const grid = Array.from({ length: n }, (_, i) => `<line x1="${L}" x2="${W - R}" y1="${Y(i + 1).toFixed(1)}" y2="${Y(i + 1).toFixed(1)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 5}" y="${(Y(i + 1) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="var(--muted)">${i + 1}</text>`).join('');
+  const lines = [...series].sort((a, b) => Number(a.user) - Number(b.user)).map((s) => {
+    const pts = s.values.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    const last = s.values.length - 1;
+    const col = s.user ? 'var(--btn)' : 'var(--muted)';
+    return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="${s.user ? 3 : 1.4}" stroke-opacity="${s.user ? 1 : 0.55}" stroke-linejoin="round"><title>${esc(s.name)}</title></polyline>
+    <text x="${W - R + 5}" y="${(Y(s.values[last]) + 4).toFixed(1)}" font-size="10" fill="${s.user ? 'var(--btn)' : 'var(--ink)'}" ${s.user ? 'font-weight="700"' : ''}>${esc(s.name.slice(0, 6))}</text>`;
+  }).join('');
+  return `<svg ${NS} viewBox="0 0 ${W} ${H}" role="img" aria-label="順位の遷移" class="chart" style="max-width:520px">${grid}${lines}<text x="${L}" y="${H - 6}" font-size="10" fill="var(--muted)">開幕</text><text x="${W - R}" y="${H - 6}" font-size="10" text-anchor="end" fill="var(--muted)">最新</text></svg>`;
+}

@@ -19,8 +19,8 @@ export interface Recipe {
   weeks: number;
   mult: Meal['mult'];
   desc: string;
-  /** 食べたときに調子と疲れを整える */
-  recover?: boolean;
+  /** 食べたときに,全員の疲れをとり調子を整える量(疲れが減る数) */
+  recover?: number;
 }
 
 export const RECIPES: Recipe[] = [
@@ -30,7 +30,14 @@ export const RECIPES: Recipe[] = [
   { key: 'fish', name: '焼き魚定食', need: { rice: 1, fish: 1, veg: 1 }, weeks: 4, mult: { ctrl: 1.8, meet: 1.5, all: 1.1 }, desc: '4週間,制球とミートの伸びが大きい' },
   { key: 'curry', name: '野菜カレー', need: { rice: 1, veg: 2 }, weeks: 4, mult: { stam: 2, speed: 1.8, field: 1.3, all: 1.1 }, desc: '4週間,スタミナと走力の伸びが大きい' },
   { key: 'sushi', name: '寿司盛り合わせ', need: { rice: 1, fish: 2 }, weeks: 4, mult: { all: 1.5 }, desc: '4週間,全能力の伸びが5割増える' },
-  { key: 'parfait', name: 'フルーツパフェ', need: { fruit: 2, egg: 1 }, weeks: 2, mult: { all: 1.3 }, desc: '2週間,全能力が伸び,疲れと調子も整う', recover: true },
+  { key: 'parfait', name: 'フルーツパフェ', need: { fruit: 2, egg: 1 }, weeks: 2, mult: { all: 1.3 }, desc: '2週間,全能力が伸び,疲れと調子も整う', recover: 40 },
+  { key: 'hamburg', name: 'ハンバーグ定食', need: { rice: 1, meat: 1, veg: 1, egg: 1 }, weeks: 4, mult: { power: 1.7, field: 1.6, all: 1.15 }, desc: '4週間,パワーと守備の伸びが大きい' },
+  { key: 'kaisen', name: '海鮮丼', need: { rice: 1, fish: 2, egg: 1 }, weeks: 4, mult: { ctrl: 1.9, meet: 1.7, all: 1.1 }, desc: '4週間,制球とミートの伸びが大きい' },
+  { key: 'stamina', name: 'スタミナ丼', need: { rice: 1, meat: 1, veg: 1 }, weeks: 4, mult: { stam: 2.2, power: 1.4, speed: 1.4, all: 1.1 }, desc: '4週間,スタミナの伸びがとても大きい' },
+  { key: 'soup', name: '野菜スープ', need: { veg: 2 }, weeks: 2, mult: { stam: 1.5, all: 1.1 }, desc: '2週間,やさしい味.疲れをとる', recover: 30 },
+  { key: 'juice', name: 'フルーツジュース', need: { fruit: 1 }, weeks: 1, mult: { all: 1.1 }, desc: '1週間,さっと疲れをとる', recover: 25 },
+  { key: 'nabe', name: '栄養満点鍋', need: { meat: 1, fish: 1, veg: 2, egg: 1 }, weeks: 4, mult: { all: 1.6 }, desc: '4週間,全能力が伸び,疲れもとれる', recover: 30 },
+  { key: 'fullcourse', name: '特製フルコース', need: { rice: 1, meat: 1, fish: 1, veg: 1, fruit: 1, egg: 1 }, weeks: 8, mult: { all: 2.0 }, desc: '8週間,全能力の伸びが2倍(最高の一品)', recover: 50 },
   { key: 'bento', name: '豪華弁当', need: { rice: 2, meat: 1, fish: 1, veg: 1, egg: 1 }, weeks: 6, mult: { all: 1.7 }, desc: '6週間,全能力の伸びが7割増える(特別な一品)' },
 ];
 
@@ -50,7 +57,7 @@ export function cook(c: Career, key: string): Meal | null {
   c.meal = { name: r.name, weeks: r.weeks + (c.fac.canteen >= 3 ? 1 : 0), mult, desc: r.desc };
   if (r.recover) {
     const u = c.teams.find((t) => t.user)!;
-    for (const p of u.players) { p.fatigue = Math.max(0, p.fatigue - 40); p.cond = Math.min(4, p.cond + 1); }
+    for (const p of u.players) { p.fatigue = Math.max(0, p.fatigue - r.recover); p.cond = Math.min(4, p.cond + 1); }
   }
   return c.meal;
 }

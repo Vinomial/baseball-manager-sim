@@ -17,6 +17,7 @@ export function playerCard(c: Career, p: Player, canRelease: boolean): string {
   return `<div class="pl"><button class="pick plain" data-a="open" data-id="${p.id}" aria-expanded="${open}">
     <div class="top"><span class="nm">${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span><span class="tag">${fmtYen(p.salary)}</span></span>${condHTML(p)}</div>${attrsHTML(p)}
     <div class="small muted">${c.phase === 'season' ? `今季 ${st}` : '今季の成績は「通算成績」で見られます'}</div></button>
+    <button class="btn ghost" data-a="detail" data-id="${p.id}" style="margin-top:6px">📊 能力の詳細・通算成績</button>
     ${open ? `${playerDetail(p, c.phase === 'season', roomWord(p))}${canRelease ? `<div style="margin-top:6px"><button class="btn danger" data-a="release" data-id="${p.id}">放出する(自由契約)</button></div>` : ''}` : ''}</div>`;
 }
 

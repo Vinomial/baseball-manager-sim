@@ -67,7 +67,7 @@ export function weekInfo(c: Career): WeekInfo {
   switch (kind) {
     case 'prep': return { ...base, kind, title: '自主トレ', note: '新しい年の始まりです.体づくりの時期です.' };
     case 'camp': return { ...base, kind, title: '春季キャンプ', note: 'キャンプでは練習の伸びが大きくなります.', trainMult: 1.25 };
-    case 'open': return { ...base, kind, title: 'オープン戦', note: '公式戦の前の調整です.練習試合を組んで,試してみましょう.' };
+    case 'open': return { ...base, kind, title: 'オープン戦', note: '公式戦の前の調整試合です.今週は,オープン戦が1試合,自動で組まれます.成績には入りませんが,選手の疲れや経験はたまります.' };
     case 'league': return {
       ...base, kind, title: userGame ? 'リーグ戦' : 'リーグ戦(試合のない週)',
       note: userGame ? '' : '今週は公式戦がありません.練習試合を組むか,練習や休養にあてましょう.',

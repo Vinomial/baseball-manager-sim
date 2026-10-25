@@ -18,7 +18,7 @@ import { tutorialCard } from '../tutorial';
 import { renderOff } from './offseason';
 import { userSeries } from '../../league/playoffs';
 import { winProbHTML } from './status';
-import { storyHTML, todoHTML } from './todo';
+import { convertTipsHTML, storyHTML, todoHTML } from './todo';
 import { renderTraining } from './training';
 
 /** ホームの上のダッシュボード.いまの状況を 4 つの数字で見せる. */
@@ -60,6 +60,7 @@ export function renderHome(c: Career): string {
   }
   for (const w of warnings(c, state.menu, state.practice)) h += `<div class="warnbox ${w.level}">${w.level === 'info' ? 'ℹ' : '⚠'} ${esc(w.text)}${w.level !== 'info' && w.text.startsWith('疲れ') && state.menu !== 'rest' ? ' <button class="btn ghost" data-a="menu" data-k="rest" style="margin-top:6px">休養にする</button>' : ''}</div>`;
   h += todoHTML(c);
+  if (c.cal < 12) h += convertTipsHTML(c, '春季キャンプのコンバート提案');
 
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;
@@ -80,8 +81,9 @@ export function renderHome(c: Career): string {
       }
     }
   } else {
+    if (info.kind === 'open') h += `<p style="margin:0"><b>⚾ オープン戦が1試合,自動で組まれます</b></p>`;
     if (m) h += `<p class="small muted" style="margin:0">次のリーグ戦: ${Math.floor(m.cal / 4) + 1}月 第${(m.cal % 4) + 1}週 vs ${esc(m.opp.name)}</p>`;
-    h += `<div class="row" style="margin-top:8px"><button class="btn ghost" data-a="practice" aria-pressed="${state.practice}">${state.practice ? '✔ 練習試合を組む' : '練習試合を組む'}</button><span class="small muted">試合の経験が積めますが,疲れがたまります.成績には入りません.</span></div>`;
+    if (info.kind !== 'open') h += `<div class="row" style="margin-top:8px"><button class="btn ghost" data-a="practice" aria-pressed="${state.practice}">${state.practice ? '✔ 練習試合を組む' : '練習試合を組む'}</button><span class="small muted">試合の経験が積めますが,疲れがたまります.成績には入りません.</span></div>`;
   }
   h += `</div>`;
   h += renderTraining(c);
@@ -93,6 +95,6 @@ export function renderHome(c: Career): string {
       return `<tr><td>${r.kind === 'playoff' ? 'PO' : r.kind === 'cup' ? '選手権' : `第${r.week + 1}戦`}</td><td>${esc(r.opp)}<span class="tag">${r.home ? 'H' : 'A'}</span></td><td class="${k}">${r.us > r.them ? '勝' : r.us < r.them ? '負' : '分'}</td><td class="num">${r.us} - ${r.them}</td></tr>`;
     }).join('')}</tbody></table>`);
   }
-  h += `<div class="actionbar"><button class="btn" data-a="start">▶ ${info.userGame ? '試合へ' : state.practice ? '練習試合' : '1週進める'}<br><span class="small" style="font-weight:400">${MENUS[state.menu].name}</span></button><button class="btn ghost" data-a="month" title="4週まとめて進めます.出来事や警告で止まります">⏩ 1か月</button><button class="btn ghost" data-a="auto-season" title="年末まで進めます">⏭ 年末</button></div>`;
+  h += `<div class="actionbar"><button class="btn" data-a="start">▶ ${info.userGame ? '試合へ' : info.kind === 'open' ? 'オープン戦へ' : state.practice ? '練習試合' : '1週進める'}<br><span class="small" style="font-weight:400">${MENUS[state.menu].name}</span></button><button class="btn ghost" data-a="month" title="4週まとめて進めます.出来事や警告で止まります">⏩ 1か月</button><button class="btn ghost" data-a="auto-season" title="年末まで進めます">⏭ 年末</button></div>`;
   return h;
 }

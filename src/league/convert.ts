@@ -78,3 +78,60 @@ export function tickConvert(c: Career, menu: string): void {
     }
   }
 }
+
+/* ===== コンバートのおすすめ(春季キャンプなどで出す) ===== */
+
+export interface ConvertTip {
+  pid: number;
+  to: Pos;
+  weeks: number;
+  chance: number;
+  /** 期待する効果(守備の落ち込みの解消など)の大きさ.大きいほどおすすめ. */
+  gain: number;
+  text: string;
+}
+
+/**
+ * いまの先発と控えを見て,コンバートのおすすめを出す(最大 3 つ).
+ * 1. 本職でない守備位置で出ている選手は,その位置に本職を変える
+ * 2. 先発より,その守備位置に向いている控えがいれば,その位置に転向させる
+ */
+export function convertAdvice(c: Career): ConvertTip[] {
+  const u = c.teams.find((t) => t.user)!;
+  const tips: ConvertTip[] = [];
+  const seen = new Set<number>();
+  const inL = new Set(u.lineup.map((e) => e.pid));
+  for (const e of u.lineup) {
+    if (e.pos === '指') continue;
+    const p = findPlayer(u, e.pid);
+    if (!p || p.role !== '野手' || p.conv || seen.has(p.id)) continue;
+    const pos = e.pos as Pos;
+    // 1. 本職でない位置で出ている
+    if (p.pos !== pos && !p.alt?.includes(pos)) {
+      const now = suitability(p, p.pos as Pos), after = suitability(p, pos);
+      tips.push({
+        pid: p.id, to: pos, weeks: convertWeeks(p.pos as Pos, pos), chance: convertChance(p, pos), gain: 12 + Math.max(0, after - now) * 0.2,
+        text: `${p.name}は本職が${POS_NAME[p.pos]}ですが,いま${POS_NAME[pos]}で出ています.${POS_NAME[pos]}に転向すると,守備の落ち込み(-12〜-35)がなくなります.`,
+      });
+      seen.add(p.id);
+    }
+  }
+  // 2. 控えの転向で,穴を埋める
+  for (const e of u.lineup) {
+    if (e.pos === '指') continue;
+    const pos = e.pos as Pos;
+    const inc = findPlayer(u, e.pid);
+    if (!inc) continue;
+    for (const b of u.players) {
+      if (b.role !== '野手' || inL.has(b.id) || b.conv || seen.has(b.id) || b.pos === pos || b.alt?.includes(pos)) continue;
+      const gap = suitability(b, pos) - suitability(inc, pos);
+      if (gap < 6) continue;
+      tips.push({
+        pid: b.id, to: pos, weeks: convertWeeks(b.pos as Pos, pos), chance: convertChance(b, pos), gain: gap,
+        text: `控えの${b.name}(${POS_NAME[b.pos]},${b.age}歳)は,${POS_NAME[pos]}に向いています(適性${suitability(b, pos)}).${POS_NAME[pos]}の${inc.name}(適性${suitability(inc, pos)})より上で,競争を促せます.`,
+      });
+      seen.add(b.id);
+    }
+  }
+  return tips.sort((a, b) => b.gain - a.gain).slice(0, 3);
+}

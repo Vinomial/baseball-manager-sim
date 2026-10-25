@@ -1,6 +1,8 @@
 import { RECIPES, canCook } from '../../growth/meals';
 import { FACILITIES, upgradeCost, MAX_FAC } from '../../league/economy';
 import { goalProgress } from '../../league/goals';
+import { convertAdvice } from '../../league/convert';
+import { POS_NAME } from '../../data/constants';
 import { chapterTitle, PHASES, phaseOf, storyBeat } from '../../league/story';
 import { warnings } from '../../league/warnings';
 import type { Career } from '../../types';
@@ -37,4 +39,13 @@ export function storyHTML(c: Career): string {
   return `<div class="card story"><p style="margin:0"><b>${esc(chapterTitle(c))}</b></p>
   <div class="phases" role="list">${PHASES.map(([k, n, d]) => `<span class="ph ${k === ph ? 'on' : ''}" role="listitem" title="${d}"><b>${n}</b><small>${d}</small></span>`).join('')}</div>
   <p class="small" style="margin:6px 0 0">${esc(storyBeat(c))}</p></div>`;
+}
+
+/** コンバートのおすすめ.キャンプの時期はホームに,いつでもオーダー画面に出す. */
+export function convertTipsHTML(c: Career, title: string): string {
+  const tips = convertAdvice(c);
+  if (!tips.length) return '';
+  const u = c.teams.find((t) => t.user)!;
+  return `<div class="card"><p style="margin:0"><b>🔧 ${esc(title)}</b></p><p class="small muted" style="margin:2px 0 6px">いまの先発と控えを見た,守備位置の転向のおすすめです.時間はかかりますが,守備の落ち込みを解消したり,競争を生んだりできます.</p>
+  <div class="plist">${tips.map((t) => { const p = u.players.find((x) => x.id === t.pid)!; return `<div class="pl"><div class="top"><span class="nm">${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}→${POS_NAME[t.to]}</span></span><button class="btn" data-a="convert" data-id="${t.pid}" data-k="${t.to}">${t.weeks}週で挑戦</button></div><span class="small">${esc(t.text)}</span><br><span class="small muted">成功率${Math.round(t.chance * 100)}%</span></div>`; }).join('')}</div></div>`;
 }

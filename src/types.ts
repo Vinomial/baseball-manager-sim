@@ -153,7 +153,7 @@ export interface DraftState {
   done: boolean;
 }
 
-export type GameKind = 'league' | 'playoff' | 'cup' | 'practice';
+export type GameKind = 'league' | 'playoff' | 'cup' | 'practice' | 'open';
 
 /** プレーオフの進み具合(上位4チーム) */
 export interface PlayoffState {

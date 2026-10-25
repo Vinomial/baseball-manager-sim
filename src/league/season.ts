@@ -132,7 +132,8 @@ export interface WeekResult {
 function playPractice(c: Career): Game {
   const u = userTeam(c);
   const others = leagueTeams(c, c.level).filter((t) => !t.user);
-  const opp = pick(others);
+  // オープン戦は,週ごとに相手が変わる(リーグの他チームを順番に)
+  const opp = c.cal >= 8 && c.cal < 12 ? others[(c.cal - 8) % others.length] : pick(others);
   const g = newGame(structuredClone(u), structuredClone(opp), true);
   stepToEnd(g);
   const us = userSide(g);
@@ -194,6 +195,10 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
     games = [g];
     kind = 'league';
     userLeagueGame = true;
+  } else if (info.kind === 'open') {
+    // オープン戦(3 月).毎週 1 試合,自動で組まれる
+    games = [playPractice(c)];
+    kind = 'open';
   } else if (opt.practice) {
     games = [playPractice(c)];
     kind = 'practice';
@@ -201,10 +206,13 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 公式戦の後始末(信頼度,記録,ミッションなど)
   const ctx: GameCtx[] = [];
   for (const g of games) {
-    if (kind === 'practice') break;
+    if (kind === 'practice' || kind === 'open') break;
     ctx.push(afterOfficialGame(c, g, menu, kind!));
   }
-  if (kind === 'practice') c.last = `練習試合: ${userSide(games[0]).runs} - ${(userSide(games[0]) === games[0].home ? games[0].away : games[0].home).runs}`;
+  if (kind === 'practice' || kind === 'open') {
+    const us = userSide(games[0]), them = us === games[0].home ? games[0].away : games[0].home;
+    c.last = `${kind === 'open' ? 'オープン戦' : '練習試合'} vs ${them.team.name}: ${us.runs} - ${them.runs}`;
+  }
 
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);

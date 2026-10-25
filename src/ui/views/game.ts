@@ -30,7 +30,7 @@ export function renderGame(c: Career): string {
   const us = userSide(g), them = us === g.home ? g.away : g.home;
   const res = us.runs > them.runs ? '勝利!' : us.runs < them.runs ? '敗戦' : '引き分け';
   const rc = recap(g);
-  const kindName = l.kind === 'playoff' ? 'プレーオフ' : l.kind === 'cup' ? '全日本選手権' : l.kind === 'practice' ? '練習試合' : 'リーグ戦';
+  const kindName = l.kind === 'playoff' ? 'プレーオフ' : l.kind === 'cup' ? '全日本選手権' : l.kind === 'practice' ? '練習試合' : l.kind === 'open' ? 'オープン戦' : 'リーグ戦';
   const pick = l.games.length > 1 ? `<div class="lgtabs" role="group" aria-label="試合の選択">${l.games.map((x, i) => `<button data-a="game-pick" data-i="${i}" aria-pressed="${x === g}">第${i + 1}戦 ${userSide(x).runs}-${(userSide(x) === x.home ? x.away : x.home).runs}</button>`).join('')}</div>` : '';
   let h = `${back}<p class="small muted" style="margin:0 0 6px"><span class="rec">${kindName}</span></p>${pick}` + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
   <p class="headline">${esc(rc.headline)}</p>

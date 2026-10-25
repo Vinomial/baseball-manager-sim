@@ -34,16 +34,26 @@ function starters(t: Team, role: '野手' | '投手'): Player[] {
   return t.pitchers.slice(0, 5).map((id) => findPlayer(t, id)).filter((p): p is Player => !!p);
 }
 
-/** 候補をチームに照らして評価する.上位 3 人に ★ を付ける. */
+/** その守備位置を,いま守っている先発(なければ undefined) */
+function incumbentAt(t: Team, p: Player): Player | undefined {
+  const e = t.lineup.find((x) => x.pos === p.pos);
+  return e ? findPlayer(t, e.pid) : undefined;
+}
+
+/** その守備位置を守れる控え(先発以外)の人数 */
+function depthAt(t: Team, p: Player): number {
+  const inL = new Set(t.lineup.map((e) => e.pid));
+  return fielders(t).filter((x) => !inL.has(x.id) && (x.pos === p.pos || x.alt?.includes(p.pos as never))).length;
+}
+
+/** 候補をチームに照らして評価する.いまそのポジションを守っている選手の力と年齢,控えの人数を考える.上位 3 人に ★ を付ける. */
 export function advise(t: Team, pool: Player[], extra: (p: Player) => number = () => 0): Map<number, Advice> {
   const out = new Map<number, Advice>();
-  const L = starters(t, '野手');
-  const weakBat = L.length ? L.reduce((a, b) => (playerValue(b) < playerValue(a) ? b : a)) : null;
-  const weakPos = weakBat ? t.lineup.find((e) => e.pid === weakBat.id)?.pos : undefined;
   const worst = (role: '野手' | '投手') => {
     const s = starters(t, role);
     return s.length ? Math.min(...s.map(playerValue)) : 0;
   };
+  const rot = starters(t, '投手').sort((a, b) => playerValue(a) - playerValue(b));
   const pots = pool.map((p) => estPot(estimated(p))).sort((a, b) => b - a);
   const potCut = pots[Math.min(2, pots.length - 1)] ?? 0;
   for (const p of pool) {
@@ -51,17 +61,27 @@ export function advise(t: Team, pool: Player[], extra: (p: Player) => number = (
     const v = playerValue(e), pot = estPot(p);
     const tags: string[] = [], why: string[] = [];
     let score = v * 0.5 + pot * 0.5 + extra(p);
-    if (v > worst(p.role) + 1) {
-      tags.push('即戦力'); score += 4;
-      why.push(p.role === '野手' ? `先発の${weakPos && weakPos !== '指' ? POS_NAME[weakPos] : '穴'}を争える力があります` : '先発ローテーションに入れる力があります');
+    if (p.role === '野手') {
+      const inc = incumbentAt(t, p), pn = POS_NAME[p.pos];
+      if (inc) {
+        const iv = playerValue(inc);
+        const edge = v - iv;
+        if (edge > 2) { tags.push('ポジションを奪える'); score += 4 + Math.min(6, edge * 0.4); why.push(`${pn}の${inc.name}(${inc.age}歳,総合${Math.round(iv)})より力があり,レギュラーを争えます`); }
+        else if (inc.age >= 32 && edge > -10) { tags.push('後継候補'); score += 4; why.push(`${pn}の${inc.name}は${inc.age}歳.次の世代として育てたい選手です`); }
+        else if (edge < -10 && pot < iv + 6) { tags.push('出番は先'); score -= 3; why.push(`${pn}は${inc.name}(総合${Math.round(iv)})が固めていて,出番は先になりそうです`); }
+        else if (edge <= 2) why.push(`${pn}は${inc.name}(総合${Math.round(iv)})が守っています.競争相手になります`);
+      } else if (v > worst('野手') + 1) { tags.push('即戦力'); score += 3; why.push('先発の穴を争える力があります'); }
+      if (depthAt(t, p) === 0) { tags.push('控え不在'); score += 3; why.push(`${pn}の控えがいません`); }
+      if (p.pos === '捕' && fielders(t).filter((x) => x.pos === '捕').length < 2) { tags.push('捕手不足'); score += 4; why.push('控えの捕手がいません'); }
+    } else {
+      const fifth = rot.length ? rot[0] : undefined;
+      if (fifth && v > playerValue(fifth) + 1) { tags.push('ローテーション候補'); score += 4; why.push(`先発の${fifth.name}(総合${Math.round(playerValue(fifth))})を上回る力があります`); }
+      else if (v > worst('投手') + 1) { tags.push('即戦力'); score += 3; why.push('先発ローテーションに入れる力があります'); }
+      if (pitchersOf(t).length < 7) { tags.push('補強'); score += 3; why.push('投手の層が薄いので補強になります'); }
     }
     if (pot >= potCut && pot >= v + 8) { tags.push('素質'); score += 3; why.push('伸びしろが大きく,育てがいがあります'); }
-    if (p.role === '投手' && pitchersOf(t).length < 7) { tags.push('補強'); score += 3; why.push('投手の層が薄いので補強になります'); }
-    if (p.role === '野手' && weakPos && weakPos !== '指' && p.pos === weakPos) { tags.push('ポジション補強'); score += 3; why.push(`${POS_NAME[weakPos]}を補強できます`); }
-    if (p.role === '野手' && p.pos === '捕' && fielders(t).filter((x) => x.pos === '捕').length < 2) { tags.push('捕手不足'); score += 4; why.push('控えの捕手がいません'); }
     out.set(p.id, { score, tags, reason: why[0] ?? '平均的な選手です', star: false });
   }
   [...out.entries()].sort((a, b) => b[1].score - a[1].score).slice(0, 3).forEach(([id]) => { out.get(id)!.star = true; });
   return out;
 }
-

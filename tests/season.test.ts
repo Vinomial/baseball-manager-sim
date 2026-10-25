@@ -22,6 +22,8 @@ import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
 import { opsOf } from '../src/league/leaders';
+import { advise } from '../src/league/advice';
+import { convertAdvice } from '../src/league/convert';
 import { playoffOdds, seriesWinProb, userSeries } from '../src/league/playoffs';
 import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeValue } from '../src/league/trade';
 import { departures, extendContract, leavingRisk } from '../src/league/contracts';
@@ -1858,5 +1860,65 @@ describe('プレーオフの勝率と,入団時の育成方針', () => {
     for (let i = 0; i < 42; i++) playWeek(c, 'mix');
     const s = userSeries(c);
     if (s) { expect(s.kind).toBe('cup'); expect(s.wins).toBe(1); expect(s.pSeries).toBeCloseTo(s.pGame, 6); }
+  });
+});
+
+describe('ポジションを考えたおすすめ・コンバート提案・オープン戦', () => {
+  beforeEach(() => setRandom(seeded(331)));
+  afterEach(() => resetRandom());
+
+  it('ドラフトのおすすめは,いまそのポジションを守っている選手の力と年齢を考える', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const sr = u.lineup.find((e) => e.pos === '遊')!;
+    const inc = u.players.find((p) => p.id === sr.pid)!;
+    inc.age = 35;
+    const mk = (pos: Pos, v: number): Player => {
+      const p = { ...u.players.find((x) => x.role === '野手')! } as Player;
+      p.id = 9000 + v; p.name = `候補${v}`; p.pos = pos; p.age = 19; p.alt = [];
+      p.meet = v; p.power = v; p.speed = v; p.field = v;
+      p.pot = { meet: 80, power: 80, speed: 80, field: 80, velo: 0, ctrl: 0, stam: 0 };
+      return p;
+    };
+    const strong = mk('遊', Math.round(playerValue(inc)) + 15);
+    const weak = mk('遊', 10);
+    const adv = advise(u, [strong, weak]);
+    expect(adv.get(strong.id)!.tags).toContain('ポジションを奪える');
+    expect(adv.get(strong.id)!.reason).toContain(inc.name);
+    expect(adv.get(strong.id)!.score).toBeGreaterThan(adv.get(weak.id)!.score);
+    const old = mk('遊', Math.round(playerValue(inc)) - 2);
+    expect(advise(u, [old]).get(old.id)!.tags).toContain('後継候補');
+  });
+
+  it('本職でない位置で出ている選手と,向いている控えが,コンバートのおすすめに出る', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const e = u.lineup.find((x) => x.pos === '二')!;
+    const p = u.players.find((x) => x.id === e.pid)!;
+    p.pos = '右';
+    const tips = convertAdvice(c);
+    expect(tips.length).toBeGreaterThan(0);
+    expect(tips.length).toBeLessThanOrEqual(3);
+    expect(tips.some((t) => t.pid === p.id && t.to === '二')).toBe(true);
+    for (const t of tips) { expect(t.weeks).toBeGreaterThan(0); expect(t.chance).toBeGreaterThan(0); expect(t.text.length).toBeGreaterThan(0); }
+    for (let i = 1; i < tips.length; i++) expect(tips[i - 1].gain).toBeGreaterThanOrEqual(tips[i].gain);
+  });
+
+  it('オープン戦(3月)は,毎週1試合が自動で行われ,成績には入らない', () => {
+    const c = newCareer('テスト');
+    for (let w = 0; w < 8; w++) playWeek(c, 'mix');
+    expect(c.cal).toBe(8);
+    let games = 0;
+    for (let w = 0; w < 4; w++) {
+      expect(weekInfo(c).kind).toBe('open');
+      const r = playWeek(c, 'mix');
+      expect(r.kind).toBe('open');
+      expect(r.games.length).toBe(1);
+      games++;
+    }
+    expect(games).toBe(4);
+    for (const p of userTeam(c).players) expect(p.stats.g).toBe(0);
+    expect(c.results.length).toBe(0);
+    expect(c.cal).toBe(12);
   });
 });

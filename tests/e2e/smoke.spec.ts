@@ -36,7 +36,7 @@ test('すべての画面で横にはみ出さず,エラーも出ない', async (
     expect(w, `${name} が横にはみ出している`).toBeLessThanOrEqual(1);
   };
   await overflow('ホーム');
-  for (const t of ['game', 'team', 'table', 'rec']) { await page.click(`[data-a="tab"][data-k="${t}"]`); await overflow(t); }
+  for (const t of ['team', 'table', 'gm', 'rec']) { await page.click(`[data-a="tab"][data-k="${t}"]`); await overflow(t); }
   for (const s of ['players', 'order', 'power']) { await page.click('[data-a="tab"][data-k="team"]'); await page.click(`[data-a="sub"][data-k="${s}"]`); await overflow(s); }
   expect(errs).toEqual([]);
 });
@@ -81,4 +81,25 @@ test('年末まで進めると,オフシーズンの画面になる', async ({ p
   await page.click('[data-a="ostep"][data-k="1"]');
   await page.click('[data-a="ostep"][data-k="1"]');
   expect(errs.filter((e) => !e.includes('テスト用'))).toEqual([]);
+});
+
+test('1か月まとめて進められ,ホームは今週の内容にしぼられている', async ({ page }) => {
+  const errs = watchErrors(page);
+  await newGame(page);
+  await expect(page.locator('.tiles')).toBeVisible();
+  await page.click('[data-a="month"]');
+  await expect(page.locator('header')).toContainText('2月', { timeout: 30_000 });
+  // 資金・施設・スタッフは GM 画面にある
+  await expect(page.locator('main')).not.toContainText('スタッフ(監督・コーチ)');
+  await page.click('[data-a="tab"][data-k="gm"]');
+  await expect(page.locator('main')).toContainText('スタッフ(監督・コーチ)');
+  expect(errs).toEqual([]);
+});
+
+test('練習の決め方を切り替えられる', async ({ page }) => {
+  await newGame(page);
+  await page.click('[data-a="train-mode"][data-k="fixed"]');
+  await expect(page.locator('[data-a="train-mode"][data-k="fixed"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('[data-a="train-mode"][data-k="manual"]');
+  await expect(page.locator('[data-a="train-mode"][data-k="manual"]')).toHaveAttribute('aria-pressed', 'true');
 });

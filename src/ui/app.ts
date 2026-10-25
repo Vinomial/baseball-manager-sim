@@ -3,6 +3,7 @@ import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
 import { cook } from '../growth/meals';
 import { sellIngredient, upgrade } from '../league/economy';
+import { chooseMenu, stopReason } from '../league/autoplay';
 import { WEEKS_PER_YEAR, weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
@@ -31,6 +32,7 @@ import { userSide } from '../engine/game';
 import { applyPrefs, prefs, savePrefs, type FontSize, type Theme } from './prefs';
 import { glossarySheet, termSheet } from './glossary';
 import { resultSound, setBgm, setScene, setSe, setVib, setVolume, sfx, sound, unlockAudio } from './sound';
+import { renderGm } from './views/gm';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
@@ -45,7 +47,22 @@ function renderFired(c: Career): string {
   <button class="btn danger" data-a="reset">最初からやり直す</button></div></div>`;
 }
 
-const TABS: [Tab, string, string][] = [['home', 'ホーム', '⌂'], ['game', '試合', '▶'], ['team', 'チーム', '☺'], ['table', '順位', '≡'], ['rec', '記録', '★']];
+/** 画面下のタブ.アイコンは小さなドット絵. */
+const TABS: [Tab, string][] = [['home', 'ホーム'], ['team', 'チーム'], ['table', 'リーグ'], ['gm', 'GM'], ['rec', '記録']];
+
+/** タブのドット絵(8×8).1 の所を塗る. */
+const ICONS: Record<string, string[]> = {
+  home: ['00011000', '00111100', '01111110', '11111111', '11011011', '11011011', '11000011', '11111111'],
+  team: ['00111100', '01111110', '01011010', '01111110', '00111100', '01111110', '11111111', '11000011'],
+  table: ['11111111', '10000001', '10110101', '10000001', '10101101', '10000001', '10110101', '11111111'],
+  gm: ['00111100', '00100100', '11111111', '11111111', '11100111', '11111111', '11111111', '11111111'],
+  rec: ['00011000', '00011000', '00111100', '11111111', '01111110', '00111100', '01100110', '01000010'],
+};
+function iconSVG(k: string): string {
+  const rows = ICONS[k] ?? ICONS.home;
+  const rects = rows.flatMap((r, y) => [...r].map((v, x) => (v === '1' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : ''))).join('');
+  return `<svg class="pxi" viewBox="0 0 8 8" width="22" height="22" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">${rects}</svg>`;
+}
 
 /** 右上のメニュー.タイトルへ戻る,セーブ,バックアップなど. */
 function menuSheet(c: Career): string {
@@ -158,19 +175,20 @@ function renderInner(): void {
     game: () => renderGame(c),
     team: () => renderTeamTab(c),
     table: () => renderTable(c),
+    gm: () => renderGm(c),
     rec: () => renderRecords(c),
   }[state.tab]();
   const alert = c.event && state.tab !== 'home' ? ' <i class="dot" aria-label="出来事があります"></i>' : '';
   root.innerHTML = `
   <a class="skip" href="#main">本文へ移動</a>
-  <header class="board slim px">
+  <header class="board slim px" data-lg="${c.level}">
     <div class="b-row"><span class="title">ダイヤモンド監督</span><span class="lg">${LEAGUES[c.level].name}<button class="menubtn" data-a="menu-open" aria-label="メニュー" aria-expanded="${state.menuOpen}">☰</button></span></div>
     <div class="b-row"><span class="tm">${esc(userTeam(c).name)}</span>
       <span class="stat"><b>${c.season}</b>季 <b>${weekLabel}</b> <b>${rec.w}-${rec.l}-${rec.d}</b> <b>${c.phase === 'season' ? rank : c.off?.rank}</b>位</span></div>
   </header>
   ${saveBanner()}<main id="main" tabindex="-1">${body}</main>
-  <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
-    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
+  <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n]) =>
+    `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k || (k === 'home' && state.tab === 'game')}">${iconSVG(k)}<span>${n}</span>${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (c.phase === 'off' && c.off && c.off.step === 0 && state.celebrated !== c.season && c.off.review && (c.off.review.ownTitle || c.off.review.cupChampion || c.off.move > 0)) { state.celebrated = c.season; sfx.level(); }
   if (state.busy) root.insertAdjacentHTML('beforeend', busyOverlay());
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
@@ -180,18 +198,29 @@ function renderInner(): void {
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
 }
 
-/** 年末まで,1 週ずつ進める.途中で画面が固まらないよう,ときどき処理を譲って進み具合を出す. */
-async function runYear(c: Career): Promise<void> {
-  state.busy = { done: 0, total: Math.max(1, WEEKS_PER_YEAR - c.cal), cancel: false };
+/**
+ * 週を続けて進める.途中で画面が固まらないよう,ときどき処理を譲って進み具合を出す.
+ * @param limit 進める週数の上限
+ * @param stops true なら,出来事や警告などで途中で止まる
+ */
+async function runWeeks(c: Career, limit: number, stops: boolean): Promise<void> {
+  const total = Math.max(1, Math.min(limit, WEEKS_PER_YEAR - c.cal));
+  state.busy = { done: 0, total, cancel: false, title: limit >= 99 ? '年末まで進めています…' : `${total}週進めています…` };
   render();
   let r: ReturnType<typeof playWeek> | undefined;
+  let stopped: string | null = null;
   try {
-    while (c.phase === 'season' && !c.fired && !state.busy.cancel) {
-      r = playWeek(c, state.menu);
+    while (c.phase === 'season' && !c.fired && !state.busy.cancel && state.busy.done < total) {
+      const menu = state.busy.done === 0 && state.menuTouched ? state.menu : chooseMenu(c, null, state.menu);
+      r = playWeek(c, menu);
       state.busy.done++;
       const b = document.getElementById('busybar'), t = document.getElementById('busytxt');
-      if (b) b.style.width = `${Math.min(100, (state.busy.done / state.busy.total) * 100)}%`;
-      if (t) t.textContent = `${state.busy.done}/${state.busy.total}週`;
+      if (b) b.style.width = `${Math.min(100, (state.busy.done / total) * 100)}%`;
+      if (t) t.textContent = `${state.busy.done}/${total}週`;
+      if (stops && !state.busy.cancel && state.busy.done < total) {
+        stopped = stopReason(c, chooseMenu(c, null, menu));
+        if (stopped) break;
+      }
       if (state.busy.done % 2 === 0) await new Promise((res) => window.setTimeout(res, 0));
     }
   } catch (e) { state.busy = null; showCrash(e); return; }
@@ -199,6 +228,7 @@ async function runYear(c: Career): Promise<void> {
   state.busy = null;
   state.menuTouched = false; state.practice = false;
   state.tab = 'home';
+  if (stopped) c.news.unshift(`ここで止まりました: ${stopped}`);
   save();
   top();
   render();
@@ -206,7 +236,7 @@ async function runYear(c: Career): Promise<void> {
 
 /** 今週を進める */
 function doStart(c: Career): void {
-  const r = playWeek(c, state.menu, { practice: state.practice });
+  const r = playWeek(c, state.menuTouched ? state.menu : chooseMenu(c, null, state.menu), { practice: state.practice });
   state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: r.menu, report: r.report };
   state.menuTouched = false; state.practice = false;
   if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
@@ -259,10 +289,10 @@ function onClick(e: MouseEvent): void {
     case 'sub': state.sub = k as TeamSub; state.sel = null; state.open = null; top(); break;
     case 'export': if (c) exportSave(c); break;
     case 'tab': state.tab = k as Tab; state.sel = null; state.open = null; top(); break;
-    case 'menu': state.menu = k as MenuKey; state.menuTouched = true; break;
+    case 'menu': state.menu = k as MenuKey; state.menuTouched = true; if (c && c.auto.train === 'fixed') { c.auto.fixed = k; save(); } break;
     case 'start': {
       if (!c || c.phase !== 'season') break;
-      const msg = confirmMessage(c, state.menu, state.practice);
+      const msg = c.auto.rest ? null : confirmMessage(c, state.menuTouched ? state.menu : chooseMenu(c, null, state.menu), state.practice);
       if (msg) { state.warn = msg; sfx.warn(); break; }
       doStart(c);
       break;
@@ -273,7 +303,7 @@ function onClick(e: MouseEvent): void {
     case 'diff': if (c) c.diff = k as Difficulty; if (c) save(); break;
     case 'auto-lineup': if (c) { c.auto.lineup = !c.auto.lineup; save(); } break;
     case 'auto-rest': if (c) { c.auto.rest = !c.auto.rest; save(); } break;
-    case 'jump': state.folds[k] = true; render(); document.querySelector(`[data-fold="${k}"]`)?.scrollIntoView({ block: 'start' }); return;
+    case 'jump': state.tab = 'gm'; state.folds[k] = true; render(); document.querySelector(`[data-fold="${k}"]`)?.scrollIntoView({ block: 'start' }); return;
     case 'scout': if (c) { const err = dispatchScout(c, k as '野手' | '投手' | '素質'); if (err) alert(err); else save(); } break;
     case 'negotiate': if (c) { const t = negotiate(c, id, k as 'accept' | 'bargain'); if (t) { c.news.push(t); save(); } } break;
     case 'ngplus': if (c && c.ended && confirm(`いまのデータを引き継いで,${c.gen + 1}周目を始めます.よろしいですか?(先にバックアップをおすすめします)`)) { state.career = newCareer(userTeam(c).name, c.diff, c); state.last = null; state.tab = 'home'; state.screen = 'play'; save(); top(); } break;
@@ -300,9 +330,11 @@ function onClick(e: MouseEvent): void {
     case 'tut-skip': prefs.tutOn = false; savePrefs(); break;
     case 'tut-again': prefs.tut = 0; prefs.tutOn = true; savePrefs(); state.tab = 'home'; state.menuOpen = false; break;
     case 'bgm': setBgm(!sound.bgm); break;
+    case 'train-mode': if (c) { c.auto.train = k as 'recommend' | 'fixed' | 'manual'; if (k === 'fixed') c.auto.fixed = state.menu; state.menuTouched = false; save(); } break;
+    case 'month': if (c && c.phase === 'season' && !state.busy) { void runWeeks(c, 4, true); return; } break;
     case 'practice': state.practice = !state.practice; break;
     case 'game-pick': if (state.last) state.last.game = state.last.games[i] ?? state.last.game; break;
-    case 'auto-season': if (c && c.phase === 'season' && !state.busy) { void runYear(c); return; } break;
+    case 'auto-season': if (c && c.phase === 'season' && !state.busy) { void runWeeks(c, 99, false); return; } break;
     case 'busy-cancel': if (state.busy) state.busy.cancel = true; return;
     case 'reset':
       if (confirm('保存データを消して最初からやり直します.よろしいですか?')) {

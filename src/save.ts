@@ -190,6 +190,12 @@ export function migrate(raw: unknown): Career | null {
     try { refreshPool(cc); } catch { /* 候補は次のシーズンから */ }
     c.version = 21;
   }
+  if (c.version === 21) {
+    // v22: 練習の決め方(おまかせ・固定・手動)を追加
+    const cc = c as unknown as Career;
+    if (cc.auto) { cc.auto.train = 'recommend'; cc.auto.fixed = 'mix'; }
+    c.version = 22;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

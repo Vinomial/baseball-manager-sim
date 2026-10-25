@@ -404,7 +404,7 @@ export interface Career {
   /** 前の周回までの記録 */
   legacy: { titles: number; seasons: number } | null;
   /** おまかせ進行 */
-  auto: { lineup: boolean; rest: boolean; mode: 'ability' | 'form' | 'develop' };
+  auto: { lineup: boolean; rest: boolean; mode: 'ability' | 'form' | 'develop'; /** 練習の決め方 */ train: 'recommend' | 'fixed' | 'manual'; /** 「固定」のときの練習メニュー */ fixed: string };
   /** 雇っている監督・コーチ */
   staff: Record<StaffRole, Staff | null>;
   /** 雇えるスタッフの候補 */

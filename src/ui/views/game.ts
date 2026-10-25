@@ -12,13 +12,14 @@ import { state } from '../state';
 export function renderGame(c: Career): string {
   const l = state.last;
   if (!l) return `<div class="card"><p>まだ試合をしていません.ホームで練習メニューを選ぶと,練習のあとに試合が行われます.</p><button class="btn" data-a="tab" data-k="home">ホームへ</button></div>`;
+  const back = '<div class="backbar"><button class="btn ghost" data-a="tab" data-k="home">← ホームへ</button></div>';
   const m = MENUS[l.menu];
   const train = `<details class="card" open><summary><b>今週の練習: ${m.name}</b> <span class="small muted">${l.report.length}人が成長</span></summary>
   <div class="small" style="margin-top:6px">${focusKeys(m).length ? `<span class="focus">重点</span>${focusKeys(m).map((k) => LABEL[k]).join('・')}(それ以外の能力も少し伸びます)<br>` : ''}${l.report.length
     ? l.report.map((x) => `${x.ups.length ? `${esc(x.name)}: ${x.ups.map(([k, v]) => `${LABEL[k]}<span class="up">+${v}</span>`).join(' ')}` : ''}${x.note ? `${x.ups.length ? ' ' : ''}<b class="up">★${esc(x.note)}</b>` : ''}`).join('<br>')
     : '目に見える成長はありませんでした.'}</div></details>`;
   const g = l.game;
-  if (!g) return c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><p style="margin:0"><b>この週は試合がありませんでした</b></p><p class="small muted" style="margin:4px 0 0">練習と休養にあてました.</p></div>${train}`;
+  if (!g) return back + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><p style="margin:0"><b>この週は試合がありませんでした</b></p><p class="small muted" style="margin:4px 0 0">練習と休養にあてました.</p></div>${train}`;
   const n = Math.max(9, g.inning);
   const row = (s: Side) => `<tr><td>${esc(s.team.name)}</td>${Array.from({ length: n }, (_, i) => {
     const v = s.inn[i];
@@ -31,7 +32,7 @@ export function renderGame(c: Career): string {
   const rc = recap(g);
   const kindName = l.kind === 'playoff' ? 'プレーオフ' : l.kind === 'cup' ? '全日本選手権' : l.kind === 'practice' ? '練習試合' : 'リーグ戦';
   const pick = l.games.length > 1 ? `<div class="lgtabs" role="group" aria-label="試合の選択">${l.games.map((x, i) => `<button data-a="game-pick" data-i="${i}" aria-pressed="${x === g}">第${i + 1}戦 ${userSide(x).runs}-${(userSide(x) === x.home ? x.away : x.home).runs}</button>`).join('')}</div>` : '';
-  let h = `<p class="small muted" style="margin:0 0 6px"><span class="rec">${kindName}</span></p>${pick}` + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
+  let h = `${back}<p class="small muted" style="margin:0 0 6px"><span class="rec">${kindName}</span></p>${pick}` + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + `<div class="card"><div class="result px">${res} ${us.runs} - ${them.runs}</div>
   <p class="headline">${esc(rc.headline)}</p>
   <div class="row" style="justify-content:center"><button class="btn ghost" data-a="share-text" data-k="game">📋 この試合をシェア</button></div>
   <div class="lines"><table><thead><tr><th></th>${Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join('')}<th class="tot">計</th><th>安</th></tr></thead><tbody>${row(g.away)}${row(g.home)}</tbody></table></div></div>`;

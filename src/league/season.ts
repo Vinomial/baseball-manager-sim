@@ -34,7 +34,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -60,7 +60,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Care
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
-    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, gen: 1, legacy: null, auto: { lineup: false, rest: false, mode: 'form' }, staff: emptyStaff(), staffPool: [], yearStart: { funds: 3000, attrs: {} },
+    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, gen: 1, legacy: null, auto: { lineup: false, rest: false, mode: 'form', train: 'recommend', fixed: 'mix' }, staff: emptyStaff(), staffPool: [], yearStart: { funds: 3000, attrs: {} },
     goals: [], scout: null, watch: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };

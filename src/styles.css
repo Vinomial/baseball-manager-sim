@@ -336,3 +336,45 @@ button:focus-visible,[data-a]:focus-visible,summary:focus-visible,input:focus-vi
 .stars{display:inline-block;font-size:15px;letter-spacing:1px;line-height:1;background:linear-gradient(90deg,#E0A800 calc(var(--p) * 1%),var(--line) 0);-webkit-background-clip:text;background-clip:text;color:transparent}
 .stars.pot{background:linear-gradient(90deg,#2C8EA3 calc(var(--p) * 1%),var(--line) 0);-webkit-background-clip:text;background-clip:text}
 .starpair{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+
+/* ===== UI 2: dashboard, league themes, pixel look, cards ===== */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+@media (max-width:420px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{display:flex;flex-direction:column;gap:1px;align-items:flex-start;text-align:left;border:2px solid var(--line);background:var(--panel);border-radius:4px;padding:6px 8px;box-shadow:0 2px 0 var(--line);min-height:62px;color:var(--ink)}
+.tile b{font-family:"DotGothic16","Hiragino Sans",sans-serif;font-weight:400;font-size:18px;line-height:1.2}
+.tile small{font-size:11px;color:var(--muted)}
+.tile.alert{border-color:var(--bad)}
+.tile.alert b{color:var(--bad)}
+.gmhead .tile{cursor:default}
+.mchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:6px}
+.mchip{display:flex;flex-direction:column;align-items:flex-start;gap:0;border:2px solid var(--line);background:var(--panel2);border-radius:4px;padding:6px 8px;min-height:48px;text-align:left}
+.mchip[aria-pressed="true"]{border-color:var(--btn);background:var(--panel);box-shadow:0 0 0 2px var(--btn)}
+/* ドット風のボタンとカード */
+.btn{border-radius:3px;box-shadow:0 3px 0 #0003}
+.btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 #0003}
+.btn.ghost{box-shadow:0 2px 0 var(--line)}
+.card{border-width:2px;border-radius:4px;box-shadow:0 2px 0 var(--line)}
+.pl{border-width:2px;border-radius:4px}
+/* 球場の雰囲気(スコアボードの上に,観客席と芝) */
+.board.slim{position:relative;overflow:hidden}
+.board.slim::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:repeating-linear-gradient(90deg,#d9472f 0 6px,#f5c84c 6px 12px,#2c8ea3 12px 18px,#5f9a2c 18px 24px,#c2407f 24px 30px);opacity:.55}
+.board.slim::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:repeating-linear-gradient(90deg,#4c8a5a 0 8px,#5a9967 8px 16px)}
+/* リーグごとの色 */
+.board[data-lg="1"]{--board:#1b2b45;--board-line:#2f4670;--board-num:#9bd0ff}
+.board[data-lg="2"]{--board:#0f3b3d;--board-line:#1f6266;--board-num:#7ef0d8}
+.board[data-lg="3"]{--board:#3a1620;--board-line:#6b2a3a;--board-num:#ffb4a0}
+.board[data-lg="4"]{--board:#241d0a;--board-line:#7a6320;--board-num:#ffe27a}
+/* 選手カードの格(星の数) */
+.pl.rar-2{border-color:#4F7FBF}
+.pl.rar-3{border-color:#8a5fd0;background:linear-gradient(180deg,color-mix(in srgb,#8a5fd0 8%,var(--panel)),var(--panel))}
+.pl.rar-4{border-color:#E0A800;background:linear-gradient(180deg,color-mix(in srgb,#E0A800 14%,var(--panel)),var(--panel));box-shadow:0 0 0 1px #E0A80055,0 2px 0 var(--line)}
+.rarity{display:inline-block;font-size:10px;border-radius:2px;padding:0 5px;margin-left:4px;color:#fff;letter-spacing:.05em}
+.rarity.r2{background:#4F7FBF}.rarity.r3{background:#8a5fd0}.rarity.r4{background:#B88600}
+nav.bottom button .pxi{width:22px;height:22px}
+nav.bottom button{gap:2px}
+.backbar{display:flex;gap:8px;align-items:center;margin:4px 0}
+/* 折りたたみの中身が,幅からはみ出さないようにする(details の中身は box-sizing が引き継がれないことがある) */
+details::details-content{box-sizing:border-box}
+details>*,.fold-body,.fold-body *{box-sizing:border-box}
+.actionbar .btn:first-child{flex:2;min-width:0;padding:10px 8px;line-height:1.3}
+.actionbar .btn:not(:first-child){flex:1;padding:10px 6px;white-space:nowrap}

@@ -1,7 +1,7 @@
 import type { GrowthReport, MenuKey } from '../growth/training';
 import type { Career, Game, GameKind } from '../types';
 
-export type Tab = 'home' | 'game' | 'team' | 'table' | 'rec';
+export type Tab = 'home' | 'game' | 'team' | 'table' | 'gm' | 'rec';
 export type Screen = 'title' | 'new' | 'play';
 export type TeamSub = 'power' | 'players' | 'order' | 'staff';
 
@@ -37,7 +37,7 @@ export interface AppState {
   saveFail: boolean;
   saveSize: number;
   /** 長い処理の進み具合(年末まで進める,など) */
-  busy: { done: number; total: number; cancel: boolean } | null;
+  busy: { done: number; total: number; cancel: boolean; title: string } | null;
   /** 優勝などの演出を出したシーズン */
   celebrated: number;
   /** 説明を開いている用語.'*' なら用語集 */

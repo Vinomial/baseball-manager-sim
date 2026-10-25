@@ -14,12 +14,11 @@ export function todoHTML(c: Career): string {
   if (c.event) rows.push({ icon: '❗', text: `出来事「${c.event.title}」に返事をする`, level: 'warn' });
   const bad = warnings(c, state.menu, state.practice).find((w) => w.level !== 'info' && w.text.startsWith('疲れ'));
   if (bad) rows.push({ icon: '⚠', text: '疲れがたまっています.休養を考えましょう', level: 'warn' });
-  rows.push({ icon: '🏋', text: state.menuTouched ? '練習メニューを選びました' : '練習メニューを選ぶ(おすすめが選ばれています)', level: state.menuTouched ? 'ok' : undefined });
   const cookable = RECIPES.filter((r) => canCook(c, r)).length;
   if (cookable && !c.meal) rows.push({ icon: '🍙', text: `料理が作れます(${cookable}品)`, jump: 'kitchen' });
   const cheapest = Math.min(...FACILITIES.filter((f) => c.fac[f.key] < MAX_FAC).map((f) => upgradeCost(c, f.key)));
   if (Number.isFinite(cheapest) && c.funds >= cheapest) rows.push({ icon: '🏗', text: '資金で施設を強化できます', jump: 'facilities' });
-  for (const g of c.goals) rows.push({ icon: '🎯', text: `目標「${g.text}」 ${goalProgress(c, g)}`, jump: 'goals' });
+  if (!rows.length) return '';
   return `<div class="card todo"><p style="margin:0 0 4px"><b>今週やること</b></p><ul class="todo-list">${rows.map((r) =>
     `<li class="${r.level ?? ''}"><span aria-hidden="true">${r.icon}</span> ${esc(r.text)}${r.jump ? ` <button class="linkish small" data-a="jump" data-k="${r.jump}">開く</button>` : ''}</li>`).join('')}</ul></div>`;
 }

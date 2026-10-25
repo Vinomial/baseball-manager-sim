@@ -15,7 +15,7 @@ export function trustSummary(c: Career): string {
   return `${Math.round(c.trust)}(${trustLabel(c.trust)})`;
 }
 
-/** 監督の信頼度 */
+/** GMの信頼度 */
 export function trustHTML(c: Career): string {
   const t = c.trust;
   return `<div class="chem"><span class="who">信頼度 ${Math.round(t)}</span><span class="bar"><i style="width:${t}%;${t < 30 ? 'background:var(--bad)' : ''}"></i></span><span>${trustLabel(t)}</span></div>

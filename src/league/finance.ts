@@ -1,8 +1,8 @@
-/** 年俸,予算,監督の信頼度,予想勝率.DOM に依存しない. */
+/** 年俸,予算,GMの信頼度,予想勝率.DOM に依存しない. */
 import { DIFFS, MOVES } from '../data/constants';
 import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
-import { clamp, rand } from '../util/random';
+import { clamp, seeded } from '../util/random';
 import { ovr } from './team';
 
 export const payroll = (t: Team): number => t.players.reduce((s, p) => s + p.salary, 0);
@@ -65,6 +65,8 @@ export interface Forecast {
 /** 残りの試合を何度か作って,最終順位の見込みを出す. */
 export function forecast(c: Career, runs = 250): Forecast {
   const lg = c.leagues[c.level];
+  // 同じ状況なら,いつも同じ予想になる(画面を開き直すたびに数字が変わらない).ゲームの乱数も使わない.
+  const rand = seeded((c.season * 1009 + c.cal * 101 + lg.week * 13 + c.userId * 7 + runs) >>> 0);
   const ids = lg.teamIds;
   const teams = new Map(c.teams.filter((t) => ids.includes(t.id)).map((t) => [t.id, t]));
   const ov = new Map([...teams].map(([id, t]) => [id, ovr(t)]));

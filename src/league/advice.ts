@@ -1,4 +1,4 @@
-/** 監督へのおすすめ.ドラフトと自由契約で,どの選手が今のチームに合うかを示す. */
+/** GMへのおすすめ.ドラフトと自由契約で,どの選手が今のチームに合うかを示す. */
 import { POS_NAME } from '../data/constants';
 import { keysOf, playerValue } from '../growth/player';
 import type { Player, Team } from '../types';

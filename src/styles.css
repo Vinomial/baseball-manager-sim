@@ -331,3 +331,8 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .skip:focus{left:0}
 @media (prefers-contrast:more){:root{--line:#7a8a7e}.card,.pl{border-width:2px}}
 button:focus-visible,[data-a]:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+
+/* stars */
+.stars{display:inline-block;font-size:15px;letter-spacing:1px;line-height:1;background:linear-gradient(90deg,#E0A800 calc(var(--p) * 1%),var(--line) 0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stars.pot{background:linear-gradient(90deg,#2C8EA3 calc(var(--p) * 1%),var(--line) 0);-webkit-background-clip:text;background-clip:text}
+.starpair{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}

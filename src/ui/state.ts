@@ -3,7 +3,7 @@ import type { Career, Game, GameKind } from '../types';
 
 export type Tab = 'home' | 'game' | 'team' | 'table' | 'rec';
 export type Screen = 'title' | 'new' | 'play';
-export type TeamSub = 'power' | 'players' | 'order';
+export type TeamSub = 'power' | 'players' | 'order' | 'staff';
 
 export type Selection =
   | { t: 'l'; i: number }   // 打順

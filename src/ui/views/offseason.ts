@@ -3,18 +3,28 @@ import { bargainChance, projectedPayroll } from '../../league/contracts';
 import { PERS } from '../../growth/personality';
 import { adviseCuts } from '../../league/cuts';
 import { budgetFor, fmtYen, payroll } from '../../league/finance';
-import { advise } from '../../league/advice';
 import { canStartSeason, userRosterMax, userTeam } from '../../league/season';
 import { fielders, pitchersOf } from '../../league/team';
 import { faAppeal, faVerdict } from '../../league/world';
 import { keysOf } from '../../growth/player';
 import type { Career, Player } from '../../types';
 import { esc, grade } from '../../util/format';
-import { abilitiesHTML, attrsHTML } from '../components';
+import { abilitiesHTML, attrsHTML, playerStars, starsHTML } from '../components';
+import { toStars } from '../../growth/stars';
+import { futureValue, playerValue } from '../../growth/player';
+import { advise, estimated } from '../../league/advice';
 import { avatar } from '../avatar';
 import { prefs } from '../prefs';
 import { term } from '../glossary';
 import { state } from '../state';
+
+/** ドラフト候補の星.能力は見積もりなので,幅(最低〜最高)で示す. */
+function draftStars(p: Player): string {
+  const e = estimated(p);
+  const lo = toStars(playerValue(e) - 4), hi = toStars(playerValue(e) + 4);
+  const pot = p.scoutPot ? toStars(((p.scoutPot[0] + p.scoutPot[1]) / 2) - 3) : toStars(futureValue(p));
+  return `<span class="starpair"><span class="small muted">総合</span>${starsHTML(lo, 'ovr')}〜${starsHTML(hi, 'ovr')}<span class="small muted">将来</span>${starsHTML(Math.max(pot, hi), 'pot')}</span>`;
+}
 
 const tagHTML = (tags: string[]) => tags.map((t) => `<span class="rec">${esc(t)}</span>`).join('');
 
@@ -73,6 +83,7 @@ function draftHTML(c: Career): string {
   return `<h2>ドラフト会議</h2><p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>
   <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.watched ? '<span class="tag newbie">スカウト済み</span>' : ''}</span>
     <button class="btn" data-a="draft" data-i="${i}">指名する</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
+    <div style="margin:2px 0">${draftStars(p)}</div>
     <div class="attrs">${keysOf(p).map((k) => { const r = p.scout?.[k] ?? [p[k], p[k]]; return `<label>${LABEL[k]}</label><span class="g g${grade(r[0])}">${grade(r[0])}</span>〜<span class="g g${grade(r[1])}">${grade(r[1])}</span><span class="gv"></span>`; }).join('')}
     ${p.scoutPot ? `<label>${term('pot')}</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div>${abilitiesHTML(p)}</div>`).join('')}</div>
   <div class="row" style="margin-top:8px"><button class="btn ghost" data-a="draft" data-i="-1">この順番は見送る</button></div>${log}`;
@@ -89,6 +100,7 @@ function faHTML(c: Career): string {
     const ok = faVerdict(c, p) === 'ok', a = adv.get(p.id);
     return `<div class="pl ${a?.star ? 'star' : ''}"><div class="top"><span class="nm">${a?.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span><span class="tag">${fmtYen(p.salary)}</span>${p.prev ? `<span class="tag">${esc(p.prev)}</span>` : ''}</span>
     <button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full && !over(p) ? '' : 'disabled'}>${!ok ? '来てくれない' : over(p) ? '予算オーバー' : '獲得する'}</button></div>
+    <div style="margin:2px 0">${playerStars(p)}</div>
     ${a ? `${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>` : '<span class="small muted">今のチームでは入団を断られそうです(より強いチーム,上のリーグなら来てくれます)</span>'}${attrsHTML(p)}</div>`;
   };
   return `<h2>自由契約(戦力外・未指名)</h2><p class="small muted">他チームから戦力外になった選手や,ドラフトで指名されなかった選手です.チームが強く,リーグが上ほど来てくれます(今のチームの魅力 ${Math.round(faAppeal(c))}).登録は${max}人までです.</p>

@@ -108,7 +108,7 @@ const makers: Maker[] = [
     const p = pick(ps);
     return {
       kind: 'unrest', pid: p.id, title: `${p.name}の不満`,
-      body: `${p.name}(${PERS[p.pers].name})が,待遇や出場機会に不満を募らせ,監督に直談判に来ました.`,
+      body: `${p.name}(${PERS[p.pers].name})が,待遇や出場機会に不満を募らせ,GMに直談判に来ました.`,
       choices: [
         { key: 'raise', label: '昇給を約束する', hint: '年俸が上がり,やる気が大きく戻る.' },
         { key: 'talk', label: 'じっくり話を聞く', hint: 'やる気が少し戻る.うまくいけば大きく戻る.' },
@@ -162,7 +162,7 @@ const makers: Maker[] = [
     body: '地元の企業が,広告への出演と引き換えに協賛金を出したいと言っています.',
     choices: [
       { key: 'accept', label: '引き受ける', hint: '協賛金が入る.数人が疲れる.' },
-      { key: 'decline', label: '断る', hint: '信頼度が少し上がる.「練習に集中する監督」と評判に.' },
+      { key: 'decline', label: '断る', hint: '信頼度が少し上がる.「練習に集中するGM」と評判に.' },
     ],
   }),
   // 他球団からのトレード打診
@@ -231,7 +231,7 @@ export function resolveEvent(c: Career, key: string): string {
         text = `${p.name}は休養で調子を取り戻しました.`;
       } else if (rand() < 0.55) {
         p.cond = clamp(p.cond + 3, 0, 4);
-        text = `監督の言葉に${p.name}は奮い立ち,調子が大きく上がりました!`;
+        text = `GMの言葉に${p.name}は奮い立ち,調子が大きく上がりました!`;
       } else {
         p.cond = clamp(p.cond - 1, 0, 4);
         text = `${p.name}にはうまく届かず,さらに落ち込んでしまいました.`;
@@ -335,7 +335,7 @@ export function resolveEvent(c: Career, key: string): string {
         c.funds += Math.round(moneyScale(c) * 0.05);
         for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
         text = '広告に出演し,協賛金を受け取りました.';
-      } else { addTrust(c, 1); text = '「練習に集中する監督」と好評です.'; }
+      } else { addTrust(c, 1); text = '「練習に集中するGM」と好評です.'; }
       break;
     case 'trade': {
       if (key !== 'accept' || !p || e.teamId === undefined || e.pid2 === undefined) { text = '申し出を断りました.'; break; }

@@ -46,6 +46,7 @@ export function makeSide(t: Team): Side {
   }
   const cs = findCombos({ ...t, lineup: eLineup }, sp.id);
   const fx = sumFx(cs);
+  if (t.staffFx) for (const k of Object.keys(fx) as (keyof typeof fx)[]) fx[k] += t.staffFx[k] ?? 0;
   D += fx.def;
   return {
     team: t, lineup, D, fx, combos: cs.filter((c) => c.active).map((c) => c.name), catcher: get('捕'), sec, ss, bi: 0,

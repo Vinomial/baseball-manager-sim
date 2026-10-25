@@ -4,6 +4,7 @@ import { LEAGUES, POS_NAME } from '../data/constants';
 import { abilityLabels } from '../growth/abilities';
 import { careerStats, fmt3, opsOf, whipOf } from '../league/leaders';
 import type { Game, Player, Stats } from '../types';
+import { ovrStars, potStars } from '../growth/stars';
 import { state } from './state';
 import { esc, fmtEra, grade } from '../util/format';
 
@@ -79,4 +80,15 @@ export function playerDetail(p: Player, current: boolean, room: string): string 
 export function fold(id: string, title: string, summary: string, body: string, openDefault = false): string {
   const open = state.folds[id] ?? openDefault;
   return `<details class="fold card" data-fold="${id}" ${open ? 'open' : ''}><summary><b>${title}</b> <span class="small muted">${summary}</span></summary><div class="fold-body">${body}</div></details>`;
+}
+
+/** 星の表示.stars は 0.5〜5.提供する文字(星)は塗り分けで,数字も添える. */
+export function starsHTML(stars: number, kind: 'ovr' | 'pot' = 'ovr', label?: string): string {
+  const name = label ?? (kind === 'ovr' ? '総合' : '将来');
+  return `<span class="stars ${kind}" style="--p:${(stars / 5) * 100}" role="img" aria-label="${name} 星${stars}">★★★★★</span>`;
+}
+
+/** 選手の総合力と将来性を,星で並べる */
+export function playerStars(p: Player): string {
+  return `<span class="starpair" title="総合 ${ovrStars(p)} / 将来 ${potStars(p)}"><span class="small muted">総合</span>${starsHTML(ovrStars(p), 'ovr')}<span class="small muted">将来</span>${starsHTML(potStars(p), 'pot')}</span>`;
 }

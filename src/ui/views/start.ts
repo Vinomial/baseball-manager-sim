@@ -9,7 +9,7 @@ export function renderStart(canCancel = false): string {
   <header class="board px"><div class="board-top"><span class="title">ダイヤモンド監督</span><span class="lg">新しいチーム</span></div>
   <div class="team">草野球リーグから,プロリーグを目指そう.</div></header>
   <div class="card">
-    <p>監督として毎週の練習メニューを決め,選手を育てます.試合は自動で進みます.リーグの上位に入ると昇格です(下のリーグほど狭き門です).目指すは世界最高峰のメジャーリーグ!</p>
+    <p>GM(ゼネラルマネージャー)として,毎週の練習メニューを決め,監督やコーチを雇って選手を育てます.試合は自動で進みます.リーグの上位に入ると昇格です(下のリーグほど狭き門です).目指すは世界最高峰のメジャーリーグ!</p>
     <label for="tname"><b>チーム名</b></label>
     <input id="tname" maxlength="14" value="マイチーム">
     <p style="margin:0 0 4px"><b>難易度</b> <span class="small muted">あとからメニューで変えられます</span></p>

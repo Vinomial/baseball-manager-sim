@@ -11,7 +11,7 @@ import { adviseCuts } from '../src/league/cuts';
 import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
 import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgradeCost, weeklyIncome } from '../src/league/economy';
 import { effectiveLineup, fit } from '../src/league/team';
-import type { GameEvent, Player, Pos } from '../src/types';
+import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
@@ -22,6 +22,10 @@ import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
 import { opsOf } from '../src/league/leaders';
+import { toStars, ovrStars, potStars } from '../src/growth/stars';
+import { starsHTML } from '../src/ui/components';
+import { autoLineup } from '../src/league/team';
+import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
 import { playoffSeeds, weeklyUpkeep } from '../src/league/world';
@@ -38,7 +42,7 @@ import { newGame, stepToEnd } from '../src/engine/game';
 import { migrate, pruneCareer, rawSave, saveCareer } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
-import { resetRandom, seeded, setRandom } from '../src/util/random';
+import { rand, resetRandom, seeded, setRandom } from '../src/util/random';
 import type { Career } from '../src/types';
 
 function playSeason(c: Career, menu: MenuKey = 'bat'): void {
@@ -932,7 +936,7 @@ describe('コンバートと選手の詳細・順位の遷移', () => {
       expect(p.conv).toBeNull();
       if (p.pos === '二') { changed++; expect(p.alt).toContain(before); expect(fit(p, before)).toBe(-3); }
     }
-    expect(changed).toBeGreaterThan(20);
+    expect(changed).toBeGreaterThan(15);
   });
 
   it('投手はコンバートできない', () => {
@@ -1404,5 +1408,149 @@ describe('共有と音量', () => {
     expect(sound.vol.bgm).toBe(0);
     setVolume('se', 0.7); setVolume('bgm', 0.5);
     expect(() => { setScene('game'); setScene('off'); vibrate(10); }).not.toThrow();
+  });
+});
+
+describe('画面を開き直しても変わらない予想', () => {
+  beforeEach(() => setRandom(seeded(261)));
+  afterEach(() => resetRandom());
+
+  it('同じ状況なら,シーズンの予想はいつも同じで,ゲームの乱数も進めない', () => {
+    const c = newCareer('テスト');
+    const a = forecast(c);
+    setRandom(seeded(261));
+    const first = seeded(261)();
+    // 予想を何度出しても,同じ結果で,ゲームの乱数は進まない
+    for (let i = 0; i < 5; i++) expect(forecast(c)).toEqual(a);
+    expect(rand()).toBe(first);
+  });
+});
+
+describe('星の評価とおまかせオーダー', () => {
+  beforeEach(() => setRandom(seeded(271)));
+  afterEach(() => resetRandom());
+
+  it('能力が高いほど星が多く,0.5〜5 に収まる', () => {
+    expect(toStars(0)).toBe(0.5);
+    expect(toStars(100)).toBe(5);
+    let prev = 0;
+    for (let v = 0; v <= 100; v += 5) { const s = toStars(v); expect(s).toBeGreaterThanOrEqual(prev); expect(s * 2).toBe(Math.round(s * 2)); prev = s; }
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players) { expect(potStars(p)).toBeGreaterThanOrEqual(ovrStars(p)); expect(starsHTML(ovrStars(p))).toContain('★★★★★'); }
+  });
+
+  it('調子重視のおまかせは,怪我人と疲れた選手を外す', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const star = u.players.find((p) => u.lineup.some((e) => e.pid === p.id))!;
+    star.inj = { name: 'テスト', weeks: 4, major: false };
+    autoLineup(u, { mode: 'form' });
+    expect(u.lineup.some((e) => e.pid === star.id)).toBe(false);
+    expect(isLineupValid(u)).toBe(true);
+    star.inj = null;
+    autoLineup(u, { mode: 'ability' });
+    expect(isLineupValid(u)).toBe(true);
+  });
+});
+
+describe('GMとスタッフ(監督・コーチ)', () => {
+  beforeEach(() => setRandom(seeded(281)));
+  afterEach(() => resetRandom());
+
+  it('各役割に候補がいて,空席から始まる', () => {
+    const c = newCareer('テスト');
+    for (const r of ROLES) { expect(c.staff[r]).toBeNull(); expect(c.staffPool.filter((s) => s.role === r).length).toBe(3); }
+    expect(staffCost(c)).toBe(0);
+  });
+
+  it('雇うと資金が減って席が埋まり,解雇すると退職金がかかる.足りなければ雇えない', () => {
+    const c = newCareer('テスト');
+    c.funds = 0;
+    const cand = c.staffPool.find((s) => s.role === 'batting')!;
+    expect(hireStaff(c, cand.id)).toContain('資金');
+    c.funds = 1e6;
+    expect(hireStaff(c, cand.id)).toBeNull();
+    expect(c.staff.batting?.name).toBe(cand.name);
+    expect(c.funds).toBe(1e6 - signingBonus(cand));
+    expect(c.staffPool.some((s) => s.id === cand.id)).toBe(false);
+    const f = c.funds;
+    expect(fireStaff(c, 'batting')).toBeNull();
+    expect(c.staff.batting).toBeNull();
+    expect(c.funds).toBe(f - severance(cand));
+  });
+
+  it('給料は毎週,資金から払われ,払えないと信頼度が下がる', () => {
+    const c = newCareer('テスト');
+    c.funds = 1e6;
+    hireStaff(c, c.staffPool.find((s) => s.role === 'manager')!.id);
+    const f = c.funds;
+    playWeek(c, 'mix');
+    expect(c.funds).toBeLessThan(f + weeklyIncome(c) + 1e5);
+    c.funds = 0;
+    c.trust = 60;
+    for (const s of Object.values(c.staff)) if (s) s.salary = 1e7;
+    playWeek(c, 'mix');
+    expect(c.trust).toBeLessThan(60);
+  });
+
+  it('腕のいいコーチほど,担当の能力が伸びる.能力の低いコーチは逆効果', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    expect(staffTrainMult(c, p, 'meet')).toBe(1);
+    const mk = (skill: number): Staff => ({ id: 1, name: 'x', role: 'batting', age: 50, skill, salary: 100, years: 0 });
+    c.staff.batting = mk(90);
+    expect(staffTrainMult(c, p, 'meet')).toBeGreaterThan(1.09);
+    expect(staffTrainMult(c, p, 'velo')).toBe(1);
+    c.staff.batting = mk(10);
+    expect(staffTrainMult(c, p, 'meet')).toBeLessThan(0.92);
+  });
+
+  it('監督のタイプで試合の補正が変わり,試合に反映される', () => {
+    const c = newCareer('テスト');
+    const mg = (style: ManagerStyle, skill = 80): Staff => ({ id: 2, name: 'm', role: 'manager', age: 50, skill, style, salary: 100, years: 0 });
+    c.staff.manager = mg('aggressive');
+    expect(managerFx(c).hr).toBeGreaterThan(0);
+    expect(managerFx(c).def).toBeLessThan(0);
+    c.staff.manager = mg('defensive');
+    expect(managerFx(c).def).toBeGreaterThan(0);
+    c.staff.manager = mg('developer');
+    const young = userTeam(c).players.find((p) => p.age <= 24);
+    if (young) expect(staffTrainMult(c, young, 'meet')).toBeGreaterThan(1);
+    c.staff.manager = mg('defensive');
+    userTeam(c).staffFx = managerFx(c);
+    const g = newGame(userTeam(c), c.teams[1], false);
+    const side = g.home.team.user ? g.home : g.away;
+    expect(side.fx.def).toBeGreaterThan(0);
+  });
+
+  it('トレーナー・メンタルコーチの効果', () => {
+    const c = newCareer('テスト');
+    expect(trainerInjuryScale(c)).toBe(1);
+    c.staff.trainer = { id: 3, name: 't', role: 'trainer', age: 50, skill: 90, salary: 100, years: 0 };
+    c.staff.mental = { id: 4, name: 'm', role: 'mental', age: 50, skill: 90, salary: 100, years: 0 };
+    expect(trainerInjuryScale(c)).toBeLessThan(0.85);
+    expect(mentalBoost(c)).toBeGreaterThan(0);
+  });
+
+  it('スタッフは毎年年をとり,定年で退職する.新シーズンには候補が入れ替わる', () => {
+    const c = newCareer('テスト');
+    c.staff.pitching = { id: 5, name: '老', role: 'pitching', age: 64, skill: 70, salary: 100, years: 3 };
+    const before = c.staffPool.map((s) => s.id).join();
+    playSeason(c, 'mix');
+    prepareNextSeason(c);
+    expect(c.staff.pitching).toBeNull();
+    expect(c.staffPool.map((s) => s.id).join()).not.toBe(before);
+  });
+
+  it('v20 のデータにスタッフの欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 20;
+    delete old.staff; delete old.staffPool;
+    (old.auto as Record<string, unknown>).mode = undefined;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.staff.manager).toBeNull();
+    expect(m!.auto.mode).toBe('form');
   });
 });

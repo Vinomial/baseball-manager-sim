@@ -9,7 +9,7 @@ import { esc } from '../util/format';
 import { legendHTML, lineSVG, radarSVG, type Series } from './charts';
 import { moraleLabel, PERS } from '../growth/personality';
 import { avatar } from './avatar';
-import { careerTable, condHTML, gradeHTML } from './components';
+import { careerTable, condHTML, gradeHTML, playerStars } from './components';
 
 const COLORS = ['var(--btn)', 'var(--accent)', '#2C8EA3', '#C2407F'];
 
@@ -55,6 +55,7 @@ export function detailSheet(c: Career, id: number): string {
   <div class="sheet-h"><b>${avatar(p, 44)} ${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
   <p class="small" style="margin:0">${esc(r.team)} / 成長タイプ: ${p.type} / 伸びしろ: ${roomWord(p)} / 年俸 ${fmtYen(p.salary)}${p.alt?.length ? ` / サブポジ: ${p.alt.map((x) => POS_NAME[x]).join('・')}` : ''}</p>
   <p style="margin:0">${condHTML(p)}</p>
+  <p style="margin:4px 0 0">${playerStars(p)}</p>
   <p class="small" style="margin:4px 0 0">性格: <b>${PERS[p.pers].name}</b> <span class="muted">${PERS[p.pers].desc}</span></p>
   <div class="chem"><span class="who">やる気 ${Math.round(p.morale)}</span><span class="bar"><i style="width:${p.morale}%;${p.morale < 35 ? 'background:var(--bad)' : ''}"></i></span><span class="small">${moraleLabel(p.morale)}</span></div>
   <h3>能力</h3>

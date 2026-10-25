@@ -11,6 +11,7 @@ import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievem
 import { emptyPantry, tickMeal } from '../growth/meals';
 import { emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
+import { ageStaff, lineupNoise, managerFx, mentalBoost, paySalaries, refreshPool, staffTrainMult, trainerInjuryScale, trainerLoadScale } from './staff';
 import { updateMorale } from '../growth/personality';
 import { tickScout } from './scouting';
 import { judgeGoals, makeGoals } from './goals';
@@ -33,12 +34,14 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
 export const userRosterMax = (c: Career): number => rosterMax(c.off ? c.off.to : c.level);
 export const userTeam = (c: Career): Team => teamById(c, c.userId);
+
+export const emptyStaff = (): Career['staff'] => ({ manager: null, batting: null, pitching: null, defense: null, trainer: null, mental: null });
 
 export const newRecords = (): TeamRecords => ({
   streak: 0, bestStreak: 0, total: { w: 0, l: 0, d: 0 }, bestWins: 0, bestSeason: 0, titles: LEAGUES.map(() => 0), proStreak: 0,
@@ -57,7 +60,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Care
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
-    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, gen: 1, legacy: null, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
+    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, gen: 1, legacy: null, auto: { lineup: false, rest: false, mode: 'form' }, staff: emptyStaff(), staffPool: [], yearStart: { funds: 3000, attrs: {} },
     goals: [], scout: null, watch: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
@@ -70,6 +73,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Care
   refillMissions(c);
   recordHist(c);
   snapshotYear(c);
+  refreshPool(c);
   if (prev) carryOver(c, prev);
   c.goals = makeGoals(c);
   return c;
@@ -152,16 +156,17 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   const info = weekInfo(c);
   const u = userTeam(c);
   const dk = DIFFS[c.diff];
-  setInjuryScale(dk.injury);
+  setInjuryScale(dk.injury * trainerInjuryScale(c));
+  u.staffFx = managerFx(c);
   u.med = c.fac.clinic;
   // おまかせ進行:オーダーを組み直す,疲れがたまっていたら自動で休養にする
-  if (c.auto.lineup) { autoLineup(u); autoPitchers(u); }
+  if (c.auto.lineup) { autoLineup(u, { mode: c.auto.mode, noise: lineupNoise(c) }); autoPitchers(u, { mode: c.auto.mode, noise: lineupNoise(c) }); }
   if (c.auto.rest && menu !== 'rest' && confirmMessage(c, menu, !!opt.practice)) {
     menu = 'rest';
     opt = { ...opt, practice: false };
     c.news.push('疲れがたまっていたため,自動で休養にしました.');
   }
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal);
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal, { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
 
   let games: Game[] = [];
   let kind: GameKind | null = null;
@@ -193,10 +198,11 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
   c.week = c.leagues[c.level].week;
-  updateMorale(c, kind === 'league' || kind === 'playoff' || kind === 'cup' ? ctx.some((x) => x.win) ? true : ctx.length ? false : null : null);
+  updateMorale(c, kind === 'league' || kind === 'playoff' || kind === 'cup' ? ctx.some((x) => x.win) ? true : ctx.length ? false : null : null, mentalBoost(c));
   tickConvert(c, menu);
   tickScout(c);
   c.funds += weeklyIncome(c);
+  if (paySalaries(c) > 0) { addTrust(c, -0.8); c.news.push('スタッフの給料を払えず,GMの信頼度が下がりました.'); }
   stepMarket(c);
   weeklyUpkeep(c, menu === 'rest' ? 0.3 : menu === 'stam' ? 1.4 : 1);
   updateMissions(c, { menu, games: ctx });
@@ -308,7 +314,7 @@ export function finishSeason(c: Career): void {
       runAiDraft(c, level, ids);
     }
   }
-  // 監督の信頼度.順位,昇降格,優勝で変わる
+  // GMの信頼度.順位,昇降格,優勝で変わる
   const expRank = [...leagueTeams(c, from)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
   addTrust(c, (expRank - rank) * 1.5 + (champIds[from] === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
   checkFired(c, `${c.season}年目の成績不振が続き,球団から解任されました.`);
@@ -422,6 +428,8 @@ export function newSeason(c: Career): void {
     addTrust(c, -8);
     c.news.push('年俸が予算を超えたまま開幕したため,球団の信頼を落としました.');
   }
+  c.news.push(...ageStaff(c));
+  refreshPool(c);
   c.season++;
   c.week = 0;
   c.cal = 0;

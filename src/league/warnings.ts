@@ -29,8 +29,8 @@ export function warnings(c: Career, menu: string, practice: boolean): Warning[] 
   if (practice && avg >= 40) out.push({ level: 'warn', text: '練習試合は疲れがたまります.いまは見送ったほうがよさそうです.' });
   const hurtStarters = s.filter((p) => p.inj && p.inj.weeks > 0).length;
   if (hurtStarters) out.push({ level: 'info', text: `先発の${hurtStarters}人が怪我で休んでいます.控えが代わりに出ますが,戦力は落ちます.` });
-  if (c.trust < 30) out.push({ level: 'bad', text: '監督の信頼度が低く,解任の危機です.勝ち星を重ねましょう.' });
-  else if (c.trust < 45) out.push({ level: 'warn', text: '監督の信頼度が下がっています.' });
+  if (c.trust < 30) out.push({ level: 'bad', text: 'GMの信頼度が低く,解任の危機です.勝ち星を重ねましょう.' });
+  else if (c.trust < 45) out.push({ level: 'warn', text: 'GMの信頼度が下がっています.' });
   if (payroll(t) > budgetFor(c)) out.push({ level: 'warn', text: '年俸の総額が予算を超えています.開幕前に整理しないと信頼度が下がります.' });
   return out;
 }

@@ -6,7 +6,7 @@ import { fielders, findByPos, fit, getPlayer } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { avatar } from '../avatar';
-import { attrsHTML, condHTML } from '../components';
+import { attrsHTML, condHTML, playerStars } from '../components';
 import { state } from '../state';
 
 export function renderOrder(c: Career): string {
@@ -14,14 +14,18 @@ export function renderOrder(c: Career): string {
   const inL = new Set(u.lineup.map((e) => e.pid));
   const bench = fielders(u).filter((p) => !inL.has(p.id));
 
-  let h = `<p class="small muted">打順の選手を2人タップすると入れ替わります.控えの選手をタップすると,選んでいる打順の選手と交代します.守備位置は右のメニューで変えられます.試合は自動で進むので,試合前にここで準備します.</p>`;
+  const modes: ['ability' | 'form' | 'develop', string, string][] = [['ability', '実力重視', '力の高い順に組む'], ['form', '調子重視', '調子・疲れ・怪我を見て組む'], ['develop', '育成重視', '若く伸びしろのある選手にも出番を']];
+  const mg = c.staff.manager;
+  let h = `<div class="card"><div class="row" style="justify-content:space-between"><b>オーダーの組み方</b><button class="btn ${c.auto.lineup ? '' : 'ghost'}" data-a="auto-lineup" aria-pressed="${c.auto.lineup}">${c.auto.lineup ? '✔ 監督におまかせ中' : '自分で組む(手動)'}</button></div>
+  ${c.auto.lineup ? `<div class="seg" style="margin-top:6px" role="group" aria-label="おまかせの方針">${modes.map(([k, n]) => `<button class="btn ghost" data-a="auto-mode" data-k="${k}" aria-pressed="${c.auto.mode === k}">${n}</button>`).join('')}</div><p class="small muted" style="margin:4px 0 0">${modes.find((m) => m[0] === c.auto.mode)![2]}.毎週のはじめに,オーダーとローテーションを組み直します.${mg ? `監督(${esc(mg.name)})の腕前で,組み方が変わります.` : '監督を雇うと,組み方が正確になります(スタッフ).'}</p>` : '<p class="small muted" style="margin:4px 0 0">オンにすると,毎週のはじめに,監督がオーダーとローテーションを組み直します.</p>'}</div>
+  <p class="small muted">打順の選手を2人タップすると入れ替わります.控えの選手をタップすると,選んでいる打順の選手と交代します.守備位置は右のメニューで変えられます.試合は自動で進むので,試合前にここで準備します.</p>`;
 
   h += `<h2>打順</h2><div class="card"><table class="order"><tbody>
   ${u.lineup.map((e, i) => {
     const p = getPlayer(u, e.pid), f = fit(p, e.pos);
     return `<tr class="${sel?.t === 'l' && sel.i === i ? 'sel' : ''}">
     <td class="num">${i + 1}</td>
-    <td><button class="mini ghost" data-a="detail" data-id="${p.id}" aria-label="${esc(p.name)}の詳細" style="float:right">📊</button><button class="pick" data-a="selL" data-i="${i}">${avatar(p, 30)} <b>${esc(p.name)}</b> <span class="tag">本職 ${POS_NAME[p.pos]}</span> ${condHTML(p)}${f < 0 ? ` <span class="fitbad">守備${f}</span>` : ''}${attrsHTML(p)}</button></td>
+    <td><button class="mini ghost" data-a="detail" data-id="${p.id}" aria-label="${esc(p.name)}の詳細" style="float:right">📊</button><button class="pick" data-a="selL" data-i="${i}">${avatar(p, 30)} <b>${esc(p.name)}</b> <span class="tag">本職 ${POS_NAME[p.pos]}</span> ${condHTML(p)}${f < 0 ? ` <span class="fitbad">守備${f}</span>` : ''}<div>${playerStars(p)}</div>${attrsHTML(p)}</button></td>
     <td><select data-a="pos" data-i="${i}" aria-label="${esc(p.name)}の守備位置">${ALL_POS.map((x) => `<option ${x === e.pos ? 'selected' : ''} value="${x}">${POS_NAME[x]}</option>`).join('')}</select></td></tr>`;
   }).join('')}
   </tbody></table></div>

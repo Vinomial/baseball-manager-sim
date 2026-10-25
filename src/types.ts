@@ -102,6 +102,8 @@ export interface Team {
   bonds: [number, number][];
   /** 医務室のレベル(怪我の起きにくさ・治りの早さ).プレイヤーのチームだけ. */
   med?: number;
+  /** 監督の作戦による試合の補正.プレイヤーのチームだけ. */
+  staffFx?: { hit: number; hr: number; k: number; dp: number; def: number; cmd: number };
 }
 
 export interface Standing { w: number; l: number; d: number; rf: number; ra: number; }
@@ -316,6 +318,25 @@ export interface Review {
   cupChampion: boolean;
 }
 
+export type StaffRole = 'manager' | 'batting' | 'pitching' | 'defense' | 'trainer' | 'mental';
+export type ManagerStyle = 'aggressive' | 'defensive' | 'balanced' | 'developer';
+
+/** あなた(GM)が雇う,監督やコーチ */
+export interface Staff {
+  id: number;
+  name: string;
+  role: StaffRole;
+  age: number;
+  /** 能力 1〜100 */
+  skill: number;
+  /** 監督の作戦のタイプ */
+  style?: ManagerStyle;
+  /** 年俸(万円) */
+  salary: number;
+  /** 在任年数 */
+  years: number;
+}
+
 /** 球団オーナーの目標(毎年) */
 export interface Goal {
   kind: 'rank' | 'wins' | 'title' | 'cup' | 'grow';
@@ -372,7 +393,7 @@ export interface Career {
   ended: boolean;
   /** いま選べる出来事 */
   event: GameEvent | null;
-  /** 監督の信頼度 0〜100.0 になると解任される. */
+  /** GMの信頼度 0〜100.0 になると解任される. */
   trust: number;
   /** 資金(万円).入場収入や食材の売却で増え,施設に使う. */
   funds: number;
@@ -383,7 +404,11 @@ export interface Career {
   /** 前の周回までの記録 */
   legacy: { titles: number; seasons: number } | null;
   /** おまかせ進行 */
-  auto: { lineup: boolean; rest: boolean };
+  auto: { lineup: boolean; rest: boolean; mode: 'ability' | 'form' | 'develop' };
+  /** 雇っている監督・コーチ */
+  staff: Record<StaffRole, Staff | null>;
+  /** 雇えるスタッフの候補 */
+  staffPool: Staff[];
   /** 年の初めの記録(振り返り用) */
   yearStart: { funds: number; attrs: Record<number, number> };
   /** 施設のレベル(0〜5) */

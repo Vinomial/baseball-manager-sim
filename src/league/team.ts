@@ -1,7 +1,7 @@
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, POS } from '../data/constants';
 import { genPlayer, type IdSource } from '../growth/player';
 import type { AttrKey, LineupPos, Player, Pos, Team } from '../types';
-import { ri } from '../util/random';
+import { rand, ri } from '../util/random';
 import { isHurt } from './health';
 
 export interface TeamIdSource extends IdSource { tid: number; }
@@ -43,21 +43,37 @@ export function fit(p: Player, pos: LineupPos): number {
   return inf.includes(pos) === inf.includes(p.pos) ? -12 : -25;
 }
 
-export function autoLineup(t: Team): void {
+/** おまかせオーダーの組み方.form: 調子と疲れ,怪我を見る.develop: 若く伸びしろのある選手にも出番を与える.noise: 組み方のぶれ. */
+export interface AutoOpts { mode?: 'ability' | 'form' | 'develop'; noise?: number; }
+
+/** その選手を使いたい度合い(オーダー・ローテーション用の加点) */
+function useBonus(p: Player, o: AutoOpts): number {
+  let b = 0;
+  if (o.mode === 'form' || o.mode === 'develop') {
+    b += (p.cond - 2) * 3 - Math.max(0, p.fatigue - 40) * 0.12;
+    if (isHurt(p)) b -= 1000;
+  }
+  if (o.mode === 'develop' && p.age <= 22) b += 7;
+  if (o.noise) b += (rand() - 0.5) * o.noise * 2;
+  return b;
+}
+
+export function autoLineup(t: Team, o: AutoOpts = {}): void {
   const F = fielders(t);
+  const bonus = new Map(F.map((p) => [p.id, useBonus(p, o)]));
   const used = new Set<number>();
   const chosen: { pid: number; pos: LineupPos }[] = [];
   for (const pos of ['捕', '遊', '二', '中', '三', '一', '左', '右'] as LineupPos[]) {
     let best: Player | null = null, bv = -1e9;
     for (const p of F) {
       if (used.has(p.id)) continue;
-      const v = batVal(p) + (p.field + fit(p, pos)) * 0.9;
+      const v = batVal(p) + (p.field + fit(p, pos)) * 0.9 + (bonus.get(p.id) ?? 0);
       if (v > bv) { bv = v; best = p; }
     }
     if (best) { used.add(best.id); chosen.push({ pid: best.id, pos }); }
   }
   let dh: Player | null = null;
-  for (const p of F) if (!used.has(p.id) && (!dh || batVal(p) > batVal(dh))) dh = p;
+  for (const p of F) if (!used.has(p.id) && (!dh || batVal(p) + (bonus.get(p.id) ?? 0) > batVal(dh) + (bonus.get(dh.id) ?? 0))) dh = p;
   if (dh) chosen.push({ pid: dh.id, pos: '指' });
 
   const by = (id: number) => getPlayer(t, id);
@@ -68,9 +84,10 @@ export function autoLineup(t: Team): void {
   t.lineup = [lead, rest[3], rest[1], rest[0], rest[2], ...rest.slice(4)].filter(Boolean);
 }
 
-export function autoPitchers(t: Team): void {
+export function autoPitchers(t: Team, o: AutoOpts = {}): void {
   const Ps = pitchersOf(t);
-  const st = [...Ps].sort((a, b) => (b.velo + b.ctrl + b.stam * 1.2) - (a.velo + a.ctrl + a.stam * 1.2)).slice(0, 3);
+  const bonus = new Map(Ps.map((p) => [p.id, useBonus(p, o)]));
+  const st = [...Ps].sort((a, b) => (b.velo + b.ctrl + b.stam * 1.2 + (bonus.get(b.id) ?? 0)) - (a.velo + a.ctrl + a.stam * 1.2 + (bonus.get(a.id) ?? 0))).slice(0, 3);
   const rest = Ps.filter((p) => !st.includes(p)).sort((a, b) => (b.velo * 1.2 + b.ctrl) - (a.velo * 1.2 + a.ctrl));
   t.pitchers = [...st, ...rest].map((p) => p.id);
 }

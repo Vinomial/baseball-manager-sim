@@ -11,9 +11,10 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
-import type { Career, Difficulty, FacKey, Ingredient, LineupPos, Pos } from '../types';
+import type { Career, Difficulty, FacKey, StaffRole, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { negotiate } from '../league/contracts';
+import { fireStaff, hireStaff } from '../league/staff';
 import { dispatchScout } from '../league/scouting';
 import { detailSheet } from './detail';
 import { esc } from '../util/format';
@@ -286,6 +287,9 @@ function onClick(e: MouseEvent): void {
       return;
     }
     case 'share-img': if (c) void shareImage(c).then((m) => toast(m)); return;
+    case 'hire': if (c) { const err = hireStaff(c, id); if (err) alert(err); else { sfx.coin(); save(); } } break;
+    case 'fire': if (c && confirm('解雇します.よろしいですか?')) { const err = fireStaff(c, k as StaffRole); if (err) alert(err); else save(); } break;
+    case 'auto-mode': if (c) { c.auto.mode = k as 'ability' | 'form' | 'develop'; save(); } break;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;

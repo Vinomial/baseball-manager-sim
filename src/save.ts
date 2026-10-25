@@ -1,4 +1,5 @@
-import { newRecords, SAVE_VERSION, snapshotYear } from './league/season';
+import { emptyStaff, newRecords, SAVE_VERSION, snapshotYear } from './league/season';
+import { refreshPool } from './league/staff';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
@@ -90,7 +91,7 @@ export function migrate(raw: unknown): Career | null {
     c.version = 7;
   }
   if (c.version === 7) {
-    // v8: 年俸,監督の信頼度,解任を追加
+    // v8: 年俸,GMの信頼度,解任を追加
     for (const t of (c.teams ?? []) as { players: Player[] }[]) for (const p of t.players) p.salary = salaryOf(p);
     for (const p of (c.fa ?? []) as Player[]) p.salary = salaryOf(p);
     c.trust = 60;
@@ -179,6 +180,15 @@ export function migrate(raw: unknown): Career | null {
     // v20: 最上位リーグの地区を追加
     addDivisions(c as unknown as Career);
     c.version = 20;
+  }
+  if (c.version === 20) {
+    // v21: 監督・コーチ(スタッフ)を追加
+    const cc = c as unknown as Career;
+    cc.staff = emptyStaff();
+    cc.staffPool = [];
+    if (cc.auto) cc.auto.mode = 'form';
+    try { refreshPool(cc); } catch { /* 候補は次のシーズンから */ }
+    c.version = 21;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

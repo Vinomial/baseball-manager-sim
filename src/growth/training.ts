@@ -1,4 +1,4 @@
-import type { AttrKey, Meal, Team } from '../types';
+import type { AttrKey, Meal, Player, Team } from '../types';
 import { mealMult } from './meals';
 import { addChem } from './chemistry';
 import { clamp } from '../util/random';
@@ -46,8 +46,11 @@ export interface GrowthReport { name: string; ups: [AttrKey, number][]; /** 球�
 
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
 /** @param scale 試合数が多いリーグほど1週あたりの練習量を減らすための係数
- * @param condBias 調子の上がりやすさ(監督の信頼度で変わる) */
-export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal: Meal | null = null): GrowthReport[] {
+ * @param condBias 調子の上がりやすさ(GMの信頼度で変わる) */
+/** コーチなどによる追加の補正 */
+export interface TrainExtra { mult?: (p: Player, k: AttrKey) => number; load?: number; }
+
+export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal: Meal | null = null, extra: TrainExtra = {}): GrowthReport[] {
   const m = MENUS[menu];
   const rep: GrowthReport[] = [];
   for (const p of t.players) {
@@ -55,11 +58,12 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
     const hurt = isHurt(p) ? 0.3 : 1;
     const mor = moraleGrowth(p);
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor);
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor * (extra.mult?.(p, k) ?? 1));
     condDrift(p, (m.rest ? 1 : 0) + condBias + moraleCondBias(p));
     // 練習の負担.休養は疲れをとる
     const load = LOAD[menu];
-    p.fatigue = clamp(p.fatigue + (p.role === '野手' ? load[0] : load[1]), 0, 100);
+    const ld = p.role === '野手' ? load[0] : load[1];
+    p.fatigue = clamp(p.fatigue + (ld > 0 ? ld * (extra.load ?? 1) : ld), 0, 100);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);
     const note = maybeLearn(p, menu, 0.012 * scale) ?? undefined;
     if (ups.length || note) rep.push({ name: p.name, ups, note });

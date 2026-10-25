@@ -21,12 +21,12 @@ export const moraleGrowth = (p: Player): number => 0.88 + clamp(p.morale, 0, 100
 export const moraleCondBias = (p: Player): number => ((clamp(p.morale, 0, 100) - 50) / 100) * 0.4;
 
 /** 1 週ぶん,やる気を動かす.won は,その週の勝敗(試合がなければ null). */
-export function updateMorale(c: Career, won: boolean | null): void {
+export function updateMorale(c: Career, won: boolean | null, boost = 0): void {
   const u = c.teams.find((t) => t.user)!;
   const starters = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
   const leaders = Math.min(2, u.players.filter((p) => p.pers === 'leader').length);
   for (const p of u.players) {
-    let d = (55 - p.morale) * 0.05 + leaders * 0.3;
+    let d = (55 - p.morale) * 0.05 + leaders * 0.3 + boost;
     if (starters.has(p.id)) d += p.pers === 'cool' ? 1 : 2;
     else d -= { fighter: 3, sensitive: 2, leader: 1, cool: 0.5, pace: 0.5 }[p.pers];
     if (won === true) d += 1;

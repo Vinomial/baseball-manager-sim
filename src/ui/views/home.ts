@@ -11,7 +11,8 @@ import { term } from '../glossary';
 import { tutorialCard } from '../tutorial';
 import { hurtPlayers } from '../../league/health';
 import { warnings } from '../../league/warnings';
-import { fold, gradeHTML } from '../components';
+import { fold, starsHTML } from '../components';
+import { toStars } from '../../growth/stars';
 import { state } from '../state';
 import { renderOff } from './offseason';
 import { scoutHTML, scoutSummary } from './scout';
@@ -48,7 +49,7 @@ export function renderHome(c: Career): string {
   if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;
   if (info.userGame === 'league' && m) {
     h += `<div class="row" style="justify-content:space-between"><div><b>第${c.week + 1}戦 vs ${esc(m.opp.name)}</b>${m.opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${m.home ? 'ホーム' : 'ビジター'} / 全${total}戦 ${lg.teams}チーム)</span></div>
-    <div class="small">${term('ovr')} ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
+    <div class="small">${term('ovr')} 相手 ${starsHTML(toStars(ovr(m.opp)))} 自チーム ${starsHTML(toStars(ovr(u)))}</div></div>${winProbHTML(c, m.opp)}`;
   } else if (info.userGame) {
     h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : '全日本選手権に出場します'}</b></p>`;
   } else {

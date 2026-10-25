@@ -35,13 +35,14 @@ export const focusKeys = (m: Menu): AttrKey[] => Object.keys(m.focus) as AttrKey
 export interface GrowthReport { name: string; ups: [AttrKey, number][]; }
 
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
-export function doTraining(t: Team, menu: MenuKey): GrowthReport[] {
+/** @param scale 試合数が多いリーグほど1週あたりの練習量を減らすための係数 */
+export function doTraining(t: Team, menu: MenuKey, scale = 1): GrowthReport[] {
   const m = MENUS[menu];
   const rep: GrowthReport[] = [];
   for (const p of t.players) {
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
-    for (const k of keys) growAttr(p, k, m.focus[k] ?? m.base ?? BASE_GAIN);
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale);
     condDrift(p, m.rest ? 1 : 0);
     if (m.rest) p.fatigue = Math.max(0, p.fatigue - 40);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);

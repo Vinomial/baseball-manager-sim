@@ -23,8 +23,14 @@ export interface AppState {
   menu: MenuKey;
   sel: Selection | null;
   open: number | null;
+  /** 順位タブで見ているリーグ.null ならプレイヤーのリーグ */
+  viewLevel: number | null;
+  /** 順位タブで選手一覧を開いているチーム */
+  viewTeam: number | null;
+  /** 自由契約の表示 */
+  faRole: '野手' | '投手';
 }
 
 export const state: AppState = {
-  career: null, last: null, tab: 'home', menu: 'bat', sel: null, open: null,
+  career: null, last: null, tab: 'home', menu: 'bat', sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
 };

@@ -76,10 +76,11 @@ export function autoPitchers(t: Team): void {
 /** チームの総合力 */
 export function ovr(t: Team): number {
   const L = t.lineup.map((e) => findPlayer(t, e.pid)).filter((p): p is Player => !!p);
+  if (!L.length) return 0;
   const b = L.reduce((s, p) => s + (p.meet + p.power + p.speed + p.field) / 4, 0) / L.length;
   const ps = t.pitchers.slice(0, 5).map((id) => findPlayer(t, id)).filter((p): p is Player => !!p);
   const pv = ps.reduce((s, p) => s + (p.velo + p.ctrl + p.stam) / 3, 0) / ps.length;
-  return (b + pv) / 2;
+  return ps.length ? (b + pv) / 2 : b;
 }
 
 /** 能力ごとの平均.打撃系は先発の野手,投手系は先発・中継ぎの上位5人で出す. */

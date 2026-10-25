@@ -157,3 +157,19 @@ table.mini td:first-child,table.mini th:first-child{text-align:left}
 table.box{min-width:0;margin-bottom:8px}
 table.box th:nth-child(2),table.box td:nth-child(2){text-align:left}
 table.box:nth-of-type(2) th:first-child,table.box:nth-of-type(2) td:first-child{text-align:left}
+
+.pick.plain{background:none;border:0;padding:0;width:100%;text-align:left}
+table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-space:nowrap}
+.lgtabs{display:flex;gap:4px;overflow-x:auto;margin:10px 0}
+.lgtabs button{flex:1 0 auto;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px;font-weight:500}
+.lgtabs button[aria-pressed="true"]{background:var(--board);color:var(--board-num);border-color:var(--board)}
+.boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.board2{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--panel2)}
+.board2 h4{margin:0 0 4px;font-size:13px}
+.board2 ol{margin:0;padding-left:1.4em;font-size:13px}
+.board2 li{display:flex;justify-content:space-between;gap:6px}
+.linkish{background:none;border:0;padding:0;color:inherit;text-decoration:underline dotted;text-align:left}
+
+.rec{display:inline-block;font-size:11px;border-radius:3px;padding:0 5px;margin-right:4px;background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+.rec.star{background:var(--sel);color:#2a1d00;border-color:transparent;font-weight:700}
+.pl.star{border-color:var(--sel)}

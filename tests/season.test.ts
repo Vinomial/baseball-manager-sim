@@ -16,7 +16,7 @@ function playSeason(c: Career, menu: MenuKey = 'bat'): void {
 }
 
 function prepareNextSeason(c: Career): void {
-  pickDraft(c, 0);
+  while (!c.off!.draft.done) pickDraft(c, 0);
   const u = userTeam(c);
   while (u.players.length > ROSTER_MAX) {
     const p = u.players.find((x) => x.role === '野手' && !u.lineup.some((e) => e.pid === x.id)) ?? u.players[0];
@@ -53,13 +53,15 @@ describe('シーズン進行', () => {
 
   it('1シーズンの試合数はリーグで決まり,全チームが同じ数だけ戦う', () => {
     const c = newCareer('テスト');
-    expect(c.schedule.length).toBe(gamesPerSeason(0));
+    expect(c.leagues[0].schedule.length).toBe(gamesPerSeason(0));
     playSeason(c);
     expect(c.phase).toBe('off');
     expect(c.results.length).toBe(gamesPerSeason(0));
-    for (const t of c.teams) {
-      const s = c.stand[t.id];
-      expect(s.w + s.l + s.d).toBe(gamesPerSeason(0));
+    for (const lg of c.leagues) {
+      for (const id of lg.teamIds) {
+        const s = lg.stand[id];
+        expect(s.w + s.l + s.d).toBe(gamesPerSeason(lg.level));
+      }
     }
   });
 
@@ -71,8 +73,8 @@ describe('シーズン進行', () => {
       prepareNextSeason(c);
       expect(isLineupValid(userTeam(c))).toBe(true);
       expect(c.season).toBe(s + 2);
-      expect(c.schedule.length).toBe(gamesPerSeason(c.level));
-      expect(c.teams.length).toBe(LEAGUES[c.level].teams);
+      expect(c.leagues[c.level].schedule.length).toBe(gamesPerSeason(c.level));
+      c.leagues.forEach((lg, i) => expect(lg.teamIds.length).toBe(LEAGUES[i].teams));
     }
   });
 
@@ -90,6 +92,55 @@ describe('シーズン進行', () => {
     playWeek(c, 'bat');
     expect(c.hist.length).toBe(2);
     expect(c.hist[1].week).toBe(1);
+  });
+});
+
+describe('世界の進行', () => {
+  beforeEach(() => setRandom(seeded(21)));
+  afterEach(() => resetRandom());
+
+  it('全リーグが毎シーズン進み,選手の重複や人数の破綻がない', () => {
+    const c = newCareer('テスト');
+    for (let s = 0; s < 8; s++) {
+      playSeason(c, 'mix');
+      // どのリーグも全試合を消化し,優勝が記録される
+      for (const lg of c.leagues) expect(lg.week).toBe(lg.schedule.length);
+      expect(c.champs.length).toBe((s + 1) * LEAGUES.length);
+      prepareNextSeason(c);
+      const seen = new Set<number>();
+      for (const t of c.teams) {
+        expect(t.players.length).toBeLessThanOrEqual(ROSTER_MAX);
+        expect(isLineupValid(t)).toBe(true);
+        for (const p of t.players) { expect(seen.has(p.id)).toBe(false); seen.add(p.id); }
+      }
+      for (const p of c.fa) expect(seen.has(p.id)).toBe(false);
+      expect(c.fa.length).toBeLessThanOrEqual(40);
+    }
+  });
+
+  it('昇格したチームは上のリーグに移り,各リーグのチーム数は変わらない', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const o = c.off!;
+    const before = Object.fromEntries(c.leagues.flatMap((lg) => lg.teamIds.map((id) => [id, lg.level])));
+    for (const id of Object.keys(o.next).map(Number)) expect(Math.abs(o.next[id] - before[id])).toBeLessThanOrEqual(1);
+    prepareNextSeason(c);
+    for (const id of Object.keys(o.next).map(Number)) {
+      expect(c.leagues.find((lg) => lg.teamIds.includes(id))!.level).toBe(o.next[id]);
+    }
+  });
+
+  it('選手の成績が通算に積み上がる', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'bat');
+    const u = userTeam(c);
+    const games = u.players.reduce((n, p) => n + p.stats.g, 0);
+    expect(games).toBeGreaterThan(0);
+    prepareNextSeason(c);
+    const withLines = userTeam(c).players.filter((p) => p.seasons.length > 0);
+    expect(withLines.length).toBeGreaterThan(0);
+    // 新シーズンの成績は 0 から始まる
+    for (const p of userTeam(c).players) expect(p.stats.g).toBe(0);
   });
 });
 
@@ -147,6 +198,22 @@ describe('セーブデータの移行', () => {
     expect(m).not.toBeNull();
     expect(m!.teams[0].players[0].stats.ha).toBe(0);
     expect(m!.teams[0].players[0].stats.bba).toBe(0);
+  });
+
+  it('v3 のデータから全リーグの世界を作って続きを遊べる', () => {
+    const c = newCareer('テスト');
+    // v3 の形(リーグ 1 つ分の日程と順位をトップに持つ)に戻す
+    const lg = c.leagues[0];
+    const old = JSON.parse(JSON.stringify({ ...c, schedule: lg.schedule, stand: lg.stand, teams: c.teams.filter((t) => lg.teamIds.includes(t.id)) })) as Record<string, unknown>;
+    old.version = 3;
+    delete old.leagues; delete old.fa; delete old.champs;
+    for (const t of old.teams as { players: Record<string, unknown>[] }[]) for (const p of t.players) delete p.seasons;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.leagues.length).toBe(LEAGUES.length);
+    m!.leagues.forEach((l, i) => expect(l.teamIds.length).toBe(LEAGUES[i].teams));
+    playSeason(m!);
+    expect(m!.phase).toBe('off');
   });
 
   it('知らないバージョンは読み込まない', () => {

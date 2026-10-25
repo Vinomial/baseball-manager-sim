@@ -3,7 +3,7 @@ import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
 import { standings } from '../league/schedule';
 import {
-  newCareer, newSeason, pickDraft, playWeek, releasePlayer, userTeam,
+  newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, saveCareer } from '../save';
@@ -26,8 +26,8 @@ function render(): void {
   const c = state.career;
   if (!c) { root.innerHTML = renderStart(); return; }
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
-  const rec = c.stand[c.userId];
-  const weekLabel = c.phase === 'season' ? `${c.week + 1}/${c.schedule.length}` : 'オフ';
+  const rec = c.phase === 'season' ? c.leagues[c.level].stand[c.userId] : c.off!.rec;
+  const weekLabel = c.phase === 'season' ? `${c.week + 1}/${c.leagues[c.level].schedule.length}` : 'オフ';
   const body = {
     home: () => renderHome(c),
     game: () => renderGame(),
@@ -66,7 +66,7 @@ function onClick(e: MouseEvent): void {
       const v = (document.getElementById('tname') as HTMLInputElement | null)?.value.trim() || 'マイチーム';
       state.career = newCareer(v); state.tab = 'home'; save(); break;
     }
-    case 'tab': state.tab = k as Tab; state.sel = null; top(); break;
+    case 'tab': state.tab = k as Tab; state.sel = null; state.open = null; top(); break;
     case 'menu': state.menu = k as MenuKey; break;
     case 'start': {
       if (!c || c.phase !== 'season') break;
@@ -108,6 +108,15 @@ function onClick(e: MouseEvent): void {
     }
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
     case 'draft': if (c) { pickDraft(c, i); save(); } break;
+    case 'sign': {
+      if (!c) break;
+      const err = signFreeAgent(c, id);
+      if (err) alert(err); else save();
+      break;
+    }
+    case 'faRole': state.faRole = k as '野手' | '投手'; break;
+    case 'lv': state.viewLevel = i; state.viewTeam = null; break;
+    case 'vteam': state.viewTeam = id < 0 ? null : id; state.open = null; break;
     case 'release': {
       if (!c) break;
       const p = getPlayer(userTeam(c), id);

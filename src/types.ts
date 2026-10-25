@@ -19,6 +19,15 @@ export interface Stats {
   ha: number; bba: number;
 }
 
+/** 過去のシーズンの成績 1 行 */
+export interface SeasonLine {
+  season: number;
+  level: number;
+  team: string;
+  age: number;
+  stats: Stats;
+}
+
 export interface Player {
   id: number;
   name: string;
@@ -38,6 +47,12 @@ export interface Player {
   stats: Stats;
   /** ドラフト候補のときだけ付く,能力の見積もり幅 */
   scout?: Partial<Record<AttrKey, [number, number]>>;
+  /** ドラフト候補のときだけ付く,伸びしろの見積もり(能力値の幅) */
+  scoutPot?: [number, number];
+  /** 過去のシーズンの成績(古い順) */
+  seasons: SeasonLine[];
+  /** 自由契約になる前の所属チーム */
+  prev?: string;
 }
 
 export interface LineupEntry { pid: number; pos: LineupPos; }
@@ -58,17 +73,6 @@ export interface Team {
 
 export interface Standing { w: number; l: number; d: number; rf: number; ra: number; }
 
-export interface OffSeason {
-  rank: number;
-  rec: Standing;
-  move: -1 | 0 | 1;
-  from: number;
-  retired: string[];
-  draft: Player[];
-  /** null: 未決定,'-': 見送り,それ以外: 指名した選手名 */
-  drafted: string | null;
-}
-
 /** 週ごとのチーム能力の記録(グラフ用).各能力は先発メンバーの平均. */
 export interface HistPoint {
   season: number;
@@ -88,23 +92,72 @@ export interface ResultRow {
   home: boolean;
 }
 
+export interface DraftPick { round: number; teamId: number; team: string; pid: number; name: string; user: boolean; }
+
+export interface DraftState {
+  /** 指名できる候補 */
+  pool: Player[];
+  /** 指名順(チーム ID).ラウンドごとに繰り返す */
+  order: number[];
+  idx: number;
+  picks: DraftPick[];
+  done: boolean;
+}
+
+export interface LeagueState {
+  level: number;
+  teamIds: number[];
+  schedule: [number, number][][];
+  stand: Record<number, Standing>;
+  /** 消化した試合数 */
+  week: number;
+}
+
+export interface ChampRow { season: number; level: number; team: string; teamId: number; runnerUp: string; }
+
+export interface OffSeason {
+  rank: number;
+  rec: Standing;
+  move: -1 | 0 | 1;
+  from: number;
+  /** 来シーズンのリーグ */
+  to: number;
+  /** 全チームの来シーズンのリーグ */
+  next: Record<number, number>;
+  retired: string[];
+  /** プレーオフの結果(プレイヤーのリーグ) */
+  playoff: string;
+  draft: DraftState;
+  /** 自由契約で獲得した選手名 */
+  signed: string[];
+  /** 放出した選手名 */
+  released: string[];
+}
+
 export interface Career {
   version: number;
   nid: number;
   tid: number;
   season: number;
+  /** プレイヤーのリーグで消化した試合数 */
   week: number;
+  /** プレイヤーの今のリーグ(オフの間は昇格前) */
   level: number;
   phase: 'season' | 'off';
+  /** 全リーグの全チーム */
   teams: Team[];
-  schedule: [number, number][][];
-  stand: Record<number, Standing>;
+  /** リーグごとの日程と順位.添え字がリーグ. */
+  leagues: LeagueState[];
   userId: number;
   last: string | null;
   off: OffSeason | null;
   hist: HistPoint[];
   /** 今シーズンのプレイヤーの試合結果 */
   results: ResultRow[];
+  /** 自由契約の選手 */
+  fa: Player[];
+  /** 各リーグの優勝の記録 */
+  champs: ChampRow[];
 }
 
 /* ===== 試合 ===== */

@@ -35,6 +35,7 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
     ...zero,
     pot: { ...zero },
     stats: emptyStats(),
+    seasons: [],
   };
   const keys = keysOf(p);
   for (const k of keys) p[k] = clamp(Math.round(base + randn() * 7), 8, 95);
@@ -99,3 +100,18 @@ export function roomWord(p: Player): string {
 
 /** 試合で使う実効値(調子込み) */
 export const eff = (p: Player, k: AttrKey): number => p[k] + (p.cond - 2) * 4;
+
+/** 今の力.野手は打撃と守備,投手は球威・制球・スタミナの重み付き平均. */
+export function playerValue(p: Player): number {
+  return p.role === '野手'
+    ? p.meet * 0.35 + p.power * 0.3 + p.speed * 0.15 + p.field * 0.2
+    : p.velo * 0.4 + p.ctrl * 0.35 + p.stam * 0.25;
+}
+
+/** 上限までの伸びしろ込みの力.若いほど伸びしろを重く見る. */
+export function futureValue(p: Player): number {
+  const keys = keysOf(p);
+  const room = keys.reduce((s, k) => s + Math.max(0, p.pot[k] - p[k]), 0) / keys.length;
+  const w = p.age <= 22 ? 0.55 : p.age <= 25 ? 0.4 : p.age <= 28 ? 0.2 : 0.05;
+  return playerValue(p) + room * w;
+}

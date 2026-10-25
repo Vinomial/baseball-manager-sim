@@ -1,5 +1,6 @@
 import type { Career, Game } from '../types';
 import { clamp } from '../util/random';
+import { leagueOfTeam } from './schedule';
 
 /** 試合結果を順位表・投手成績・疲労に反映する */
 export function applyGameResultToStanding(c: Career, g: Game): void {
@@ -12,7 +13,8 @@ export function applyGameResultToStanding(c: Career, g: Game): void {
     for (const e of s.lineup) e.p.stats.g++;
     s.team.rotIdx++;
   }
-  const sh = c.stand[H.team.id], sa = c.stand[A.team.id];
+  const lg = leagueOfTeam(c, H.team.id);
+  const sh = lg.stand[H.team.id], sa = lg.stand[A.team.id];
   sh.rf += H.runs; sh.ra += A.runs;
   sa.rf += A.runs; sa.ra += H.runs;
   if (H.runs > A.runs) { sh.w++; sa.l++; H.starter.stats.w++; A.starter.stats.l++; }

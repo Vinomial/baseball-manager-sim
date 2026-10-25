@@ -1,4 +1,5 @@
 import { SAVE_VERSION } from './league/season';
+import { fillOtherLeagues } from './league/world';
 import type { Career } from './types';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
@@ -23,7 +24,37 @@ export function migrate(raw: unknown): Career | null {
     for (const t of teams) for (const p of t.players) { p.stats.ha ??= 0; p.stats.bba ??= 0; }
     c.version = 3;
   }
+  if (c.version === 3) {
+    migrateV3(c);
+    c.version = 4;
+  }
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
+}
+
+/** v4: 全リーグの世界,選手の通算成績,自由契約,優勝の記録を追加 */
+function migrateV3(c: Record<string, unknown>): void {
+  const old = c as unknown as {
+    level: number; week: number; phase: string; teams: Career['teams']; schedule: Career['leagues'][0]['schedule'];
+    stand: Career['leagues'][0]['stand']; userId: number; off: { from: number } | null;
+  };
+  for (const t of old.teams) for (const p of t.players) p.seasons = [];
+  // オフシーズン中のデータは,昇格・降格の結果だけを引き継いで新シーズンの手前に戻す
+  const offseason = old.phase === 'off';
+  if (offseason) {
+    old.teams = old.teams.filter((t) => t.user);
+    old.schedule = [];
+    old.stand = {};
+    old.week = 0;
+    c.phase = 'season';
+    c.off = null;
+  }
+  const cc = c as unknown as Career;
+  cc.fa = [];
+  cc.champs = [];
+  const userLeague: Career['leagues'][0] = {
+    level: old.level, teamIds: old.teams.map((t) => t.id), schedule: old.schedule, stand: old.stand, week: old.week,
+  };
+  fillOtherLeagues(cc, userLeague, offseason);
 }
 
 export function loadCareer(): Career | null {

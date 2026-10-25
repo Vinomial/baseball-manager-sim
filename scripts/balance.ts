@@ -6,9 +6,12 @@
 import { LEAGUES, ROSTER_MAX } from '../src/data/constants';
 import { newGame, stepToEnd } from '../src/engine/game';
 import { MENUS, type MenuKey } from '../src/growth/training';
-import { newCareer, newSeason, pickDraft, playWeek, releasePlayer, userTeam } from '../src/league/season';
-import { genTeam } from '../src/league/team';
-import { keysOf } from '../src/growth/player';
+import { advise } from '../src/league/advice';
+import { leagueTeams } from '../src/league/schedule';
+import { newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam } from '../src/league/season';
+import { faVerdict } from '../src/league/world';
+import { autoLineup, autoPitchers, genTeam, ovr } from '../src/league/team';
+import { futureValue, keysOf } from '../src/growth/player';
 import type { Career } from '../src/types';
 
 /** 1リーグあたり,チームの組を TEAMS 通り作って,それぞれ GAMES 試合する */
@@ -50,25 +53,50 @@ for (const menu of Object.keys(MENUS) as MenuKey[]) {
   console.log(`${MENUS[menu].name.padEnd(5, ' ')} 平均 ${avg >= 0 ? '+' : ''}${avg.toFixed(2)}  順位 ${c.off?.rank}位`);
 }
 
-console.log('\n== 同じ練習を続けた12シーズンの歩み(リーグ/順位。3回の平均) ==');
-for (const menu of ['mix', 'bat', 'pitch'] as MenuKey[]) {
-  const levels: number[] = Array(12).fill(0), ranks: number[] = Array(12).fill(0), ovrs: number[] = Array(12).fill(0);
+/** おすすめどおりにドラフトと自由契約を進める簡単な自動プレイ */
+function autoOffseason(c: Career): void {
+  const u = userTeam(c);
+  while (!c.off!.draft.done) {
+    const d = c.off!.draft;
+    const adv = advise(u, d.pool);
+    const i = d.pool.findIndex((p) => adv.get(p.id)?.star);
+    pickDraft(c, i >= 0 ? i : 0);
+  }
+  const cands = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
+  for (const id of [...cands.entries()].filter(([, a]) => a.star).map(([id]) => id)) {
+    if (u.players.length < ROSTER_MAX) signFreeAgent(c, id);
+  }
+  const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
+  while (u.players.length > ROSTER_MAX) {
+    const rest = u.players.filter((p) => !core.has(p.id)).sort((a, b) => futureValue(a) - futureValue(b));
+    if (!rest.length || releasePlayer(c, rest[0].id)) break;
+  }
+  autoLineup(u);
+  autoPitchers(u);
+  newSeason(c);
+}
+
+const SEASONS = 30;
+console.log(`\n== おすすめどおりに${SEASONS}シーズン進めたときの歩み(3回の平均) ==`);
+for (const menu of ['mix', 'bat'] as MenuKey[]) {
   const R = 3;
+  const lv = Array(SEASONS).fill(0), rk = Array(SEASONS).fill(0), my = Array(SEASONS).fill(0);
+  const lgOvr = LEAGUES.map(() => Array(SEASONS).fill(0));
+  let titles = 0, protitles = 0;
   for (let r = 0; r < R; r++) {
     const c = newCareer('dummy');
-    for (let s = 0; s < 12; s++) {
+    for (let s = 0; s < SEASONS; s++) {
       while (c.phase === 'season') playWeek(c, menu);
-      levels[s] += c.off!.from / R; ranks[s] += c.off!.rank / R; ovrs[s] += c.hist[c.hist.length - 1].ovr / R;
-      pickDraft(c, 0);
-      const u = userTeam(c);
-      while (u.players.length > ROSTER_MAX) {
-        const p = u.players.find((x) => !u.lineup.some((e) => e.pid === x.id) && !u.pitchers.slice(0, 5).includes(x.id)) ?? u.players[0];
-        if (releasePlayer(c, p.id)) break;
-      }
-      newSeason(c);
+      lv[s] += c.off!.from / R; rk[s] += c.off!.rank / R; my[s] += c.hist[c.hist.length - 1].ovr / R;
+      LEAGUES.forEach((_, l) => { lgOvr[l][s] += leagueTeams(c, l).reduce((a, t) => a + ovr(t), 0) / leagueTeams(c, l).length / R; });
+      if (c.off!.playoff.includes('優勝')) { titles++; if (c.off!.from === 3) protitles++; }
+      autoOffseason(c);
     }
   }
-  console.log(`${MENUS[menu].name}: リーグ ${levels.map((v) => v.toFixed(1)).join(' ')}`);
-  console.log(`       順位   ${ranks.map((v) => v.toFixed(1)).join(' ')}`);
-  console.log(`       総合力 ${ovrs.map((v) => v.toFixed(0)).join(' ')}`);
+  const row = (a: number[], f = 1) => a.map((v) => v.toFixed(f)).join(' ');
+  console.log(`${MENUS[menu].name}: リーグ ${row(lv)}`);
+  console.log(`       順位   ${row(rk)}`);
+  console.log(`       自軍   ${row(my, 0)}`);
+  LEAGUES.forEach((L, l) => console.log(`       ${L.name.slice(0, 2)}平均 ${row(lgOvr[l], 0)}`));
+  console.log(`       優勝 ${titles}回(プロで ${protitles}回) / ${R * SEASONS}シーズン`);
 }

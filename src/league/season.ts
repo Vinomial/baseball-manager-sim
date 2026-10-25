@@ -1,56 +1,43 @@
-/** シーズン進行(週の開始,結果の確定,オフシーズン,ドラフト). */
-import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX, TEAM_NAMES } from '../data/constants';
+/** シーズン進行(週の進行,結果の確定,オフシーズン).世界全体の進行は world.ts. */
+import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX } from '../data/constants';
 import { applyGameResultToStanding } from './result';
 import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
-import { agePlayer, ageFactor, condDrift, emptyStats, genPlayer, keysOf } from '../growth/player';
+import { ageFactor, emptyStats, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
-import type { Career, Game, Player, Team } from '../types';
-import { clamp, pick, ri, shuffle } from '../util/random';
-import { emptyStanding, makeSchedule, standings } from './schedule';
-import { autoLineup, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
+import type { Career, DraftState, Game, Team } from '../types';
+import { clamp, pick, ri } from '../util/random';
+import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
+import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
+import {
+  advanceDraft, advanceWorld, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld, champRow,
+  computeNextLevels, draftOrder, genDraftClass, playRound, playoffText, pruneFreeAgents, resetLeague,
+  runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
+} from './world';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
-export const teamById = (c: Career, id: number): Team => {
-  const t = c.teams.find((x) => x.id === id);
-  if (!t) throw new Error(`team ${id} not found`);
-  return t;
-};
+export { teamById };
 export const userTeam = (c: Career): Team => teamById(c, c.userId);
-
-/** AI チームの連携の初期値はリーグが上がるほど高い */
-const aiChem = (level: number): number => 20 + level * 12;
 
 export function newCareer(name: string): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
-    teams: [], schedule: [], stand: {}, userId: 0, last: null, off: null, hist: [], results: [],
+    teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
   // プレイヤーのチームは伸びしろを多めにする
   for (const p of u.players) for (const k of keysOf(p)) p.pot[k] = clamp(p.pot[k] + ri(5, 15), p[k], 99);
   c.userId = u.id;
-  c.teams = [u];
-  buildLeague(c);
+  buildWorld(c, u);
   recordHist(c);
   return c;
 }
 
-/** 現在のリーグの相手チームと日程を作り直す */
-export function buildLeague(c: Career): void {
-  const u = userTeam(c);
-  const lg = LEAGUES[c.level];
-  const names = shuffle(TEAM_NAMES[c.level]).filter((n) => n !== u.name).slice(0, lg.teams - 1);
-  c.teams = [u, ...names.map((n) => genTeam(c, n, lg.base, aiChem(c.level)))];
-  c.schedule = makeSchedule(shuffle(c.teams.map((t) => t.id)), lg.rounds);
-  c.stand = {};
-  for (const t of c.teams) c.stand[t.id] = emptyStanding();
-}
-
 /** 今週のプレイヤーの対戦カード */
 export function userMatch(c: Career): { home: boolean; opp: Team; pair: [number, number] } {
-  const pair = c.schedule[c.week].find((x) => x.includes(c.userId));
+  const lg = c.leagues[c.level];
+  const pair = lg.schedule[lg.week].find((x) => x.includes(c.userId));
   if (!pair) throw new Error('今週の試合が見つかりません');
   const home = pair[0] === c.userId;
   return { home, opp: teamById(c, home ? pair[1] : pair[0]), pair };
@@ -72,15 +59,17 @@ export function simGame(c: Career, home: Team, away: Team, logOn = false): Game 
 
 /** 練習をして今週の試合をすべて進める.試合の操作はなく,結果だけが返る. */
 export function playWeek(c: Career, menu: MenuKey): { game: Game; report: GrowthReport[] } {
-  const report = doTraining(userTeam(c), menu);
+  const lg = c.leagues[c.level];
+  // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
+  const report = doTraining(userTeam(c), menu, 10 / lg.schedule.length);
   const { pair } = userMatch(c);
   const game = simGame(c, teamById(c, pair[0]), teamById(c, pair[1]), true);
-  finalizeWeek(c, game);
+  afterUserGame(c, game);
   return { game, report };
 }
 
-/** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ.(順位への反映は simGame で済んでいる) */
-function finalizeWeek(c: Career, g: Game): void {
+/** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ. */
+function afterUserGame(c: Career, g: Game): void {
   const us = userSide(g), them = us === g.home ? g.away : g.home, t = us.team;
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
@@ -93,64 +82,77 @@ function finalizeWeek(c: Career, g: Game): void {
   c.last = `第${c.week + 1}戦 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
   c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home });
 
-  for (const [h, a] of c.schedule[c.week]) {
-    if (h === c.userId || a === c.userId) continue;
-    simGame(c, teamById(c, h), teamById(c, a));
-  }
-  for (const tm of c.teams) {
-    for (const p of tm.players) {
-      p.fatigue = Math.max(0, p.fatigue - 45);
-      if (!tm.user) condDrift(p, 0);
-    }
-  }
-  c.week++;
+  const lg = c.leagues[c.level];
+  // 同じ週の他のカードと,各チームの疲労・調子・練習
+  playRound(c, lg, true);
+  c.week = lg.week;
+  advanceWorld(c);
   recordHist(c);
-  if (c.week >= c.schedule.length) finishSeason(c);
+  if (c.week >= lg.schedule.length) finishSeason(c);
 }
 
+/** シーズンを締めて,プレーオフ,昇格・降格,加齢,引退,ドラフトの準備を行う. */
 export function finishSeason(c: Career): void {
+  advanceWorld(c);
   const tbl = standings(c);
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
-  let move: -1 | 0 | 1 = 0;
-  if (rank <= 2 && c.level < LEAGUES.length - 1) move = 1;
-  else if (rank === c.teams.length && c.level > 0) move = -1;
-  const from = c.level;
-  const u = userTeam(c);
+  const rec = { ...c.leagues[c.level].stand[c.userId] };
+
+  // プレーオフ
+  let playoff = '';
+  for (const lg of c.leagues) {
+    const r = runPlayoffs(c, lg.level);
+    c.champs.push(champRow(c, lg.level, r));
+    if (lg.level === c.level) playoff = playoffText(c, lg.level, r);
+  }
+
+  const next = computeNextLevels(c);
+  const from = c.level, to = next[c.userId];
+  const move = (to > from ? 1 : to < from ? -1 : 0) as -1 | 0 | 1;
+
+  // 成績の記録と加齢
   const retired: string[] = [];
-  for (const p of [...u.players]) {
-    if (agePlayer(p)) {
-      retired.push(p.name);
-      u.players = u.players.filter((x) => x !== p);
+  for (const lg of c.leagues) {
+    for (const t of leagueTeams(c, lg.level)) {
+      archiveSeason(c, t, lg.level);
+      const out = ageTeam(t);
+      if (t.user) retired.push(...out.map((p) => p.name));
     }
   }
-  c.level += move;
-  c.off = { rank, rec: { ...c.stand[c.userId] }, move, from, retired, draft: genDraft(c), drafted: null };
+  for (const p of c.fa) p.age++;
+
+  // 戦力外とドラフト.プレイヤーの来シーズンのリーグだけ,プレイヤーが参加する.
+  for (const t of c.teams) if (!t.user) aiRelease(c, t);
+  let draft: DraftState = { pool: [], order: [], idx: 0, picks: [], done: true };
+  for (let level = 0; level < LEAGUES.length; level++) {
+    const ids = c.teams.filter((t) => next[t.id] === level).map((t) => t.id);
+    if (level === to) {
+      draft = { pool: genDraftClass(c, level), order: draftOrder(c, ids), idx: 0, picks: [], done: false };
+      advanceDraft(c, draft);
+    } else {
+      runAiDraft(c, level, ids);
+    }
+  }
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [] };
   c.phase = 'off';
 }
 
-export function genDraft(c: Career): Player[] {
-  const base = LEAGUES[c.level].base - 6;
-  return (['野手', '野手', '投手'] as const).map((r) => {
-    const p = genPlayer(c, r, base, { age: ri(18, 22), potMul: 1.3 });
-    p.scout = {};
-    for (const k of keysOf(p)) {
-      const e = ri(4, 10);
-      p.scout[k] = [clamp(Math.round(p[k] - ri(0, e)), 1, 99), clamp(Math.round(p[k] + ri(0, e)), 1, 99)];
-    }
-    return p;
-  });
+/** プレイヤーがドラフトで指名する.i が -1 なら見送り. */
+export function pickDraft(c: Career, i: number): void {
+  if (c.off) userDraftPick(c, c.off.draft, i);
 }
 
-/** ドラフトで指名する.i が -1 なら見送り. */
-export function pickDraft(c: Career, i: number): void {
-  if (!c.off || c.off.drafted) return;
-  const u = userTeam(c);
-  if (i < 0) { c.off.drafted = '-'; return; }
-  const p = c.off.draft[i];
-  delete p.scout;
+/** 自由契約の選手を獲得する.できないときは理由を返す. */
+export function signFreeAgent(c: Career, id: number): string | null {
+  const u = userTeam(c), p = c.fa.find((x) => x.id === id);
+  if (!p) return '選手が見つかりません.';
+  if (u.players.length >= ROSTER_MAX) return `登録は${ROSTER_MAX}人までです.先に放出してください.`;
+  c.fa = c.fa.filter((x) => x !== p);
+  delete p.prev;
   u.players.push(p);
   if (p.role === '投手') u.pitchers.push(p.id);
-  c.off.drafted = p.name;
+  c.off?.signed.push(p.name);
+  return null;
 }
 
 /** 放出する.できないときは理由を返す. */
@@ -160,18 +162,34 @@ export function releasePlayer(c: Career, id: number): string | null {
   if (!p) return '選手が見つかりません.';
   if (p.role === '野手' && fielders(u).length <= MIN_FIELDERS) return `野手は${MIN_FIELDERS}人以上必要です.`;
   if (p.role === '投手' && pitchersOf(u).length <= MIN_PITCHERS) return `投手は${MIN_PITCHERS}人以上必要です.`;
-  u.players = u.players.filter((x) => x.id !== id);
-  u.pitchers = u.pitchers.filter((x) => x !== id);
-  if (u.lineup.some((e) => e.pid === id)) autoLineup(u);
+  toFreeAgent(c, u, p);
+  c.off?.released.push(p.name);
+  if (u.lineup.length < 9 || u.lineup.some((e) => e.pid === id)) autoLineup(u);
   return null;
 }
 
 export const canStartSeason = (c: Career): boolean =>
-  c.phase === 'off' && !!c.off?.drafted && userTeam(c).players.length <= ROSTER_MAX;
+  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= ROSTER_MAX;
 
 export function newSeason(c: Career): void {
+  const o = c.off;
+  if (!o) return;
   const u = userTeam(c);
-  for (const p of u.players) { p.stats = emptyStats(); p.fatigue = 0; }
+  // 全チームの移動
+  for (const lg of c.leagues) lg.teamIds = c.teams.filter((t) => o.next[t.id] === lg.level).map((t) => t.id);
+  c.level = o.to;
+  // 自由契約の市場と AI の補強
+  aiSignFreeAgents(c);
+  for (const t of c.teams) {
+    for (const p of t.players) { p.stats = emptyStats(); p.fatigue = 0; }
+    if (t.user) continue;
+    trimRoster(c, t);
+    repairTeam(c, t, o.next[t.id]);
+    autoLineup(t);
+    autoPitchers(t);
+    t.rotIdx = 0;
+  }
+  pruneFreeAgents(c);
   const notes = repairTeam(c, u, c.level);
   c.season++;
   c.week = 0;
@@ -179,7 +197,9 @@ export function newSeason(c: Career): void {
   c.off = null;
   c.results = [];
   u.rotIdx = 0;
-  buildLeague(c);
+  for (const lg of c.leagues) resetLeague(lg);
   recordHist(c);
   c.last = notes.length ? `入団テストで ${notes.join(',')} が加入しました.` : null;
 }
+
+export { genPlayer, pitchersOf, fielders, leagueOfTeam };

@@ -1,4 +1,5 @@
 import { ALL_KEYS, BAT_KEYS, LABEL, LEAGUES, PIT_KEYS } from '../../data/constants';
+import { leagueTeams } from '../../league/schedule';
 import { ovr, teamAttrs } from '../../league/team';
 import { userTeam } from '../../league/season';
 import type { AttrKey, Career } from '../../types';
@@ -13,7 +14,7 @@ const LEAGUE = 'var(--accent)';
 export function renderTeam(c: Career): string {
   const u = userTeam(c);
   const mine = teamAttrs(u);
-  const others = c.teams.filter((t) => !t.user);
+  const lgTeams = leagueTeams(c, c.level), others = lgTeams.filter((t) => !t.user);
   const lg = Object.fromEntries(ALL_KEYS.map((k) => [k, others.reduce((s, t) => s + teamAttrs(t)[k], 0) / others.length])) as Record<AttrKey, number>;
 
   const radar: Series[] = [
@@ -26,7 +27,7 @@ export function renderTeam(c: Career): string {
   };
   const rows = ALL_KEYS.map((k) => `<tr><td>${LABEL[k]}<span class="tag">${BAT_KEYS.includes(k as never) ? '野手' : '投手'}</span></td><td>${gradeHTML(mine[k])}</td><td class="num">${Math.round(lg[k])}</td><td class="num">${diff(k)}</td></tr>`).join('');
 
-  const table = c.teams
+  const table = lgTeams
     .map((t) => ({ t, v: ovr(t) }))
     .sort((a, b) => b.v - a.v);
   const max = Math.max(...table.map((x) => x.v));

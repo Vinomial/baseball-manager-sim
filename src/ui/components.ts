@@ -1,7 +1,9 @@
 import { COND, LABEL } from '../data/constants';
 import { keysOf } from '../growth/player';
-import type { Game, Player } from '../types';
-import { esc, grade } from '../util/format';
+import { LEAGUES, POS_NAME } from '../data/constants';
+import { careerStats, fmt3 } from '../league/leaders';
+import type { Game, Player, Stats } from '../types';
+import { esc, fmtEra, grade } from '../util/format';
 
 export function gradeHTML(v: number): string {
   const g = grade(v);
@@ -41,4 +43,25 @@ export function fieldSVG(g: Game): string {
   <rect x="44" y="104" width="12" height="12" transform="rotate(45 50 110)" fill="${on(2)}" stroke="#0005"/>
   ${lbl(0, 158, 128, 'start')}${lbl(1, 100, 46, 'middle')}${lbl(2, 42, 128, 'end')}
   </svg>`;
+}
+
+const avgOf = (s: Stats): string => (s.ab ? fmt3(s.h / s.ab) : '---');
+
+/** 通算成績の表.過去のシーズンごとの成績と,通算の行. */
+export function careerTable(p: Player, current: boolean): string {
+  const bat = p.role === '野手';
+  const lines = p.seasons.map((x) => ({ label: `${x.season}年`, team: `${LEAGUES[x.level].name.replace('リーグ', '')} ${x.team}`, s: x.stats }));
+  if (current && p.stats.g > 0) lines.push({ label: '今季', team: '', s: p.stats });
+  if (!lines.length) return '<p class="small muted">まだ成績がありません.</p>';
+  const tot = careerStats(p, current);
+  const head = bat ? '<th>年</th><th>所属</th><th>試</th><th>打率</th><th>本</th><th>点</th><th>盗</th>' : '<th>年</th><th>所属</th><th>登</th><th>勝-敗</th><th>防御率</th><th>三振</th>';
+  const row = (l: string, t: string, s: Stats, cls = '') => bat
+    ? `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${avgOf(s)}</td><td>${s.hr}</td><td>${s.rbi}</td><td>${s.sb}</td></tr>`
+    : `<tr class="${cls}"><td>${l}</td><td>${esc(t)}</td><td>${s.g}</td><td>${s.w}-${s.l}</td><td>${fmtEra(s.r, s.outs)}</td><td>${s.k}</td></tr>`;
+  return `<div class="scroll"><table class="std box career"><thead><tr>${head}</tr></thead><tbody>${lines.map((x) => row(x.label, x.team, x.s)).join('')}${row('通算', '', tot, 'me')}</tbody></table></div>`;
+}
+
+/** 選手 1 人の詳細(成長タイプ,伸びしろ,通算成績). */
+export function playerDetail(p: Player, current: boolean, room: string): string {
+  return `<div class="detail">${POS_NAME[p.pos]} / ${p.age}歳 / 成長タイプ: ${p.type} / 伸びしろ: ${room}${careerTable(p, current)}</div>`;
 }

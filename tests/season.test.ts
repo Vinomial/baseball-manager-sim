@@ -24,7 +24,7 @@ import { bargainChance, negotiate, projectedPayroll } from '../src/league/contra
 import { opsOf } from '../src/league/leaders';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
-import { weeklyUpkeep } from '../src/league/world';
+import { playoffSeeds, weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
 import { resultSound, sfx, startBgm, stopBgm } from '../src/ui/sound';
@@ -1320,5 +1320,62 @@ describe('選手の個性・契約更改・スカウト・成績の幅', () => {
     expect(m).not.toBeNull();
     expect(Object.keys(PERS)).toContain(m!.teams[0].players[0].pers);
     expect(m!.watch).toEqual([]);
+  });
+});
+
+describe('2周目の引き継ぎと地区', () => {
+  beforeEach(() => setRandom(seeded(241)));
+  afterEach(() => resetRandom());
+
+  it('殿堂入りのあとの 2 周目は,施設の半分と実績を引き継いで始まる', () => {
+    const a = newCareer('テスト');
+    a.fac.stadium = 5; a.fac.clinic = 3;
+    a.ach.first_win = 1; a.ach.hall = 3;
+    a.rec.titles[LEAGUES.length - 1] = 5;
+    a.season = 24;
+    const b = newCareer('テスト', 'normal', a);
+    expect(b.gen).toBe(2);
+    expect(b.fac.stadium).toBe(2);
+    expect(b.fac.clinic).toBe(1);
+    expect(b.ach.hall).toBe(3);
+    expect(b.legacy!.titles).toBe(5);
+    expect(b.level).toBe(0);
+    expect(b.season).toBe(1);
+    expect(b.rec.titles.every((t) => t === 0)).toBe(true);
+    expect(b.funds).toBeGreaterThan(3000);
+  });
+
+  it('最上位のリーグだけが,2 つの地区に分かれる', () => {
+    const c = newCareer('テスト');
+    c.leagues.forEach((lg, i) => {
+      if (i === LEAGUES.length - 1) {
+        expect(lg.divs).toBeDefined();
+        expect(lg.divs!.flat().sort()).toEqual([...lg.teamIds].sort());
+        expect(lg.divs![0].length + lg.divs![1].length).toBe(lg.teamIds.length);
+      } else expect(lg.divs).toBeUndefined();
+    });
+  });
+
+  it('地区のあるリーグのプレーオフは,各地区の上位 2 チーム', () => {
+    const c = newCareer('テスト');
+    const lg = c.leagues[LEAGUES.length - 1];
+    // 片方の地区に強いチームが集まっていても,各地区から 2 チームが出る
+    const seeds = playoffSeeds(c, lg);
+    expect(seeds.length).toBe(4);
+    const d0 = seeds.filter((id) => lg.divs![0].includes(id)).length;
+    expect(d0).toBe(2);
+    expect(new Set(seeds).size).toBe(4);
+  });
+
+  it('v18/v19 のデータに周回と地区を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 18;
+    delete old.gen; delete old.legacy;
+    for (const lg of old.leagues as Record<string, unknown>[]) delete lg.divs;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.gen).toBe(1);
+    expect(m!.leagues[LEAGUES.length - 1].divs).toBeDefined();
   });
 });

@@ -266,6 +266,7 @@ function onClick(e: MouseEvent): void {
     case 'jump': state.folds[k] = true; render(); document.querySelector(`[data-fold="${k}"]`)?.scrollIntoView({ block: 'start' }); return;
     case 'scout': if (c) { const err = dispatchScout(c, k as '野手' | '投手' | '素質'); if (err) alert(err); else save(); } break;
     case 'negotiate': if (c) { const t = negotiate(c, id, k as 'accept' | 'bargain'); if (t) { c.news.push(t); save(); } } break;
+    case 'ngplus': if (c && c.ended && confirm(`いまのデータを引き継いで,${c.gen + 1}周目を始めます.よろしいですか?(先にバックアップをおすすめします)`)) { state.career = newCareer(userTeam(c).name, c.diff, c); state.last = null; state.tab = 'home'; state.screen = 'play'; save(); top(); } break;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;

@@ -33,7 +33,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 20;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -51,12 +51,13 @@ export function snapshotYear(c: Career): void {
   c.yearStart = { funds: c.funds, attrs };
 }
 
-export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
+/** @param prev 殿堂入りした前の周回.あれば,施設・実績・名選手などを引き継ぐ. */
+export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Career): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, cal: 0, cup: null, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
-    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
+    funds: 3000, fac: emptyFac(), market: emptyMarket(), diff, gen: 1, legacy: null, auto: { lineup: false, rest: false }, yearStart: { funds: 3000, attrs: {} },
     goals: [], scout: null, watch: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
@@ -69,8 +70,22 @@ export function newCareer(name: string, diff: Difficulty = 'normal'): Career {
   refillMissions(c);
   recordHist(c);
   snapshotYear(c);
+  if (prev) carryOver(c, prev);
   c.goals = makeGoals(c);
   return c;
+}
+
+/** 殿堂入りのあとの 2 周目.育てた記録や施設の半分を引き継ぐ. */
+function carryOver(c: Career, prev: Career): void {
+  c.gen = prev.gen + 1;
+  const t = prev.rec.titles.reduce((a, b) => a + b, 0) + (prev.legacy?.titles ?? 0);
+  c.legacy = { titles: t, seasons: prev.season + (prev.legacy?.seasons ?? 0) };
+  c.ach = { ...prev.ach };
+  c.legends = prev.legends.slice(0, 30);
+  c.champs = [];
+  for (const k of Object.keys(prev.fac) as (keyof typeof prev.fac)[]) c.fac[k] = Math.floor(prev.fac[k] / 2);
+  c.funds = 3000 + 800 * (c.gen - 1);
+  c.trust = 70;
 }
 
 /** 次のリーグ戦のプレイヤーの対戦カード(シーズンが終わっていれば null) */

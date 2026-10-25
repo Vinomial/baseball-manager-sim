@@ -47,7 +47,8 @@ function starsHTML(c: Career): string {
 export function renderRecords(c: Career): string {
   const r = c.rec, unlocked = Object.keys(c.ach).length;
   let h = '';
-  if (c.ended) h += `<div class="card ending"><p class="result px" style="margin:0">殿堂入り!</p><p class="small" style="text-align:center;margin:4px 0 0">メジャーリーグで${r.titles[LEAGUES.length - 1]}回の優勝.草野球から頂点まで駆け上がった監督として,名を残しました.</p></div>`;
+  if (c.gen > 1) h += `<p class="small muted" style="margin:0">${c.gen}周目 / 前の周回までの優勝 ${c.legacy?.titles ?? 0}回,${c.legacy?.seasons ?? 0}シーズン</p>`;
+  if (c.ended) h += `<div class="card ending"><p class="result px" style="margin:0">殿堂入り!</p><p class="small" style="text-align:center;margin:4px 0 0">メジャーリーグで${r.titles[LEAGUES.length - 1]}回の優勝.草野球から頂点まで駆け上がった監督として,名を残しました.</p><div class="row" style="justify-content:center;margin-top:8px"><button class="btn" data-a="ngplus">引き継いで${c.gen + 1}周目を始める</button></div><p class="small muted" style="text-align:center;margin:4px 0 0">施設レベルの半分,実績,名選手,資金のボーナスを引き継ぎます.いまのセーブはそのまま残りません.</p></div>`;
   h += `<h2>目標</h2><div class="card">${goalsHTML(c)}</div>
   <h2>チームの記録</h2><div class="card"><table class="results"><tbody>
   <tr><td>通算成績</td><td class="num">${r.total.w}勝 ${r.total.l}敗 ${r.total.d}分</td></tr>

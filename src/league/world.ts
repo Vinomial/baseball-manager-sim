@@ -27,6 +27,12 @@ export function resetLeague(lg: LeagueState): void {
   lg.weeks = scheduleWeeks(lg.schedule.length);
   lg.po = null;
   lg.rankHist = {};
+  // 最上位のリーグは 2 つの地区に分ける
+  if (lg.level === LEAGUES.length - 1 && lg.teamIds.length >= 6) {
+    const ids = shuffle(lg.teamIds);
+    const half = Math.ceil(ids.length / 2);
+    lg.divs = [ids.slice(0, half), ids.slice(half)];
+  } else lg.divs = undefined;
   lg.stand = {};
   for (const id of lg.teamIds) lg.stand[id] = emptyStanding();
   lg.week = 0;
@@ -156,10 +162,20 @@ export function playSeries(c: Career, hi: Team, lo: Team, wins: number): SeriesR
   return { winner: a > b ? hi : lo, games, last };
 }
 
+/** プレーオフに進む 4 チーム.地区があれば,各地区の上位 2 チーム(地区優勝が上位シード). */
+export function playoffSeeds(c: Career, lg: LeagueState): number[] {
+  const tbl = standings(c, lg.level);
+  if (!lg.divs) return tbl.slice(0, 4).map((r) => r.t.id);
+  const inDiv = lg.divs.map((d) => tbl.filter((r) => d.includes(r.t.id)).map((r) => r.t.id));
+  const winners = inDiv.map((d) => d[0]).sort((a, b) => tbl.findIndex((r) => r.t.id === a) - tbl.findIndex((r) => r.t.id === b));
+  const seconds = inDiv.map((d) => d[1]).sort((a, b) => tbl.findIndex((r) => r.t.id === a) - tbl.findIndex((r) => r.t.id === b));
+  return [...winners, ...seconds];
+}
+
 /** 週のはじめにプレーオフの組み合わせを決める */
 export function startPlayoffs(c: Career): void {
   for (const lg of c.leagues) {
-    lg.po = { seeds: standings(c, lg.level).slice(0, 4).map((r) => r.t.id), semiWinners: [], champion: null, runnerUp: null };
+    lg.po = { seeds: playoffSeeds(c, lg), semiWinners: [], champion: null, runnerUp: null };
   }
 }
 
@@ -418,6 +434,17 @@ export function faVerdict(c: Career, p: Player): 'ok' | 'hard' {
 
 export function teamLevel(c: Career, t: Team): number {
   return leagueOfTeam(c, t.id).level;
+}
+
+/** 古いセーブの最上位リーグに,地区を足す */
+export function addDivisions(c: Career): void {
+  for (const lg of c.leagues) {
+    if (lg.level === LEAGUES.length - 1 && !lg.divs && lg.teamIds.length >= 6) {
+      const ids = shuffle(lg.teamIds);
+      const half = Math.ceil(ids.length / 2);
+      lg.divs = [ids.slice(0, half), ids.slice(half)];
+    }
+  }
 }
 
 /** 古いセーブに,あとから増えた上位のリーグを足す(AI チームだけで作る). */

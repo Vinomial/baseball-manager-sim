@@ -169,6 +169,8 @@ export interface LeagueState {
   week: number;
   /** 各試合が行われる暦の週(0〜47) */
   weeks: number[];
+  /** 地区(あるリーグだけ).各地区の上位2チームがプレーオフに進む. */
+  divs?: number[][];
   /** 節ごとの各チームの順位(順位の遷移グラフ用) */
   rankHist: Record<number, number[]>;
   po: PlayoffState | null;
@@ -376,6 +378,10 @@ export interface Career {
   funds: number;
   /** 難易度 */
   diff: Difficulty;
+  /** 何周目か(殿堂入りのあとの引き継ぎで増える) */
+  gen: number;
+  /** 前の周回までの記録 */
+  legacy: { titles: number; seasons: number } | null;
   /** おまかせ進行 */
   auto: { lineup: boolean; rest: boolean };
   /** 年の初めの記録(振り返り用) */

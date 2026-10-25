@@ -6,7 +6,7 @@ import { makeGoals } from './league/goals';
 import { emptyFac, emptyMarket } from './league/economy';
 import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
-import { addMissingLeagues, fillOtherLeagues } from './league/world';
+import { addDivisions, addMissingLeagues, fillOtherLeagues } from './league/world';
 import { genAbilities } from './growth/abilities';
 import { PERS_KEYS } from './growth/personality';
 import { playerValue, salaryOf } from './growth/player';
@@ -169,6 +169,16 @@ export function migrate(raw: unknown): Career | null {
     }
     cc.scout = null; cc.watch = [];
     c.version = 18;
+  }
+  if (c.version === 18) {
+    // v19: 周回(殿堂入りのあとの引き継ぎ)を追加
+    Object.assign(c, { gen: 1, legacy: null });
+    c.version = 19;
+  }
+  if (c.version === 19) {
+    // v20: 最上位リーグの地区を追加
+    addDivisions(c as unknown as Career);
+    c.version = 20;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

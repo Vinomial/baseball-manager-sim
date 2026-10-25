@@ -1,6 +1,5 @@
 import { LEAGUES } from '../../data/constants';
 import { recap } from '../../engine/recap';
-import { toStars } from '../../growth/stars';
 import { MENUS } from '../../growth/training';
 import { weekInfo } from '../../league/calendar';
 import { fmtYen } from '../../league/finance';
@@ -66,7 +65,7 @@ export function renderHome(c: Career): string {
   if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;
   if (info.userGame === 'league' && m) {
     h += `<div class="row" style="justify-content:space-between"><div><b>第${c.week + 1}戦 vs ${esc(m.opp.name)}</b>${m.opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${m.home ? 'ホーム' : 'ビジター'} / 全${total}戦 ${lg.teams}チーム)</span></div>
-    <div class="small">${term('ovr')} 相手 ${starsHTML(toStars(ovr(m.opp)))} 自チーム ${starsHTML(toStars(ovr(u)))}</div></div>${winProbHTML(c, m.opp)}`;
+    <div class="small">${term('ovr')} 相手 ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
   } else if (info.userGame) {
     h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : '全日本選手権に出場します'}</b></p>`;
   } else {

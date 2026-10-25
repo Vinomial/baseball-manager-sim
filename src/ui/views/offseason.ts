@@ -9,8 +9,7 @@ import { faAppeal, faVerdict } from '../../league/world';
 import { keysOf } from '../../growth/player';
 import type { Career, Player } from '../../types';
 import { esc, grade } from '../../util/format';
-import { abilitiesHTML, attrsHTML, playerStars, starsHTML } from '../components';
-import { toStars } from '../../growth/stars';
+import { abilitiesHTML, attrsHTML, gradeHTML, playerStars } from '../components';
 import { futureValue, playerValue } from '../../growth/player';
 import { advise, estimated } from '../../league/advice';
 import { avatar } from '../avatar';
@@ -18,12 +17,12 @@ import { prefs } from '../prefs';
 import { term } from '../glossary';
 import { state } from '../state';
 
-/** ドラフト候補の星.能力は見積もりなので,幅(最低〜最高)で示す. */
+/** ドラフト候補の総合値.能力は見積もりなので,幅(最低〜最高)で示す. */
 function draftStars(p: Player): string {
   const e = estimated(p);
-  const lo = toStars(playerValue(e) - 4), hi = toStars(playerValue(e) + 4);
-  const pot = p.scoutPot ? toStars(((p.scoutPot[0] + p.scoutPot[1]) / 2) - 3) : toStars(futureValue(p));
-  return `<span class="starpair"><span class="small muted">総合</span>${starsHTML(lo, 'ovr')}〜${starsHTML(hi, 'ovr')}<span class="small muted">将来</span>${starsHTML(Math.max(pot, hi), 'pot')}</span>`;
+  const lo = Math.round(playerValue(e) - 4), hi = Math.round(playerValue(e) + 4);
+  const pot = p.scoutPot ? Math.round((p.scoutPot[0] + p.scoutPot[1]) / 2 - 3) : Math.round(futureValue(p));
+  return `<span class="starpair"><span class="small muted">総合</span><span class="ovrnum">${gradeHTML(lo)}〜${gradeHTML(hi)}</span><span class="small muted">将来</span><span class="ovrnum pot">${gradeHTML(Math.max(pot, hi))}</span></span>`;
 }
 
 const tagHTML = (tags: string[]) => tags.map((t) => `<span class="rec">${esc(t)}</span>`).join('');

@@ -1,8 +1,8 @@
 import { fmtYen } from '../../league/finance';
-import { ROLES, ROLE_INFO, STYLE_INFO, severance, signingBonus, staffCost, staffStars } from '../../league/staff';
+import { ROLES, ROLE_INFO, STYLE_INFO, severance, signingBonus, staffCost } from '../../league/staff';
 import type { Career, Staff } from '../../types';
 import { esc } from '../../util/format';
-import { starsHTML } from '../components';
+import { gradeHTML } from '../components';
 import { state } from '../state';
 
 function effectText(s: Staff): string {
@@ -27,7 +27,7 @@ function preview(s: Staff, cur: Staff | null): string {
 }
 
 function staffRow(s: Staff, extra: string): string {
-  return `<div class="top"><span class="nm">${esc(s.name)}<span class="tag">${s.age}歳</span>${s.style ? `<span class="tag">${STYLE_INFO[s.style].name}</span>` : ''}</span><span class="small">${starsHTML(staffStars(s.skill), 'ovr', '能力')}</span></div>
+  return `<div class="top"><span class="nm">${esc(s.name)}<span class="tag">${s.age}歳</span>${s.style ? `<span class="tag">${STYLE_INFO[s.style].name}</span>` : ''}</span><span class="small">能力 ${gradeHTML(s.skill)}</span></div>
   <span class="small">${esc(effectText(s))}</span><br><span class="small muted">年俸 ${fmtYen(s.salary)}${extra}</span>`;
 }
 

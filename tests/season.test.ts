@@ -17,19 +17,19 @@ import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
-import { DIFFS, MOVES } from '../src/data/constants';
+import { DIFFS, FOREIGN_FIRST, MOVES } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
 import { opsOf } from '../src/league/leaders';
 import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeValue } from '../src/league/trade';
-import { extendContract, leavingRisk } from '../src/league/contracts';
+import { departures, extendContract, leavingRisk } from '../src/league/contracts';
 import { renewContracts } from '../src/league/finance';
 import { chapterTitle, judgeTrainGoals, phaseOf, setTrainGoal, storyBeat } from '../src/league/story';
 import { planMult, plansFor, suggestPlan } from '../src/growth/plans';
 import { earn, ledgerRow, spend } from '../src/league/economy';
 import { toStars, ovrStars, potStars } from '../src/growth/stars';
-import { starsHTML } from '../src/ui/components';
+import { playerStars, starsHTML } from '../src/ui/components';
 import { autoLineup } from '../src/league/team';
 import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
@@ -43,7 +43,7 @@ import { convertOptions, convertWeeks, startConvert, tickConvert } from '../src/
 import { detailSheet } from '../src/ui/detail';
 import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
-import { salaryOf } from '../src/growth/player';
+import { playerValue, salaryOf } from '../src/growth/player';
 import { newGame, stepToEnd } from '../src/engine/game';
 import { migrate, pruneCareer, rawSave, saveCareer } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
@@ -1733,7 +1733,7 @@ describe('トレード・助っ人・複数年契約', () => {
     expect(leavingRisk(p)).toBe(false);
     p.years = undefined; p.morale = 10;
     expect(leavingRisk(p)).toBe(true);
-    playSeason(c, 'mix');
+    expect(departures(c)).toContain(p.name);
     expect(userTeam(c).players.includes(p)).toBe(false);
     expect(c.fa.includes(p) || c.teams.some((t) => t.players.includes(p))).toBe(true);
   });
@@ -1755,5 +1755,53 @@ describe('トレード・助っ人・複数年契約', () => {
     const m = migrate(old);
     expect(m).not.toBeNull();
     expect(Array.isArray(m!.helpers)).toBe(true);
+  });
+});
+
+describe('外国人選手・総合値・盗塁', () => {
+  beforeEach(() => setRandom(seeded(311)));
+  afterEach(() => resetRandom());
+
+  it('上のリーグほど外国人選手が多い', () => {
+    const c = newCareer('テスト');
+    const share = (lv: number) => {
+      const ps = c.leagues[lv].teamIds.flatMap((id) => c.teams.find((t) => t.id === id)!.players);
+      return ps.filter((p) => FOREIGN_FIRST.includes(p.name.split(' ')[0])).length / ps.length;
+    };
+    expect(share(0)).toBeLessThan(0.05);
+    expect(share(LEAGUES.length - 1)).toBeGreaterThan(share(0) + 0.2);
+    expect(share(LEAGUES.length - 1)).toBeGreaterThan(share(2));
+  });
+
+  it('選手の総合値と将来が 0〜100 の数字で出る', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players.slice(0, 5)) {
+      const html = playerStars(p);
+      const o = Math.round(playerValue(p));
+      expect(html).toContain(`>${o}<`);
+      expect(html).not.toMatch(/NaN|undefined/);
+      expect(o).toBeGreaterThanOrEqual(0);
+      expect(o).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('盗塁が記録される(0 ばかりにならない).足の速い選手のほうが多い', () => {
+    const c = newCareer('テスト');
+    const a = c.teams[1], b = c.teams[2];
+    let runs = 0;
+    for (let i = 0; i < 150; i++) {
+      for (const p of [...a.players, ...b.players]) p.fatigue = 0;
+      const g = newGame(a, b, false);
+      stepToEnd(g);
+      runs += g.home.runs + g.away.runs;
+    }
+    const all = [...a.players, ...b.players].filter((p) => p.role === '野手');
+    const total = all.reduce((n, p) => n + p.stats.sb, 0);
+    expect(total / 150).toBeGreaterThan(0.3);
+    expect(total / 150).toBeLessThan(2.5);
+    const fast = all.filter((p) => p.speed >= 45).reduce((n, p) => n + p.stats.sb, 0) / Math.max(1, all.filter((p) => p.speed >= 45).length);
+    const slow = all.filter((p) => p.speed < 30).reduce((n, p) => n + p.stats.sb, 0) / Math.max(1, all.filter((p) => p.speed < 30).length);
+    expect(fast).toBeGreaterThanOrEqual(slow);
+    expect(runs / 150).toBeGreaterThan(3);
   });
 });

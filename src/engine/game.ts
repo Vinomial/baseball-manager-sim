@@ -165,12 +165,43 @@ function forceWalk(g: Game, off: Side, def: Side, b: Player): void {
   B[0] = b;
 }
 
+/** 盗塁を試みる.試みたら true(アウトで 3 つ目なら,そのまま攻守交代). */
+function tryTheft(g: Game, off: Side, def: Side): boolean {
+  const B = g.bases;
+  if (g.outs >= 2) return false;
+  // 点差が大きいときは走らない
+  const diff = off.runs - def.runs;
+  if (Math.abs(diff) >= 5) return false;
+  const from = B[0] && !B[1] ? 0 : B[1] && !B[2] ? 1 : -1;
+  if (from < 0) return false;
+  const r = B[from] as Player;
+  const sp = eff(r, 'speed') + (r.skills.includes('runner') ? 15 : 0);
+  // 走る確率: 打線の中で足が速いほど高い(リーグの高さには左右されない).1 塁からのほうが多い.
+  const ref = off.lineup.reduce((a, e) => a + e.p.speed, 0) / off.lineup.length;
+  const want = clamp(0.065 + (sp - ref) * 0.006 + (r.skills.includes('runner') ? 0.03 : 0), 0, 0.2) * (from === 0 ? 1 : 0.6);
+  if (rand() >= want) return false;
+  const pr = clamp(0.64 + (sp - 50) * 0.012 - (eff(def.catcher, 'field') - 50) * 0.006, 0.2, 0.95);
+  addPitches(def, 1);
+  if (rand() < pr) {
+    B[from + 1] = r; B[from] = null; r.stats.sb++;
+    log(g, `${r.name},${from === 0 ? '二' : '三'}盗成功!`, true, 'info');
+  } else {
+    B[from] = null;
+    addOut(g, def, 1);
+    log(g, `${r.name},盗塁失敗.`, false, 'info');
+  }
+  return true;
+}
+
 /** 1打席進める. */
 export function step(g: Game): void {
   if (g.over) return;
   const off = offense(g), def = defense(g);
   autoPitch(g, def);
   const b = off.lineup[off.bi].p, nm = b.name, before = off.runs;
+
+  // 盗塁(作戦は自動.足の速い走者が,隙を見て走る)
+  if (tryTheft(g, off, def)) { if (g.outs >= 3) endHalf(g); return; }
 
   const pe = pitcherEff(def), { V, C } = pe;
   const has = (k: Player['skills'][number]) => b.skills.includes(k);

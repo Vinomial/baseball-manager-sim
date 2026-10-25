@@ -1,4 +1,4 @@
-import { BAT_KEYS, GIVEN_NAMES, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
+import { BAT_KEYS, FOREIGN_FIRST, FOREIGN_LAST, GIVEN_NAMES, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
 import type { AttrKey, Player, Pos, Role, Stats } from '../types';
 import { genAbilities } from './abilities';
 import { PERS_KEYS } from './personality';
@@ -20,6 +20,8 @@ export interface GenOpts {
   pos?: Pos;
   /** 伸びしろの倍率 */
   potMul?: number;
+  /** 外国人選手になる確率(省略すると,リーグの高さで決まる) */
+  foreign?: number;
 }
 
 export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts = {}): Player {
@@ -27,7 +29,7 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
   const zero = { meet: 0, power: 0, speed: 0, field: 0, velo: 0, ctrl: 0, stam: 0 };
   const p: Player = {
     id: ids.nid++,
-    name: pick(SURNAMES) + ' ' + pick(GIVEN_NAMES),
+    name: rand() < (opt.foreign ?? clamp((base - 38) / 90, 0, 0.5)) ? pick(FOREIGN_FIRST) + ' ' + pick(FOREIGN_LAST) : pick(SURNAMES) + ' ' + pick(GIVEN_NAMES),
     age,
     type: pick(TYPES),
     role,

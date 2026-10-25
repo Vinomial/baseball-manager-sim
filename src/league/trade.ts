@@ -77,7 +77,7 @@ export const helperSalary = (p: Player): number => Math.round((salaryOf(p) * 1.3
 export function refreshHelpers(c: Career): void {
   const lv = Math.min(LEAGUES.length - 1, c.level + HELPER_LEVEL);
   c.helpers = Array.from({ length: 3 }, (_, i) => {
-    const p = genPlayer(c, i === 2 ? '投手' : '野手', LEAGUES[lv].base + 4, { age: ri(28, 34), potMul: 0.2 });
+    const p = genPlayer(c, i === 2 ? '投手' : '野手', LEAGUES[lv].base + 4, { age: ri(28, 34), potMul: 0.2, foreign: 0.7 });
     p.salary = helperSalary(p);
     p.loan = 1;
     p.prev = '海外・上位リーグ';

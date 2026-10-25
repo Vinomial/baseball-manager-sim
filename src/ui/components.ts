@@ -4,7 +4,7 @@ import { LEAGUES, POS_NAME } from '../data/constants';
 import { abilityLabels } from '../growth/abilities';
 import { careerStats, fmt3, opsOf, whipOf } from '../league/leaders';
 import type { Game, Player, Stats } from '../types';
-import { ovrStars, potStars } from '../growth/stars';
+import { futureValue, playerValue } from '../growth/player';
 import { state } from './state';
 import { esc, fmtEra, grade } from '../util/format';
 
@@ -88,7 +88,11 @@ export function starsHTML(stars: number, kind: 'ovr' | 'pot' = 'ovr', label?: st
   return `<span class="stars ${kind}" style="--p:${(stars / 5) * 100}" role="img" aria-label="${name} 星${stars}">★★★★★</span>`;
 }
 
-/** 選手の総合力と将来性を,星で並べる */
+/** 総合値(0〜100)をランクの文字と数字で見せる */
+export const ovrBadge = (v: number): string => gradeHTML(v);
+
+/** 選手の総合値と将来性(伸びしろ込みの値).数字で,ひと目で分かるようにする. */
 export function playerStars(p: Player): string {
-  return `<span class="starpair" title="総合 ${ovrStars(p)} / 将来 ${potStars(p)}"><span class="small muted">総合</span>${starsHTML(ovrStars(p), 'ovr')}<span class="small muted">将来</span>${starsHTML(potStars(p), 'pot')}</span>`;
+  const o = Math.round(playerValue(p)), f = Math.max(o, Math.round(futureValue(p)));
+  return `<span class="starpair" title="総合値 ${o} / 将来 ${f}"><span class="small muted">総合</span><span class="ovrnum">${gradeHTML(o)}</span><span class="small muted">将来</span><span class="ovrnum pot">${gradeHTML(f)}</span></span>`;
 }

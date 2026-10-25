@@ -289,3 +289,8 @@ nav.bottom button[aria-current="true"]::before{content:"";position:absolute;top:
 .drow{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:14px}
 .abrow{display:flex;flex-direction:column;gap:2px;margin:4px 0}
 .mini{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:2px 8px;min-height:32px}
+
+.warnbox{border-left:4px solid var(--sel);background:var(--panel2);padding:8px 10px;border-radius:4px;font-size:14px;margin:6px 0}
+.warnbox.warn{border-color:#D9802A}
+.warnbox.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--panel2))}
+.warnbox.info{border-color:var(--muted)}

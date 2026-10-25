@@ -7,6 +7,7 @@ import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { weekInfo } from '../../league/calendar';
 import { hurtPlayers } from '../../league/health';
+import { warnings } from '../../league/warnings';
 import { fold, gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
@@ -35,6 +36,7 @@ export function renderHome(c: Career): string {
   if (hurt.length || tiredN) {
     h += `<div class="card"><p style="margin:0"><b>コンディション</b> <span class="small muted">怪我人は,控えが自動で代わりに出ます.</span></p>${hurt.map((p) => `<p class="small" style="margin:4px 0 0">🩹 ${esc(p.name)} ${esc(p.inj!.name)} あと${p.inj!.weeks}週</p>`).join('')}${tiredN ? `<p class="small" style="margin:4px 0 0">疲労70以上の選手が${tiredN}人います.休養で回復できます.</p>` : ''}</div>`;
   }
+  for (const w of warnings(c, state.menu, state.practice)) h += `<div class="warnbox ${w.level}">${w.level === 'info' ? 'ℹ' : '⚠'} ${esc(w.text)}${w.level !== 'info' && w.text.startsWith('疲れ') && state.menu !== 'rest' ? ' <button class="btn ghost" data-a="menu" data-k="rest" style="margin-top:6px">休養にする</button>' : ''}</div>`;
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;
   if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;

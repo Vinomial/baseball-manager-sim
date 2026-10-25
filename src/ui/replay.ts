@@ -4,6 +4,7 @@
  */
 import type { Game, LogEntry, PlayKind } from '../types';
 import { esc } from '../util/format';
+import { sfx } from './sound';
 
 interface Frame {
   inning: number;
@@ -151,6 +152,14 @@ export function initReplay(root: HTMLElement, g: Game | null): void {
     window.setTimeout(() => ball.setAttribute('opacity', '0'), 420 / rs.speed + 100);
   };
 
+  const playFor = (k: string) => {
+    if (k === 'hr') sfx.hr();
+    else if (k === 'hit' || k === 'xbh' || k === 'err') sfx.hit();
+    else if (k === 'k') sfx.strike();
+    else if (k === 'bb') sfx.walk();
+    else if (['gro', 'fly', 'dp', 'sf'].includes(k)) sfx.out();
+    else if (k === 'end') sfx.ok();
+  };
   let shown = -1;
   const show = (i: number, animate: boolean) => {
     i = Math.max(0, Math.min(rs.frames.length - 1, i));
@@ -166,6 +175,7 @@ export function initReplay(root: HTMLElement, g: Game | null): void {
     t.classList.toggle('hl', f.hl);
     q('.rp-who').textContent = f.batter ? `打者 ${f.batter} / 投手 ${f.pitcher}` : '';
     seek.value = String(i);
+    if (animate) playFor(f.kind);
     place(f, prev, animate);
     flash(f, animate);
     const play = el.querySelector<HTMLButtonElement>('[data-r="play"]')!;

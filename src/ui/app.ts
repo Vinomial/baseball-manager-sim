@@ -20,6 +20,9 @@ import { renderGame } from './views/game';
 import { renderHome } from './views/home';
 import { initReplay } from './replay';
 import { renderStart, renderTitle } from './views/start';
+import { confirmMessage } from '../league/warnings';
+import { userSide } from '../engine/game';
+import { resultSound, setBgm, setSe, sfx, sound, unlockAudio } from './sound';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
@@ -45,8 +48,20 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="gokitchen">🍙 台所とミッション</button>
   <button class="btn ghost" data-a="export">⬇ バックアップを保存</button>
   <label class="btn ghost filebtn">⬆ バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label>
+  <button class="btn ghost" data-a="se" aria-pressed="${sound.se}">🔊 効果音: ${sound.se ? 'ON' : 'OFF'}</button>
+  <button class="btn ghost" data-a="bgm" aria-pressed="${sound.bgm}">🎵 BGM: ${sound.bgm ? 'ON' : 'OFF'}</button>
   <button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button>
   <p class="small muted" style="margin:6px 0 0">進行は自動でセーブされます.第${c.season}シーズン.</p></div>`;
+}
+
+/** 疲れがたまっているときの確認 */
+function warnSheet(msg: string): string {
+  return `<div class="sheet-bg" data-a="warn-cancel"></div><div class="sheet" role="alertdialog" aria-label="休養のおすすめ">
+  <div class="sheet-h"><b>⚠ 休養をおすすめします</b></div>
+  <p style="margin:0">${esc(msg)}</p>
+  <button class="btn" data-a="warn-rest">休養にして進める</button>
+  <button class="btn ghost" data-a="warn-go">このまま進める</button>
+  <button class="btn ghost" data-a="warn-cancel">もどる</button></div>`;
 }
 
 /** 画面の下に,ひとこと出す */
@@ -85,16 +100,31 @@ function render(): void {
   <nav class="bottom" aria-label="画面切り替え">${TABS.map(([k, n, ic]) =>
     `<button data-a="tab" data-k="${k}" aria-current="${state.tab === k}"><span class="ic" aria-hidden="true">${ic}</span>${n}${k === 'home' ? alert : ''}</button>`).join('')}</nav>`;
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
+  if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
   if (state.detail !== null) root.insertAdjacentHTML('beforeend', detailSheet(c, state.detail));
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
+}
+
+/** 今週を進める */
+function doStart(c: Career): void {
+  const r = playWeek(c, state.menu, { practice: state.practice });
+  state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
+  state.menuTouched = false; state.practice = false;
+  if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
+  const g = r.games[r.games.length - 1];
+  if (g && r.kind !== 'practice') { const us = userSide(g), them = us === g.home ? g.away : g.home; resultSound(us.runs === them.runs ? null : us.runs > them.runs); }
+  else if (c.news.some((n) => n.includes('実績解除') || n.includes('ミッション達成'))) sfx.ok();
+  save();
 }
 
 const save = () => { if (state.career) saveCareer(state.career); };
 const top = () => window.scrollTo(0, 0);
 
 function onClick(e: MouseEvent): void {
+  unlockAudio();
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-a]');
   if (!el || (el as HTMLButtonElement).disabled || el.tagName === 'SELECT') return;
+  if (!['start', 'warn-go', 'warn-rest', 'se'].includes(el.dataset.a ?? '')) sfx.tap();
   const a = el.dataset.a, k = el.dataset.k ?? '', i = Number(el.dataset.i), id = Number(el.dataset.id);
   const c = state.career;
 
@@ -126,12 +156,16 @@ function onClick(e: MouseEvent): void {
     case 'menu': state.menu = k as MenuKey; state.menuTouched = true; break;
     case 'start': {
       if (!c || c.phase !== 'season') break;
-      const r = playWeek(c, state.menu, { practice: state.practice });
-      state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: state.menu, report: r.report };
-      state.menuTouched = false; state.practice = false;
-      if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
-      save(); break;
+      const msg = confirmMessage(c, state.menu, state.practice);
+      if (msg) { state.warn = msg; sfx.warn(); break; }
+      doStart(c);
+      break;
     }
+    case 'warn-rest': if (c) { state.menu = 'rest'; state.menuTouched = true; state.practice = false; state.warn = null; doStart(c); } break;
+    case 'warn-go': if (c) { state.warn = null; doStart(c); } break;
+    case 'warn-cancel': state.warn = null; break;
+    case 'se': setSe(!sound.se); break;
+    case 'bgm': setBgm(!sound.bgm); break;
     case 'practice': state.practice = !state.practice; break;
     case 'game-pick': if (state.last) state.last.game = state.last.games[i] ?? state.last.game; break;
     case 'auto-season': {

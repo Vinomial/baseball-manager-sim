@@ -15,6 +15,8 @@ import type { Player, Pos } from '../src/types';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { keysOf } from '../src/growth/player';
 import { cook, mealMult, RECIPES } from '../src/growth/meals';
+import { confirmMessage, warnings } from '../src/league/warnings';
+import { resultSound, sfx, startBgm, stopBgm } from '../src/ui/sound';
 import { convertOptions, convertWeeks, startConvert, tickConvert } from '../src/league/convert';
 import { detailSheet } from '../src/ui/detail';
 import { findCombos, sumFx } from '../src/league/combos';
@@ -957,5 +959,42 @@ describe('コンバートと選手の詳細・順位の遷移', () => {
       for (const k of Object.keys(r.need)) expect(keys.has(k)).toBe(true);
     }
     expect(new Set(RECIPES.map((r) => r.key)).size).toBe(RECIPES.length);
+  });
+});
+
+describe('休養の忠告と音', () => {
+  beforeEach(() => setRandom(seeded(171)));
+  afterEach(() => resetRandom());
+
+  it('疲れがたまっていると忠告が出て,休養を選べば出ない', () => {
+    const c = newCareer('テスト');
+    expect(warnings(c, 'mix', false).filter((w) => w.level === 'bad')).toEqual([]);
+    for (const p of userTeam(c).players) p.fatigue = 85;
+    const w = warnings(c, 'mix', false);
+    expect(w.some((x) => x.level === 'bad' && x.text.includes('休養'))).toBe(true);
+    expect(confirmMessage(c, 'mix', false)).not.toBeNull();
+    expect(confirmMessage(c, 'rest', false)).toBeNull();
+  });
+
+  it('走り込みや練習試合は,疲れ気味のときだけ注意される', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players) p.fatigue = 50;
+    expect(warnings(c, 'stam', false).some((x) => x.text.includes('走り込み'))).toBe(true);
+    expect(warnings(c, 'mix', true).some((x) => x.text.includes('練習試合'))).toBe(true);
+    for (const p of userTeam(c).players) p.fatigue = 0;
+    expect(warnings(c, 'stam', true)).toEqual([]);
+  });
+
+  it('信頼度が低いと注意され,年俸が予算超過でも注意される', () => {
+    const c = newCareer('テスト');
+    c.trust = 20;
+    expect(warnings(c, 'mix', false).some((x) => x.level === 'bad' && x.text.includes('解任'))).toBe(true);
+    c.trust = 60;
+    userTeam(c).players[0].salary = 1e8;
+    expect(warnings(c, 'mix', false).some((x) => x.text.includes('予算'))).toBe(true);
+  });
+
+  it('音の関数は,音の出せない環境(テスト)でも落ちない', () => {
+    expect(() => { sfx.tap(); sfx.hr(); sfx.win(); sfx.lose(); resultSound(true); resultSound(null); startBgm(); stopBgm(); }).not.toThrow();
   });
 });

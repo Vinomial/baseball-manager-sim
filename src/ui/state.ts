@@ -31,6 +31,8 @@ export interface AppState {
   menuOpen: boolean;
   /** 詳細を開いている選手の ID */
   detail: number | null;
+  /** 進む前の確認(疲れがたまっているときなど) */
+  warn: string | null;
   tab: Tab;
   /** チームタブの中の表示 */
   sub: TeamSub;
@@ -62,7 +64,7 @@ export function writeAutoOpen(v: boolean): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, warn: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
   practice: false,
 };

@@ -8,14 +8,16 @@ export interface League {
   teams: number;
   /** 同じ相手と何回戦うか.1シーズンの試合数 = (teams - 1) * rounds */
   rounds: number;
+  /** 登録できる選手の上限 */
+  roster: number;
 }
 
 /** リーグが上がるほど,チーム数と試合数が増える. */
 export const LEAGUES: League[] = [
-  { name: '草野球リーグ', base: 32, teams: 6, rounds: 2 },
-  { name: '社会人リーグ', base: 44, teams: 6, rounds: 3 },
-  { name: '独立リーグ', base: 56, teams: 8, rounds: 3 },
-  { name: 'プロリーグ', base: 68, teams: 8, rounds: 4 },
+  { name: '草野球リーグ', base: 32, teams: 6, rounds: 2, roster: 22 },
+  { name: '社会人リーグ', base: 44, teams: 6, rounds: 3, roster: 24 },
+  { name: '独立リーグ', base: 56, teams: 8, rounds: 3, roster: 26 },
+  { name: 'プロリーグ', base: 68, teams: 8, rounds: 4, roster: 28 },
 ];
 
 export const gamesPerSeason = (level: number): number => (LEAGUES[level].teams - 1) * LEAGUES[level].rounds;
@@ -47,7 +49,8 @@ export const PEAK: Record<GrowthType, [number, number]> = { 早熟: [16, 22], �
 /** 調子の表示 [名前, 記号] */
 export const COND: [string, string][] = [['絶不調', '↓'], ['不調', '↘'], ['普通', '→'], ['好調', '↗'], ['絶好調', '↑']];
 
-export const ROSTER_MAX = 22;
+/** リーグごとの登録上限 */
+export const rosterMax = (level: number): number => LEAGUES[level].roster;
 /** ドラフトの指名ラウンド数 */
 export const DRAFT_ROUNDS = 2;
 export const MIN_FIELDERS = 10;

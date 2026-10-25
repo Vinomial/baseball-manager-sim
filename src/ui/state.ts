@@ -31,8 +31,19 @@ export interface AppState {
   viewTeam: number | null;
   /** 自由契約の表示 */
   faRole: '野手' | '投手';
+  /** 試合のあとに結果を自動で開くか(切ると,試合を見ずに次へ進める) */
+  autoOpen: boolean;
+}
+
+const AUTO_KEY = 'baseball-manager-sim/autoOpen';
+function readAutoOpen(): boolean {
+  try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; }
+}
+export function writeAutoOpen(v: boolean): void {
+  try { localStorage.setItem(AUTO_KEY, v ? '1' : '0'); } catch { /* 保存できなくても動く */ }
 }
 
 export const state: AppState = {
   career: null, last: null, tab: 'home', menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  autoOpen: readAutoOpen(),
 };

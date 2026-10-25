@@ -1,4 +1,5 @@
 import { LEAGUES } from '../../data/constants';
+import { recap } from '../../engine/recap';
 import { MENUS } from '../../growth/training';
 import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
@@ -19,6 +20,10 @@ export function renderHome(c: Career): string {
   if (c.event) {
     h += `<div class="card event"><p style="margin:0"><span class="rec star">出来事</span> <b>${esc(c.event.title)}</b></p><p class="small" style="margin:6px 0">${esc(c.event.body)}</p><div class="row">${c.event.choices.map((x) => `<button class="btn ghost ev" data-a="event" data-k="${x.key}"><b>${esc(x.label)}</b><span class="small muted">${esc(x.hint)}</span></button>`).join('')}</div><p class="small muted" style="margin:6px 0 0">選ばずに試合へ進むと,出来事は過ぎ去ります.</p></div>`;
   }
+  if (state.last && !state.autoOpen) {
+    const r = recap(state.last.game);
+    h += `<div class="card"><p style="margin:0"><b>前の試合</b> <span class="small muted">${esc(r.headline)}</span></p><button class="btn ghost" data-a="tab" data-k="game" style="margin-top:6px">詳しく見る</button></div>`;
+  }
   const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
   h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
   <div class="card"><div class="row" style="justify-content:space-between">
@@ -28,7 +33,8 @@ export function renderHome(c: Career): string {
   h += renderTraining(c);
   h += `
   <div class="row" style="margin-top:14px"><button class="btn" data-a="start">${MENUS[state.menu].name}をして試合へ</button>
-  <button class="btn ghost" data-a="auto-season">この練習でシーズン終了まで進める</button></div>`;
+  <button class="btn ghost" data-a="auto-season">この練習でシーズン終了まで進める</button></div>
+  <p class="small" style="margin:8px 0 0"><button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button></p>`;
   if (c.results.length) {
     h += `<h2>今シーズンの試合結果</h2><div class="card scroll"><table class="results"><tbody>${[...c.results].reverse().slice(0, 8).map((r) => {
       const k = r.us > r.them ? 'w' : r.us < r.them ? 'l' : '';

@@ -1,5 +1,5 @@
 /** シーズン進行(週の進行,結果の確定,オフシーズン).世界全体の進行は world.ts. */
-import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX } from '../data/constants';
+import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constants';
 import { applyGameResultToStanding } from './result';
 import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
@@ -19,9 +19,11 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export { teamById };
+/** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
+export const userRosterMax = (c: Career): number => rosterMax(c.off ? c.off.to : c.level);
 export const userTeam = (c: Career): Team => teamById(c, c.userId);
 
 export const newRecords = (): TeamRecords => ({
@@ -169,7 +171,7 @@ export function finishSeason(c: Career): void {
     c.ended = true;
     c.news.push('プロリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [] };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0 };
   c.phase = 'off';
 }
 
@@ -182,7 +184,8 @@ export function pickDraft(c: Career, i: number): void {
 export function signFreeAgent(c: Career, id: number): string | null {
   const u = userTeam(c), p = c.fa.find((x) => x.id === id);
   if (!p) return '選手が見つかりません.';
-  if (u.players.length >= ROSTER_MAX) return `登録は${ROSTER_MAX}人までです.先に放出してください.`;
+  const max = userRosterMax(c);
+  if (u.players.length >= max) return `登録は${max}人までです.先に放出してください.`;
   c.fa = c.fa.filter((x) => x !== p);
   delete p.prev;
   u.players.push(p);
@@ -206,7 +209,7 @@ export function releasePlayer(c: Career, id: number): string | null {
 }
 
 export const canStartSeason = (c: Career): boolean =>
-  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= ROSTER_MAX;
+  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= userRosterMax(c);
 
 export function newSeason(c: Career): void {
   const o = c.off;
@@ -216,11 +219,11 @@ export function newSeason(c: Career): void {
   for (const lg of c.leagues) lg.teamIds = c.teams.filter((t) => o.next[t.id] === lg.level).map((t) => t.id);
   c.level = o.to;
   // 自由契約の市場と AI の補強
-  aiSignFreeAgents(c);
+  aiSignFreeAgents(c, o.next);
   for (const t of c.teams) {
     for (const p of t.players) { p.stats = emptyStats(); p.fatigue = 0; }
     if (t.user) continue;
-    trimRoster(c, t);
+    trimRoster(c, t, rosterMax(o.next[t.id]));
     repairTeam(c, t, o.next[t.id]);
     autoLineup(t);
     autoPitchers(t);

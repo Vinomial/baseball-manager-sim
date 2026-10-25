@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BASE_GAIN, MENUS, doTraining, type MenuKey } from '../src/growth/training';
-import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX, gamesPerSeason } from '../src/data/constants';
+import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, gamesPerSeason } from '../src/data/constants';
 import {
-  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, userTeam,
+  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, userRosterMax, userTeam,
 } from '../src/league/season';
 import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
+import { adviseCuts } from '../src/league/cuts';
 import { migrate } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
@@ -20,7 +21,7 @@ function playSeason(c: Career, menu: MenuKey = 'bat'): void {
 function prepareNextSeason(c: Career): void {
   while (!c.off!.draft.done) pickDraft(c, 0);
   const u = userTeam(c);
-  while (u.players.length > ROSTER_MAX) {
+  while (u.players.length > userRosterMax(c)) {
     const p = u.players.find((x) => x.role === '野手' && !u.lineup.some((e) => e.pid === x.id)) ?? u.players[0];
     releasePlayer(c, p.id);
   }
@@ -111,7 +112,7 @@ describe('世界の進行', () => {
       prepareNextSeason(c);
       const seen = new Set<number>();
       for (const t of c.teams) {
-        expect(t.players.length).toBeLessThanOrEqual(ROSTER_MAX);
+        expect(t.players.length).toBeLessThanOrEqual(rosterMax(c.leagues.findIndex((lg) => lg.teamIds.includes(t.id))));
         expect(isLineupValid(t)).toBe(true);
         for (const p of t.players) { expect(seen.has(p.id)).toBe(false); seen.add(p.id); }
       }
@@ -359,5 +360,28 @@ describe('出来事', () => {
     if (!c.event) return;
     playWeek(c, 'mix');
     expect(c.event === null || c.event !== undefined).toBe(true);
+  });
+});
+
+describe('戦力外と登録上限', () => {
+  beforeEach(() => setRandom(seeded(61)));
+  afterEach(() => resetRandom());
+
+  it('リーグが上がるほど登録上限が増える', () => {
+    for (let i = 1; i < LEAGUES.length; i++) expect(rosterMax(i)).toBeGreaterThan(rosterMax(i - 1));
+  });
+
+  it('戦力外のおすすめは先発以外から選ばれ,上限超過分は必ずおすすめになる', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const u = userTeam(c);
+    const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
+    // 上限を超える人数にして確かめる
+    while (!c.off!.draft.done) pickDraft(c, 0);
+    const rows = adviseCuts(c);
+    for (const r of rows) expect(core.has(r.p.id)).toBe(false);
+    const over = Math.max(0, u.players.length - userRosterMax(c));
+    expect(rows.filter((r) => r.rec).length).toBeGreaterThanOrEqual(Math.min(over, rows.filter((r) => !r.locked).length));
+    for (let i = 1; i < rows.length; i++) expect(rows[i - 1].score).toBeGreaterThanOrEqual(rows[i].score);
   });
 });

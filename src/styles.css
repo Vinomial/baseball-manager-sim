@@ -218,3 +218,8 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .event{border:2px solid var(--sel)}
 .btn.ev{display:flex;flex-direction:column;align-items:flex-start;text-align:left;flex:1 1 150px;gap:2px}
 .btn.ev .small{font-weight:400}
+
+.stepper{display:flex;gap:4px;margin:10px 0 0;overflow-x:auto}
+.stp{flex:1 0 auto;text-align:center;font-size:13px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+.stp.on{background:var(--board);color:var(--board-num);border-color:var(--board);font-weight:700}
+.stp.done{color:var(--ink)}

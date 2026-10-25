@@ -2,7 +2,7 @@
  * 世界の進行.プレイヤーのいるリーグ以外も,毎シーズン同じチーム・選手が続く.
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
-import { DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, ROSTER_MAX, TEAM_NAMES } from '../data/constants';
+import { DRAFT_ROUNDS, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { Career, ChampRow, DraftState, LeagueState, Player, Team } from '../types';
@@ -287,8 +287,9 @@ export function runAiDraft(c: Career, level: number, ids: number[]): void {
 /* ===== 自由契約 ===== */
 
 /** AI チームが,足りない人数を自由契約から補い,控えより明らかに良い選手がいれば加える. */
-export function aiSignFreeAgents(c: Career): void {
+export function aiSignFreeAgents(c: Career, next: Record<number, number>): void {
   for (const t of shuffle(c.teams.filter((x) => !x.user))) {
+    const lv = next[t.id] ?? 0, cap = rosterMax(lv);
     const catchers = () => fielders(t).filter((p) => p.pos === '捕').length;
     const sign = (role: '野手' | '投手', prefer?: (p: Player) => boolean) => {
       const pool = c.fa.filter((p) => p.role === role);
@@ -302,17 +303,17 @@ export function aiSignFreeAgents(c: Career): void {
       if (best.role === '投手') t.pitchers.push(best.id);
       return true;
     };
-    while (fielders(t).length < 13 && t.players.length < ROSTER_MAX) {
+    while (fielders(t).length < 13 + lv && t.players.length < cap) {
       if (!sign('野手', catchers() < 2 ? (p) => p.pos === '捕' : undefined)) break;
     }
-    while (pitchersOf(t).length < 7 && t.players.length < ROSTER_MAX) if (!sign('投手')) break;
-    trimRoster(c, t);
+    while (pitchersOf(t).length < 7 + lv && t.players.length < cap) if (!sign('投手')) break;
+    trimRoster(c, t, cap);
   }
 }
 
 /** 登録上限を超えた分を,控えの下位から自由契約にする. */
-export function trimRoster(c: Career, t: Team): void {
-  while (t.players.length > ROSTER_MAX) {
+export function trimRoster(c: Career, t: Team, cap: number): void {
+  while (t.players.length > cap) {
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
     const rest = t.players.filter((p) => !core.has(p.id)).sort((a, b) => futureValue(a) - futureValue(b));
     if (!rest.length) break;

@@ -3,12 +3,12 @@
  *   npm run balance
  * リーグごとの打撃成績と,練習メニュー別の成長量を表示する.
  */
-import { LEAGUES, ROSTER_MAX } from '../src/data/constants';
+import { LEAGUES } from '../src/data/constants';
 import { newGame, stepToEnd } from '../src/engine/game';
 import { MENUS, type MenuKey } from '../src/growth/training';
 import { advise } from '../src/league/advice';
 import { leagueTeams } from '../src/league/schedule';
-import { newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam } from '../src/league/season';
+import { newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam } from '../src/league/season';
 import { faVerdict } from '../src/league/world';
 import { autoLineup, autoPitchers, genTeam, ovr } from '../src/league/team';
 import { futureValue, keysOf } from '../src/growth/player';
@@ -64,10 +64,10 @@ function autoOffseason(c: Career): void {
   }
   const cands = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
   for (const id of [...cands.entries()].filter(([, a]) => a.star).map(([id]) => id)) {
-    if (u.players.length < ROSTER_MAX) signFreeAgent(c, id);
+    if (u.players.length < userRosterMax(c)) signFreeAgent(c, id);
   }
   const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
-  while (u.players.length > ROSTER_MAX) {
+  while (u.players.length > userRosterMax(c)) {
     const rest = u.players.filter((p) => !core.has(p.id)).sort((a, b) => futureValue(a) - futureValue(b));
     if (!rest.length || releasePlayer(c, rest[0].id)) break;
   }

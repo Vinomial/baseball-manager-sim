@@ -1,6 +1,7 @@
-import { DRAFT_ROUNDS, LABEL, LEAGUES, POS_NAME, ROSTER_MAX } from '../../data/constants';
+import { DRAFT_ROUNDS, LABEL, LEAGUES, POS_NAME } from '../../data/constants';
+import { adviseCuts } from '../../league/cuts';
 import { advise } from '../../league/advice';
-import { canStartSeason, userTeam } from '../../league/season';
+import { canStartSeason, userRosterMax, userTeam } from '../../league/season';
 import { fielders, pitchersOf } from '../../league/team';
 import { faAppeal, faVerdict } from '../../league/world';
 import { keysOf } from '../../growth/player';
@@ -46,25 +47,44 @@ function faHTML(c: Career): string {
   const pool = c.fa.filter((p) => p.role === state.faRole);
   const adv = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
   const rows = [...pool].sort((a, b) => ((adv.get(b.id)?.score ?? -1) - (adv.get(a.id)?.score ?? -1)) || (b.meet + b.velo) - (a.meet + a.velo));
-  const full = u.players.length >= ROSTER_MAX;
+  const max = userRosterMax(c), full = u.players.length >= max;
   const card = (p: Player) => {
     const ok = faVerdict(c, p) === 'ok', a = adv.get(p.id);
     return `<div class="pl ${a?.star ? 'star' : ''}"><div class="top"><span class="nm">${a?.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.prev ? `<span class="tag">${esc(p.prev)}</span>` : ''}</span>
     <button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full ? '' : 'disabled'}>${ok ? '獲得する' : '来てくれない'}</button></div>
     ${a ? `${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>` : '<span class="small muted">今のチームでは入団を断られそうです(より強いチーム,上のリーグなら来てくれます)</span>'}${attrsHTML(p)}</div>`;
   };
-  return `<h2>自由契約(戦力外・未指名)</h2><p class="small muted">他チームから戦力外になった選手や,ドラフトで指名されなかった選手です.チームが強く,リーグが上ほど来てくれます(今のチームの魅力 ${Math.round(faAppeal(c))}).登録は${ROSTER_MAX}人までです.</p>
+  return `<h2>自由契約(戦力外・未指名)</h2><p class="small muted">他チームから戦力外になった選手や,ドラフトで指名されなかった選手です.チームが強く,リーグが上ほど来てくれます(今のチームの魅力 ${Math.round(faAppeal(c))}).登録は${max}人までです.</p>
   <div class="lgtabs"><button data-a="faRole" data-k="野手" aria-pressed="${state.faRole === '野手'}">野手 ${c.fa.filter((p) => p.role === '野手').length}</button><button data-a="faRole" data-k="投手" aria-pressed="${state.faRole === '投手'}">投手 ${c.fa.filter((p) => p.role === '投手').length}</button></div>
   <div class="plist">${rows.length ? rows.slice(0, 24).map(card).join('') : '<p class="small muted">いまは自由契約の選手がいません.</p>'}</div>`;
 }
 
-export function renderOff(c: Career): string {
-  const o = c.off!, u = userTeam(c), n = u.players.length;
-  return `${resultHTML(c)}${draftHTML(c)}${o.draft.done ? faHTML(c) : ''}
-  <h2>新シーズンの準備</h2><div class="card"><p class="small">登録人数 ${n}/${ROSTER_MAX}(野手${fielders(u).length},投手${pitchersOf(u).length}).選手の放出は「選手」タブから行えます.</p>
-  ${o.released.length ? `<p class="small muted">放出: ${o.released.map(esc).join(',')}</p>` : ''}${o.signed.length ? `<p class="small muted">獲得: ${o.signed.map(esc).join(',')}</p>` : ''}
-  ${n > ROSTER_MAX ? `<p class="small" style="color:var(--bad)">登録上限を超えています.${n - ROSTER_MAX}人放出してください.</p>` : ''}
-  ${!o.draft.done ? '<p class="small muted">ドラフトが終わると,自由契約の選手を獲得できます.</p>' : ''}
-  <button class="btn" data-a="season" ${canStartSeason(c) ? '' : 'disabled'}>シーズン${c.season + 1}を始める</button></div>`;
+const STEPS = ['結果', '戦力外', 'ドラフト', '自由契約'];
+
+function cutsHTML(c: Career): string {
+  const u = userTeam(c), max = userRosterMax(c), rows = adviseCuts(c);
+  const n = u.players.length;
+  return `<h2>戦力外・契約の整理</h2><p class="small muted">来シーズンは${LEAGUES[c.off!.to].name}で,登録は${max}人までです(いま${n}人).先発とローテーションの選手以外から,「おすすめ」を示しています.放出した選手は自由契約になります.</p>
+  ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を${n - max}人超えています.</p>` : ''}
+  <div class="plist">${rows.slice(0, 10).map((r) => `<div class="pl ${r.rec ? 'star' : ''}"><div class="top"><span class="nm">${r.rec ? '<span class="rec star">★おすすめ</span>' : ''}${esc(r.p.name)}<span class="tag">${POS_NAME[r.p.pos]}</span><span class="tag">${r.p.age}歳</span></span>
+    <button class="btn danger" data-a="release" data-id="${r.p.id}" ${r.locked ? 'disabled' : ''}>戦力外にする</button></div>
+    <span class="small muted">${esc(r.locked ?? r.reason)}</span>${attrsHTML(r.p)}</div>`).join('') || '<p class="small muted">控えの選手がいません.</p>'}</div>`;
 }
 
+export function renderOff(c: Career): string {
+  const o = c.off!, u = userTeam(c), n = u.players.length, max = userRosterMax(c);
+  const step = Math.min(o.step, 3);
+  const nav = `<div class="stepper" role="list">${STEPS.map((x, i) => `<span class="stp ${i === step ? 'on' : i < step ? 'done' : ''}" role="listitem">${i + 1}.${x}</span>`).join('')}</div>`;
+  const canNext = step === 2 ? o.draft.done : step < 3;
+  const buttons = `<div class="row" style="margin-top:12px">${step > 0 ? '<button class="btn ghost" data-a="ostep" data-k="-1">← 前へ</button>' : ''}${step < 3 ? `<button class="btn" data-a="ostep" data-k="1" ${canNext ? '' : 'disabled'}>${STEPS[step + 1]}へ →</button>` : ''}${step === 2 && !o.draft.done ? '<span class="small muted">ドラフトが終わると進めます.</span>' : ''}</div>`;
+  let body = '';
+  if (step === 0) body = resultHTML(c);
+  else if (step === 1) body = cutsHTML(c);
+  else if (step === 2) body = draftHTML(c);
+  else body = `${faHTML(c)}
+  <h2>新シーズンの準備</h2><div class="card"><p class="small">登録人数 ${n}/${max}(野手${fielders(u).length},投手${pitchersOf(u).length}).選手の放出は「選手」タブから行えます.</p>
+  ${o.released.length ? `<p class="small muted">放出: ${o.released.map(esc).join(',')}</p>` : ''}${o.signed.length ? `<p class="small muted">獲得: ${o.signed.map(esc).join(',')}</p>` : ''}
+  ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を超えています.${n - max}人放出してください.</p>` : ''}
+  <button class="btn" data-a="season" ${canStartSeason(c) ? '' : 'disabled'}>シーズン${c.season + 1}を始める</button></div>`;
+  return `${nav}${body}${buttons}`;
+}

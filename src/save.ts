@@ -42,6 +42,12 @@ export function migrate(raw: unknown): Career | null {
     c.event = null;
     c.version = 6;
   }
+  if (c.version === 6) {
+    // v7: オフシーズンの段階を追加
+    const off = c.off as { step?: number } | null;
+    if (off) off.step = 3;
+    c.version = 7;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

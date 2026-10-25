@@ -10,7 +10,7 @@ import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineu
 import { clearSave, loadCareer, saveCareer } from '../save';
 import type { LineupPos } from '../types';
 import { esc } from '../util/format';
-import { state, type Tab } from './state';
+import { state, writeAutoOpen, type Tab } from './state';
 import { renderGame } from './views/game';
 import { renderHome } from './views/home';
 import { renderOrder } from './views/order';
@@ -77,7 +77,8 @@ function onClick(e: MouseEvent): void {
       if (!c || c.phase !== 'season') break;
       state.last = { ...playWeek(c, state.menu), menu: state.menu };
       state.menuTouched = false;
-      state.tab = 'game'; save(); top(); break;
+      if (state.autoOpen) { state.tab = 'game'; top(); }
+      save(); break;
     }
     case 'auto-season': {
       if (!c || c.phase !== 'season') break;
@@ -115,6 +116,7 @@ function onClick(e: MouseEvent): void {
     }
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
     case 'draft': if (c) { pickDraft(c, i); save(); } break;
+    case 'autoopen': state.autoOpen = !state.autoOpen; writeAutoOpen(state.autoOpen); break;
     case 'event': {
       if (!c) break;
       const text = resolveEvent(c, k);
@@ -122,6 +124,7 @@ function onClick(e: MouseEvent): void {
       save();
       break;
     }
+    case 'ostep': if (c?.off) { c.off.step = Math.max(0, Math.min(3, c.off.step + Number(k))); save(); top(); } break;
     case 'sign': {
       if (!c) break;
       const err = signFreeAgent(c, id);

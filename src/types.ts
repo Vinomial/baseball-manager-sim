@@ -132,6 +132,8 @@ export interface OffSeason {
   signed: string[];
   /** 放出した選手名 */
   released: string[];
+  /** いまのオフの段階(0 結果,1 戦力外,2 ドラフト,3 自由契約) */
+  step: number;
 }
 
 export interface AwardRow {

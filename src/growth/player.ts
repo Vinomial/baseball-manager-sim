@@ -36,6 +36,7 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
     pot: { ...zero },
     stats: emptyStats(),
     seasons: [],
+    salary: 0,
   };
   const keys = keysOf(p);
   for (const k of keys) p[k] = clamp(Math.round(base + randn() * 7), 8, 95);
@@ -47,6 +48,7 @@ export function genPlayer(ids: IdSource, role: Role, base: number, opt: GenOpts 
   }
   const youth = age <= 22 ? 1 : age <= 26 ? 0.7 : age <= 29 ? 0.4 : 0.15;
   for (const k of keys) p.pot[k] = clamp(Math.round(p[k] + ri(4, 34) * youth * (opt.potMul ?? 1)), p[k], 99);
+  p.salary = salaryOf(p);
   return p;
 }
 
@@ -114,4 +116,9 @@ export function futureValue(p: Player): number {
   const room = keys.reduce((s, k) => s + Math.max(0, p.pot[k] - p[k]), 0) / keys.length;
   const w = p.age <= 22 ? 0.55 : p.age <= 25 ? 0.4 : p.age <= 28 ? 0.2 : 0.05;
   return playerValue(p) + room * w;
+}
+
+/** 市場での年俸(万円).力が上がるほど急に高くなる. */
+export function salaryOf(p: Player): number {
+  return Math.max(50, Math.round((80 * Math.exp((playerValue(p) - 30) * 0.055)) / 10) * 10);
 }

@@ -51,6 +51,8 @@ export interface Player {
   scoutPot?: [number, number];
   /** 過去のシーズンの成績(古い順) */
   seasons: SeasonLine[];
+  /** 年俸(万円) */
+  salary: number;
   /** 自由契約になる前の所属チーム */
   prev?: string;
 }
@@ -90,6 +92,8 @@ export interface ResultRow {
   us: number;
   them: number;
   home: boolean;
+  /** 試合前の予想勝率(0〜1) */
+  prob?: number;
 }
 
 export interface DraftPick { round: number; teamId: number; team: string; pid: number; name: string; user: boolean; }
@@ -231,6 +235,12 @@ export interface Career {
   ended: boolean;
   /** いま選べる出来事 */
   event: GameEvent | null;
+  /** 監督の信頼度 0〜100.0 になると解任される. */
+  trust: number;
+  /** 前のシーズンの成績による収入の倍率.予算に掛かる. */
+  revenue: number;
+  /** 解任されたときの記録 */
+  fired: { season: number; text: string } | null;
 }
 
 /* ===== 試合 ===== */

@@ -1,6 +1,8 @@
 import { newRecords, SAVE_VERSION } from './league/season';
+import type { Player } from './types';
 import { pickRival } from './league/awards';
 import { fillOtherLeagues } from './league/world';
+import { salaryOf } from './growth/player';
 import type { Career } from './types';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
@@ -47,6 +49,15 @@ export function migrate(raw: unknown): Career | null {
     const off = c.off as { step?: number } | null;
     if (off) off.step = 3;
     c.version = 7;
+  }
+  if (c.version === 7) {
+    // v8: 年俸,監督の信頼度,解任を追加
+    for (const t of (c.teams ?? []) as { players: Player[] }[]) for (const p of t.players) p.salary = salaryOf(p);
+    for (const p of (c.fa ?? []) as Player[]) p.salary = salaryOf(p);
+    c.trust = 60;
+    c.revenue = 1;
+    c.fired = null;
+    c.version = 8;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

@@ -9,6 +9,7 @@ import { gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
 import { renderTraining } from './training';
+import { statusHTML, winProbHTML } from './status';
 
 export function renderHome(c: Career): string {
   if (c.phase === 'off') return renderOff(c);
@@ -28,7 +29,7 @@ export function renderHome(c: Career): string {
   h += `<h2>第${c.week + 1}戦の相手 <span class="small muted">(全${total}戦 / ${lg.teams}チーム)</span></h2>
   <div class="card"><div class="row" style="justify-content:space-between">
     <div><b>${esc(opp.name)}</b>${opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
-    <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div></div>
+    <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, opp)}</div>
   `;
   h += renderTraining(c);
   h += `
@@ -41,6 +42,7 @@ export function renderHome(c: Career): string {
       return `<tr><td>第${r.week + 1}戦</td><td>${esc(r.opp)}<span class="tag">${r.home ? 'H' : 'A'}</span></td><td class="${k}">${r.us > r.them ? '勝' : r.us < r.them ? '負' : '分'}</td><td class="num">${r.us} - ${r.them}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
+  h += statusHTML(c);
   h += `<h2>データ</h2><div class="row"><button class="btn danger" data-a="reset">データを消して最初から</button></div>`;
   return h;
 }

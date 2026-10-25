@@ -223,3 +223,7 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 .stp{flex:1 0 auto;text-align:center;font-size:13px;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
 .stp.on{background:var(--board);color:var(--board-num);border-color:var(--board);font-weight:700}
 .stp.done{color:var(--ink)}
+
+.prob{display:flex;align-items:center;gap:8px;margin-top:8px}
+.prob b{min-width:3em;text-align:right}
+.gameover{border:2px solid var(--bad);text-align:center}

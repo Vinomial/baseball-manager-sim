@@ -9,6 +9,7 @@ import { MENUS, type MenuKey } from '../src/growth/training';
 import { advise } from '../src/league/advice';
 import { leagueTeams } from '../src/league/schedule';
 import { newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam } from '../src/league/season';
+import { budgetFor, payroll } from '../src/league/finance';
 import { faVerdict } from '../src/league/world';
 import { autoLineup, autoPitchers, genTeam, ovr } from '../src/league/team';
 import { futureValue, keysOf } from '../src/growth/player';
@@ -62,7 +63,7 @@ function autoOffseason(c: Career): void {
     const i = d.pool.findIndex((p) => adv.get(p.id)?.star);
     pickDraft(c, i >= 0 ? i : 0);
   }
-  const cands = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
+  const cands = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok' && p.salary <= budgetFor(c) - payroll(u)));
   for (const id of [...cands.entries()].filter(([, a]) => a.star).map(([id]) => id)) {
     if (u.players.length < userRosterMax(c)) signFreeAgent(c, id);
   }
@@ -71,8 +72,14 @@ function autoOffseason(c: Career): void {
     const rest = u.players.filter((p) => !core.has(p.id)).sort((a, b) => futureValue(a) - futureValue(b));
     if (!rest.length || releasePlayer(c, rest[0].id)) break;
   }
+  // 予算を超えていたら,年俸の高い控えから放出する
+  for (let i = 0; i < 20 && payroll(u) > budgetFor(c); i++) {
+    const rest = u.players.filter((p) => !core.has(p.id)).sort((a, b) => b.salary - a.salary);
+    if (!rest.some((p) => !releasePlayer(c, p.id))) break;
+  }
   autoLineup(u);
   autoPitchers(u);
+  if (c.fired) return;
   newSeason(c);
 }
 
@@ -82,11 +89,13 @@ for (const menu of ['mix', 'bat'] as MenuKey[]) {
   const R = 3;
   const lv = Array(SEASONS).fill(0), rk = Array(SEASONS).fill(0), my = Array(SEASONS).fill(0);
   const lgOvr = LEAGUES.map(() => Array(SEASONS).fill(0));
-  let titles = 0, protitles = 0;
+  let titles = 0, protitles = 0, fired = 0;
   for (let r = 0; r < R; r++) {
     const c = newCareer('dummy');
     for (let s = 0; s < SEASONS; s++) {
-      while (c.phase === 'season') playWeek(c, menu);
+      if (c.fired) break;
+      while (c.phase === 'season' && !c.fired) playWeek(c, menu);
+      if (c.fired) { fired++; break; }
       lv[s] += c.off!.from / R; rk[s] += c.off!.rank / R; my[s] += c.hist[c.hist.length - 1].ovr / R;
       LEAGUES.forEach((_, l) => { lgOvr[l][s] += leagueTeams(c, l).reduce((a, t) => a + ovr(t), 0) / leagueTeams(c, l).length / R; });
       if (c.off!.playoff.includes('優勝')) { titles++; if (c.off!.from === 3) protitles++; }
@@ -98,5 +107,5 @@ for (const menu of ['mix', 'bat'] as MenuKey[]) {
   console.log(`       順位   ${row(rk)}`);
   console.log(`       自軍   ${row(my, 0)}`);
   LEAGUES.forEach((L, l) => console.log(`       ${L.name.slice(0, 2)}平均 ${row(lgOvr[l], 0)}`));
-  console.log(`       優勝 ${titles}回(プロで ${protitles}回) / ${R * SEASONS}シーズン`);
+  console.log(`       優勝 ${titles}回(プロで ${protitles}回) / ${R * SEASONS}シーズン,解任 ${fired}回/${R}`);
 }

@@ -8,7 +8,7 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, saveCareer } from '../save';
-import type { LineupPos } from '../types';
+import type { Career, LineupPos } from '../types';
 import { esc } from '../util/format';
 import { state, writeAutoOpen, type Tab } from './state';
 import { renderGame } from './views/game';
@@ -23,11 +23,20 @@ import { renderTeam } from './views/team';
 
 let root: HTMLElement;
 
+function renderFired(c: Career): string {
+  const r = c.rec;
+  return `<div class="start"><header class="board px"><div class="board-top"><span class="title">ダイヤモンド監督</span><span class="lg">解任</span></div><div class="team">${esc(userTeam(c).name)}</div></header>
+  <div class="card gameover"><p class="result px" style="color:var(--bad)">解任されました</p><p>${esc(c.fired!.text)}</p>
+  <p class="small muted">通算 ${r.total.w}勝${r.total.l}敗${r.total.d}分 / 優勝 ${r.titles.reduce((a, b) => a + b, 0)}回 / 実績 ${Object.keys(c.ach).length}個</p>
+  <button class="btn danger" data-a="reset">最初からやり直す</button></div></div>`;
+}
+
 const TABS: [Tab, string][] = [['home', 'ホーム'], ['game', '結果'], ['team', 'チーム'], ['players', '選手'], ['order', 'オーダー'], ['table', '順位'], ['rec', '記録']];
 
 function render(): void {
   const c = state.career;
   if (!c) { root.innerHTML = renderStart(); return; }
+  if (c.fired) { root.innerHTML = renderFired(c); return; }
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
   const rec = c.phase === 'season' ? c.leagues[c.level].stand[c.userId] : c.off!.rec;
   const weekLabel = c.phase === 'season' ? `${c.week + 1}/${c.leagues[c.level].schedule.length}` : 'オフ';

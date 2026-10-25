@@ -1,5 +1,6 @@
 import { DRAFT_ROUNDS, LABEL, LEAGUES, POS_NAME } from '../../data/constants';
 import { adviseCuts } from '../../league/cuts';
+import { budgetFor, fmtYen, payroll } from '../../league/finance';
 import { advise } from '../../league/advice';
 import { canStartSeason, userRosterMax, userTeam } from '../../league/season';
 import { fielders, pitchersOf } from '../../league/team';
@@ -48,10 +49,11 @@ function faHTML(c: Career): string {
   const adv = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
   const rows = [...pool].sort((a, b) => ((adv.get(b.id)?.score ?? -1) - (adv.get(a.id)?.score ?? -1)) || (b.meet + b.velo) - (a.meet + a.velo));
   const max = userRosterMax(c), full = u.players.length >= max;
+  const room = budgetFor(c) - payroll(u), over = (p: Player) => p.salary > room;
   const card = (p: Player) => {
     const ok = faVerdict(c, p) === 'ok', a = adv.get(p.id);
-    return `<div class="pl ${a?.star ? 'star' : ''}"><div class="top"><span class="nm">${a?.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.prev ? `<span class="tag">${esc(p.prev)}</span>` : ''}</span>
-    <button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full ? '' : 'disabled'}>${ok ? '獲得する' : '来てくれない'}</button></div>
+    return `<div class="pl ${a?.star ? 'star' : ''}"><div class="top"><span class="nm">${a?.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span><span class="tag">${fmtYen(p.salary)}</span>${p.prev ? `<span class="tag">${esc(p.prev)}</span>` : ''}</span>
+    <button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full && !over(p) ? '' : 'disabled'}>${!ok ? '来てくれない' : over(p) ? '予算オーバー' : '獲得する'}</button></div>
     ${a ? `${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>` : '<span class="small muted">今のチームでは入団を断られそうです(より強いチーム,上のリーグなら来てくれます)</span>'}${attrsHTML(p)}</div>`;
   };
   return `<h2>自由契約(戦力外・未指名)</h2><p class="small muted">他チームから戦力外になった選手や,ドラフトで指名されなかった選手です.チームが強く,リーグが上ほど来てくれます(今のチームの魅力 ${Math.round(faAppeal(c))}).登録は${max}人までです.</p>
@@ -61,12 +63,19 @@ function faHTML(c: Career): string {
 
 const STEPS = ['結果', '戦力外', 'ドラフト', '自由契約'];
 
+function budgetBar(c: Career): string {
+  const u = userTeam(c), pay = payroll(u), bud = budgetFor(c);
+  return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div>
+  <p class="small muted" style="margin:4px 0 0">${pay > bud ? `<b style="color:var(--bad)">予算を${fmtYen(pay - bud)}超えています.</b>新シーズンを始めるには,放出が必要です.` : `あと${fmtYen(bud - pay)}の余裕があります.`}</p></div>`;
+}
+
 function cutsHTML(c: Career): string {
   const u = userTeam(c), max = userRosterMax(c), rows = adviseCuts(c);
   const n = u.players.length;
   return `<h2>戦力外・契約の整理</h2><p class="small muted">来シーズンは${LEAGUES[c.off!.to].name}で,登録は${max}人までです(いま${n}人).先発とローテーションの選手以外から,「おすすめ」を示しています.放出した選手は自由契約になります.</p>
   ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を${n - max}人超えています.</p>` : ''}
-  <div class="plist">${rows.slice(0, 10).map((r) => `<div class="pl ${r.rec ? 'star' : ''}"><div class="top"><span class="nm">${r.rec ? '<span class="rec star">★おすすめ</span>' : ''}${esc(r.p.name)}<span class="tag">${POS_NAME[r.p.pos]}</span><span class="tag">${r.p.age}歳</span></span>
+  ${budgetBar(c)}
+  <div class="plist">${rows.slice(0, 10).map((r) => `<div class="pl ${r.rec ? 'star' : ''}"><div class="top"><span class="nm">${r.rec ? '<span class="rec star">★おすすめ</span>' : ''}${esc(r.p.name)}<span class="tag">${POS_NAME[r.p.pos]}</span><span class="tag">${r.p.age}歳</span><span class="tag">${fmtYen(r.p.salary)}</span></span>
     <button class="btn danger" data-a="release" data-id="${r.p.id}" ${r.locked ? 'disabled' : ''}>戦力外にする</button></div>
     <span class="small muted">${esc(r.locked ?? r.reason)}</span>${attrsHTML(r.p)}</div>`).join('') || '<p class="small muted">控えの選手がいません.</p>'}</div>`;
 }
@@ -82,7 +91,7 @@ export function renderOff(c: Career): string {
   else if (step === 1) body = cutsHTML(c);
   else if (step === 2) body = draftHTML(c);
   else body = `${faHTML(c)}
-  <h2>新シーズンの準備</h2><div class="card"><p class="small">登録人数 ${n}/${max}(野手${fielders(u).length},投手${pitchersOf(u).length}).選手の放出は「選手」タブから行えます.</p>
+  <h2>新シーズンの準備</h2>${budgetBar(c)}<div class="card"><p class="small">登録人数 ${n}/${max}(野手${fielders(u).length},投手${pitchersOf(u).length}).選手の放出は「選手」タブから行えます.</p>
   ${o.released.length ? `<p class="small muted">放出: ${o.released.map(esc).join(',')}</p>` : ''}${o.signed.length ? `<p class="small muted">獲得: ${o.signed.map(esc).join(',')}</p>` : ''}
   ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を超えています.${n - max}人放出してください.</p>` : ''}
   <button class="btn" data-a="season" ${canStartSeason(c) ? '' : 'disabled'}>シーズン${c.season + 1}を始める</button></div>`;

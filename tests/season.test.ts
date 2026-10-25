@@ -2,12 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BASE_GAIN, MENUS, doTraining, type MenuKey } from '../src/growth/training';
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, gamesPerSeason } from '../src/data/constants';
 import {
-  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, userRosterMax, userTeam,
+  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam,
 } from '../src/league/season';
 import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
+import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
+import { salaryOf } from '../src/growth/player';
+import { newGame, stepToEnd } from '../src/engine/game';
 import { migrate } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
@@ -24,6 +27,13 @@ function prepareNextSeason(c: Career): void {
   while (u.players.length > userRosterMax(c)) {
     const p = u.players.find((x) => x.role === '野手' && !u.lineup.some((e) => e.pid === x.id)) ?? u.players[0];
     releasePlayer(c, p.id);
+  }
+  // 予算を超えているときは,高い年俸の控えから放出する
+  while (payroll(u) > budgetFor(c)) {
+    const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
+    const rest = u.players.filter((x) => !core.has(x.id)).sort((a, b) => b.salary - a.salary);
+    // 人数の下限で放出できない選手は飛ばす
+    if (!rest.some((x) => !releasePlayer(c, x.id))) break;
   }
   expect(canStartSeason(c)).toBe(true);
   newSeason(c);
@@ -383,5 +393,96 @@ describe('戦力外と登録上限', () => {
     const over = Math.max(0, u.players.length - userRosterMax(c));
     expect(rows.filter((r) => r.rec).length).toBeGreaterThanOrEqual(Math.min(over, rows.filter((r) => !r.locked).length));
     for (let i = 1; i < rows.length; i++) expect(rows[i - 1].score).toBeGreaterThanOrEqual(rows[i].score);
+  });
+});
+
+describe('年俸・予算・信頼度', () => {
+  beforeEach(() => setRandom(seeded(81)));
+  afterEach(() => resetRandom());
+
+  it('力が高い選手ほど年俸が高く,全員に年俸が付く', () => {
+    const c = newCareer('テスト');
+    for (const t of c.teams) for (const p of t.players) expect(p.salary).toBeGreaterThanOrEqual(50);
+    const lo = { ...userTeam(c).players[0], meet: 30, power: 30, speed: 30, field: 30 };
+    const hi = { ...userTeam(c).players[0], meet: 80, power: 80, speed: 80, field: 80 };
+    expect(salaryOf(hi)).toBeGreaterThan(salaryOf(lo) * 10);
+  });
+
+  it('最初の年俸総額は予算に収まる', () => {
+    const c = newCareer('テスト');
+    expect(payroll(userTeam(c))).toBeLessThanOrEqual(budgetFor(c));
+  });
+
+  it('予想勝率は強いチームほど高く,0〜1 に収まる', () => {
+    const c = newCareer('テスト');
+    const [a, b] = [c.teams[1], c.teams[2]];
+    const p = winProb(a, b);
+    expect(p).toBeGreaterThan(0);
+    expect(p).toBeLessThan(1);
+    expect(winProb(a, b) + winProb(b, a)).toBeCloseTo(1, 5);
+    for (const q of b.players) { q.meet += 30; q.power += 30; q.velo += 30; q.ctrl += 30; q.stam += 30; q.speed += 30; q.field += 30; }
+    expect(winProb(a, b)).toBeLessThan(p);
+  });
+
+  it('予想勝率が実際の勝率とほぼ合う', () => {
+    const c = newCareer('テスト');
+    let exp = 0, got = 0;
+    for (let i = 0; i < 2; i++) {
+      for (const lg of c.leagues) {
+        const ts = lg.teamIds.map((id) => c.teams.find((t) => t.id === id)!);
+        for (let x = 0; x < ts.length; x++) for (let y = 0; y < ts.length; y++) {
+          if (x === y) continue;
+          for (const t of [ts[x], ts[y]]) for (const p of t.players) p.fatigue = 0;
+          const g = newGame(ts[x], ts[y], false);
+          stepToEnd(g);
+          if (g.home.runs === g.away.runs) continue;
+          exp += winProb(ts[x], ts[y]);
+          got += g.home.runs > g.away.runs ? 1 : 0;
+        }
+      }
+    }
+    expect(Math.abs(got - exp) / exp).toBeLessThan(0.08);
+  });
+
+  it('シーズン予想の確率は 0〜1 で,順位の確率の合計は 1', () => {
+    const c = newCareer('テスト');
+    const f = forecast(c, 100);
+    expect(f.rank.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
+    expect(f.up).toBeLessThanOrEqual(f.playoff + 1e-9);
+  });
+
+  it('勝つと信頼度が上がり,負けると下がる.0 で解任される', () => {
+    expect(trustAfterGame(0.5, 5, 1)).toBeGreaterThan(0);
+    expect(trustAfterGame(0.5, 1, 5)).toBeLessThan(0);
+    expect(trustAfterGame(0.2, 5, 1)).toBeGreaterThan(trustAfterGame(0.8, 5, 1));
+    const c = newCareer('テスト');
+    c.trust = 0;
+    checkFired(c, '解任');
+    expect(c.fired).not.toBeNull();
+  });
+
+  it('予算を超える獲得はできず,超過のままではシーズンを始められない', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    while (!c.off!.draft.done) pickDraft(c, 0);
+    const u = userTeam(c);
+    u.players[0].salary = budgetFor(c) * 2;
+    expect(canStartSeason(c)).toBe(false);
+    u.players[0].salary = 50;
+    const p = c.fa[0];
+    p.salary = budgetFor(c);
+    expect(signFreeAgent(c, p.id)).toContain('予算');
+  });
+
+  it('v7 のデータに年俸と信頼度を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 7;
+    delete old.trust; delete old.fired;
+    for (const t of old.teams as { players: Record<string, unknown>[] }[]) for (const p of t.players) delete p.salary;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.trust).toBe(60);
+    expect(m!.teams[0].players[0].salary).toBeGreaterThanOrEqual(50);
   });
 });

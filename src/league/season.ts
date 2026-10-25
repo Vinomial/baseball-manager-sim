@@ -9,6 +9,7 @@ import type { Career, DraftState, Game, Team, TeamRecords } from '../types';
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
 import { rollEvent } from './events';
+import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
@@ -19,7 +20,7 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -34,7 +35,7 @@ export function newCareer(name: string): Career {
   const c: Career = {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
-    ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null,
+    ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -76,15 +77,17 @@ export function playWeek(c: Career, menu: MenuKey): { game: Game; report: Growth
   c.event = null;
   const lg = c.leagues[c.level];
   // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
-  const report = doTraining(userTeam(c), menu, 10 / lg.schedule.length);
+  const report = doTraining(userTeam(c), menu, (10 / lg.schedule.length) * trustGrowth(c.trust), trustCondBias(c.trust));
   const { pair } = userMatch(c);
-  const game = simGame(c, teamById(c, pair[0]), teamById(c, pair[1]), true);
-  afterUserGame(c, game);
+  const home = teamById(c, pair[0]), away = teamById(c, pair[1]);
+  const prob = winProb(userTeam(c), home.user ? away : home);
+  const game = simGame(c, home, away, true);
+  afterUserGame(c, game, prob);
   return { game, report };
 }
 
 /** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ. */
-function afterUserGame(c: Career, g: Game): void {
+function afterUserGame(c: Career, g: Game, prob: number): void {
   const us = userSide(g), them = us === g.home ? g.away : g.home, t = us.team;
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
@@ -95,7 +98,9 @@ function afterUserGame(c: Career, g: Game): void {
   }
   const res = us.runs > them.runs ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
   c.last = `第${c.week + 1}戦 vs ${them.team.name}: ${us.runs} - ${them.runs} で${res}`;
-  c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home });
+  c.results.push({ season: c.season, week: c.week, opp: them.team.name, us: us.runs, them: them.runs, home: us === g.home, prob });
+  addTrust(c, trustAfterGame(prob, us.runs, them.runs));
+  checkFired(c, `${c.season}年目の第${c.week + 1}戦のあと,チームの信頼を失い解任されました.`);
   recordGame(c, them.team.id, us.runs, them.runs);
   const r = c.rec;
   if (us.runs > them.runs) { r.total.w++; r.streak++; r.bestStreak = Math.max(r.bestStreak, r.streak); }
@@ -137,7 +142,7 @@ export function finishSeason(c: Career): void {
   const from = c.level, to = next[c.userId];
   const move = (to > from ? 1 : to < from ? -1 : 0) as -1 | 0 | 1;
 
-  // 成績の記録と加齢
+  // 成績の記録と加齢(年俸は加齢のあとに契約更改で見直す)
   const retired: string[] = [];
   for (const lg of c.leagues) {
     for (const t of leagueTeams(c, lg.level)) {
@@ -148,6 +153,7 @@ export function finishSeason(c: Career): void {
     }
   }
   for (const p of c.fa) p.age++;
+  renewContracts(c);
 
   // 戦力外とドラフト.プレイヤーの来シーズンのリーグだけ,プレイヤーが参加する.
   for (const t of c.teams) if (!t.user) aiRelease(c, t);
@@ -161,6 +167,11 @@ export function finishSeason(c: Career): void {
       runAiDraft(c, level, ids);
     }
   }
+  // 監督の信頼度.順位,昇降格,優勝で変わる
+  const expRank = [...leagueTeams(c, from)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
+  addTrust(c, (expRank - rank) * 1.5 + (champIds[from] === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
+  checkFired(c, `${c.season}年目の成績不振が続き,球団から解任されました.`);
+  c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= 4, champIds[from] === c.userId, c.revenue);
   // チームの記録と実績
   const userTitle = champIds[from] === c.userId;
   if (userTitle) c.rec.titles[from]++;
@@ -184,6 +195,7 @@ export function pickDraft(c: Career, i: number): void {
 export function signFreeAgent(c: Career, id: number): string | null {
   const u = userTeam(c), p = c.fa.find((x) => x.id === id);
   if (!p) return '選手が見つかりません.';
+  if (payroll(u) + p.salary > budgetFor(c)) return '年俸の予算を超えてしまいます.';
   const max = userRosterMax(c);
   if (u.players.length >= max) return `登録は${max}人までです.先に放出してください.`;
   c.fa = c.fa.filter((x) => x !== p);
@@ -208,8 +220,16 @@ export function releasePlayer(c: Career, id: number): string | null {
   return null;
 }
 
+/** 予算を超えていても,放出できる控えがもういないときは,信頼度を落として始められる. */
+export function overBudgetLocked(c: Career): boolean {
+  const u = userTeam(c);
+  if (payroll(u) <= budgetFor(c)) return false;
+  const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
+  return u.players.some((p) => !core.has(p.id) && (p.role === '野手' ? fielders(u).length > MIN_FIELDERS : pitchersOf(u).length > MIN_PITCHERS));
+}
+
 export const canStartSeason = (c: Career): boolean =>
-  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= userRosterMax(c);
+  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= userRosterMax(c) && !overBudgetLocked(c);
 
 export function newSeason(c: Career): void {
   const o = c.off;
@@ -231,6 +251,10 @@ export function newSeason(c: Career): void {
   }
   pruneFreeAgents(c);
   const notes = repairTeam(c, u, c.level);
+  if (payroll(u) > budgetFor(c)) {
+    addTrust(c, -8);
+    c.news.push('年俸が予算を超えたまま開幕したため,球団の信頼を落としました.');
+  }
   c.season++;
   c.week = 0;
   pickRival(c);

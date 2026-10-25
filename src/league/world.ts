@@ -237,6 +237,8 @@ export function draftOrder(c: Career, ids: number[]): number[] {
 }
 
 export function signDraftee(t: Team, p: Player): void {
+  // 新人の年俸は市場の半分
+  p.salary = Math.max(50, Math.round(p.salary * 0.5 / 10) * 10);
   delete p.scout;
   delete p.scoutPot;
   t.players.push(p);
@@ -331,7 +333,7 @@ export function faAppeal(c: Career): number {
   const o = c.off;
   const level = o ? o.to : c.level;
   const rank = o ? o.rank : 3;
-  return LEAGUES[level].base + (LEAGUES[level].teams + 1 - rank) * 1.2;
+  return LEAGUES[level].base + (LEAGUES[level].teams + 1 - rank) * 1.2 + (c.trust - 50) * 0.08;
 }
 
 export const faDemand = (p: Player): number => playerValue(p) - 10 - (p.age >= 33 ? 4 : 0);

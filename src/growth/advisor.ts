@@ -1,6 +1,7 @@
 /** 練習メニューの見込みとおすすめ.DOM に依存しない. */
 import { ALL_KEYS, LABEL } from '../data/constants';
-import type { AttrKey, Career, Team } from '../types';
+import type { AttrKey, Career, Meal, Team } from '../types';
+import { mealMult } from './meals';
 import { leagueTeams } from '../league/schedule';
 import { teamAttrs } from '../league/team';
 import { ageFactor, keysOf } from './player';
@@ -17,7 +18,7 @@ const MEAN = 1.5;
  * weeks 週同じ練習を続けたときの,能力ごとの平均的な伸び(チーム全体の平均).
  * 伸びは上限に近づくほど鈍るので,1 週ずつ積み上げて計算する.
  */
-export function projectGains(t: Team, menu: MenuKey, weeks: number, scale: number): Gains {
+export function projectGains(t: Team, menu: MenuKey, weeks: number, scale: number, meal: Meal | null = null): Gains {
   const m = MENUS[menu];
   const sum = zero(), n = zero();
   for (const p of t.players) {
@@ -26,9 +27,10 @@ export function projectGains(t: Team, menu: MenuKey, weeks: number, scale: numbe
       const mult = (m.focus[k] ?? m.base ?? BASE_GAIN) * scale;
       let v = p[k];
       for (let w = 0; w < weeks; w++) {
+        const mm = meal && w < meal.weeks ? mealMult(meal, k) : 1;
         const room = p.pot[k] - v;
         const rf = room <= 0 ? 0.04 : Math.min(1, 0.25 + room / 14);
-        v = Math.min(99, v + MEAN * mult * af * rf);
+        v = Math.min(99, v + MEAN * mult * mm * af * rf);
       }
       sum[k] += v - p[k];
       n[k]++;
@@ -70,7 +72,7 @@ function needsRest(t: Team): { rest: boolean; why: string } {
  * @param lgAvg リーグ平均の能力
  * @param weeks 残りの試合数
  */
-export function adviseTraining(t: Team, lgAvg: Gains, weeks: number, scale: number): Advice {
+export function adviseTraining(t: Team, lgAvg: Gains, weeks: number, scale: number, meal: Meal | null = null): Advice {
   const mine = teamAttrs(t);
   const gap = zero();
   for (const k of ALL_KEYS) gap[k] = mine[k] - lgAvg[k];
@@ -78,7 +80,7 @@ export function adviseTraining(t: Team, lgAvg: Gains, weeks: number, scale: numb
   const menus = {} as Record<MenuKey, MenuAdvice>;
   const rest = needsRest(t);
   for (const key of Object.keys(MENUS) as MenuKey[]) {
-    const gains = projectGains(t, key, horizon, scale);
+    const gains = projectGains(t, key, horizon, scale, meal);
     // 弱い能力の伸びを重く,強い能力の伸びを軽く数える
     let score = 0;
     for (const k of ALL_KEYS) score += gains[k] * (1 + Math.max(-0.5, Math.min(1.5, -gap[k] / 12)));

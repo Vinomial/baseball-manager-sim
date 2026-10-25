@@ -1,5 +1,6 @@
 import { ALL_KEYS, LABEL, LEAGUES } from '../../data/constants';
 import { adviseTraining, leagueAvgAttrs } from '../../growth/advisor';
+import { trustGrowth } from '../../league/finance';
 import { focusKeys, MENUS, type MenuKey } from '../../growth/training';
 import { userTeam } from '../../league/season';
 import type { Career } from '../../types';
@@ -10,7 +11,7 @@ import { state } from '../state';
 export function renderTraining(c: Career): string {
   const lg = c.leagues[c.level];
   const left = lg.schedule.length - c.week;
-  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, 10 / lg.schedule.length);
+  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, (10 / lg.schedule.length) * trustGrowth(c.trust), c.meal);
   if (!state.menuTouched) state.menu = adv.best;
   const horizon = Math.max(1, Math.min(left, 10));
   const maxGain = Math.max(0.5, ...Object.values(adv.menus).flatMap((m) => ALL_KEYS.map((k) => m.gains[k])));

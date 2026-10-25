@@ -8,6 +8,7 @@ import { esc } from '../../util/format';
 import { gradeHTML } from '../components';
 import { state } from '../state';
 import { renderOff } from './offseason';
+import { renderKitchen } from './kitchen';
 import { renderTraining } from './training';
 import { statusHTML, winProbHTML } from './status';
 
@@ -31,6 +32,7 @@ export function renderHome(c: Career): string {
     <div><b>${esc(opp.name)}</b>${opp.id === c.rival ? ' <span class="rec star">ライバル対決!</span>' : ''} <span class="muted small">(${home ? 'ホーム' : 'ビジター'})</span></div>
     <div class="small">相手の総合力 ${gradeHTML(ovr(opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, opp)}</div>
   `;
+  h += renderKitchen(c);
   h += renderTraining(c);
   h += `
   <div class="row" style="margin-top:14px"><button class="btn" data-a="start">${MENUS[state.menu].name}をして試合へ</button>

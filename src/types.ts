@@ -207,6 +207,28 @@ export interface GameEvent {
   choices: EventChoice[];
 }
 
+export type Ingredient = 'rice' | 'meat' | 'fish' | 'veg' | 'fruit' | 'egg';
+
+/** ミッション.達成すると食材がもらえる. */
+export interface Mission {
+  id: number;
+  kind: string;
+  title: string;
+  target: number;
+  progress: number;
+  reward: Partial<Record<Ingredient, number>>;
+}
+
+/** 食べた料理の効き目 */
+export interface Meal {
+  name: string;
+  /** 効き目が残る試合数 */
+  weeks: number;
+  /** 能力ごとの練習の伸びの倍率(all は指定のない能力) */
+  mult: Partial<Record<AttrKey | 'all', number>>;
+  desc: string;
+}
+
 export interface Career {
   version: number;
   nid: number;
@@ -247,6 +269,13 @@ export interface Career {
   event: GameEvent | null;
   /** 監督の信頼度 0〜100.0 になると解任される. */
   trust: number;
+  missions: Mission[];
+  /** 直近の練習メニュー(新しいものが後ろ) */
+  lastMenus: string[];
+  pantry: Record<Ingredient, number>;
+  meal: Meal | null;
+  /** 次のミッションの ID */
+  mid: number;
   /** 前のシーズンの成績による収入の倍率.予算に掛かる. */
   revenue: number;
   /** 解任されたときの記録 */

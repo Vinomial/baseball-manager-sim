@@ -1,4 +1,5 @@
-import type { AttrKey, Team } from '../types';
+import type { AttrKey, Meal, Team } from '../types';
+import { mealMult } from './meals';
 import { addChem } from './chemistry';
 import { maybeLearn } from './abilities';
 import { condDrift, growAttr, keysOf } from './player';
@@ -38,13 +39,13 @@ export interface GrowthReport { name: string; ups: [AttrKey, number][]; /** 球�
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
 /** @param scale 試合数が多いリーグほど1週あたりの練習量を減らすための係数
  * @param condBias 調子の上がりやすさ(監督の信頼度で変わる) */
-export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0): GrowthReport[] {
+export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal: Meal | null = null): GrowthReport[] {
   const m = MENUS[menu];
   const rep: GrowthReport[] = [];
   for (const p of t.players) {
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale);
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k));
     condDrift(p, (m.rest ? 1 : 0) + condBias);
     if (m.rest) p.fatigue = Math.max(0, p.fatigue - 40);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);

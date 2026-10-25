@@ -8,6 +8,7 @@ import { makeSchedule } from '../src/league/schedule';
 import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
+import { cook, mealMult } from '../src/growth/meals';
 import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
 import { salaryOf } from '../src/growth/player';
@@ -561,5 +562,70 @@ describe('球種・特殊能力・コンボ', () => {
     expect(m).not.toBeNull();
     expect(m!.teams[0].bonds).toEqual([]);
     expect(Array.isArray(m!.teams[0].players[0].skills)).toBe(true);
+  });
+});
+
+describe('ミッションと料理', () => {
+  beforeEach(() => setRandom(seeded(101)));
+  afterEach(() => resetRandom());
+
+  it('ミッションは常に3つあり,達成すると食材がもらえて補充される', () => {
+    const c = newCareer('テスト');
+    expect(c.missions.length).toBe(3);
+    const total = () => Object.values(c.pantry).reduce((a, b) => a + b, 0);
+    let got = false;
+    for (let i = 0; i < 40 && !got; i++) {
+      if (c.phase === 'off') prepareNextSeason(c);
+      const before = total();
+      playWeek(c, 'bat');
+      expect(c.missions.length).toBe(3);
+      if (c.news.some((n) => n.startsWith('ミッション達成'))) got = true;
+      expect(total()).toBeGreaterThanOrEqual(before);
+    }
+    expect(got).toBe(true);
+  });
+
+  it('料理を作ると食材が減り,しばらく練習の伸びが大きくなる', () => {
+    const c = newCareer('テスト');
+    c.pantry = { rice: 1, meat: 1, fish: 0, veg: 0, fruit: 0, egg: 1 };
+    expect(cook(c, 'bento')).toBeNull();
+    const m = cook(c, 'katsu');
+    expect(m).not.toBeNull();
+    expect(c.pantry).toEqual({ rice: 0, meat: 0, fish: 0, veg: 0, fruit: 0, egg: 0 });
+    expect(c.meal!.weeks).toBe(2);
+    expect(mealMult(c.meal, 'meet')).toBeGreaterThan(1.5);
+    expect(mealMult(null, 'meet')).toBe(1);
+
+    let plain = 0, fed = 0;
+    for (let i = 0; i < 20; i++) {
+      const a = newCareer('テスト'), b = newCareer('テスト');
+      const ta = userTeam(a), tb = userTeam(b);
+      const ma = teamAttrs(ta).meet, mb = teamAttrs(tb).meet;
+      doTraining(ta, 'bat', 1, 0, null);
+      doTraining(tb, 'bat', 1, 0, { name: 'x', weeks: 2, mult: { all: 2 }, desc: '' });
+      plain += teamAttrs(ta).meet - ma;
+      fed += teamAttrs(tb).meet - mb;
+    }
+    expect(fed).toBeGreaterThan(plain * 1.3);
+  });
+
+  it('料理の効き目は試合ごとに減って,なくなる', () => {
+    const c = newCareer('テスト');
+    c.meal = { name: 'テスト', weeks: 2, mult: { all: 1.5 }, desc: '' };
+    playWeek(c, 'mix');
+    expect(c.meal!.weeks).toBe(1);
+    playWeek(c, 'mix');
+    expect(c.meal).toBeNull();
+  });
+
+  it('v9 のデータにミッションと食材を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 9;
+    for (const k of ['missions', 'lastMenus', 'pantry', 'meal', 'mid']) delete old[k];
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.missions.length).toBe(3);
+    expect(m!.pantry.rice).toBe(0);
   });
 });

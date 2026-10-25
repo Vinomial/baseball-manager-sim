@@ -230,3 +230,8 @@ table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-
 
 .abil{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
 .ab{font-size:11px;border-radius:3px;padding:0 5px;background:var(--panel2);border:1px solid var(--sel);color:var(--ink)}
+
+.pantry{display:flex;flex-wrap:wrap;gap:6px}
+.ing{border:1px solid var(--line);border-radius:6px;padding:2px 10px;background:var(--panel2);font-size:14px}
+.ing.none{opacity:.45}
+.meal-on{margin:0 0 8px}

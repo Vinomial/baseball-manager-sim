@@ -8,6 +8,8 @@ import { doTraining, type GrowthReport, type MenuKey } from '../growth/training'
 import type { Career, DraftState, Game, Team, TeamRecords } from '../types';
 import { boxScore } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
+import { emptyPantry, tickMeal } from '../growth/meals';
+import { refillMissions, updateMissions } from './missions';
 import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
@@ -20,7 +22,7 @@ import {
   runAiDraft, runPlayoffs, toFreeAgent, trimRoster, userDraftPick,
 } from './world';
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -36,6 +38,7 @@ export function newCareer(name: string): Career {
     version: SAVE_VERSION, nid: 1, tid: 1, season: 1, week: 0, level: 0, phase: 'season',
     teams: [], leagues: [], userId: 0, last: null, off: null, hist: [], results: [], fa: [], champs: [],
     ach: {}, news: [], awards: [], legends: [], h2h: {}, rival: null, ended: false, event: null, trust: 60, revenue: 1, fired: null,
+    missions: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
@@ -44,6 +47,7 @@ export function newCareer(name: string): Career {
   c.userId = u.id;
   buildWorld(c, u);
   pickRival(c);
+  refillMissions(c);
   recordHist(c);
   return c;
 }
@@ -77,17 +81,17 @@ export function playWeek(c: Career, menu: MenuKey): { game: Game; report: Growth
   c.event = null;
   const lg = c.leagues[c.level];
   // 試合数が多いリーグほど,1週あたりの練習は軽くなる(1シーズンの練習量はほぼ同じ)
-  const report = doTraining(userTeam(c), menu, (10 / lg.schedule.length) * trustGrowth(c.trust), trustCondBias(c.trust));
+  const report = doTraining(userTeam(c), menu, (10 / lg.schedule.length) * trustGrowth(c.trust), trustCondBias(c.trust), c.meal);
   const { pair } = userMatch(c);
   const home = teamById(c, pair[0]), away = teamById(c, pair[1]);
   const prob = winProb(userTeam(c), home.user ? away : home);
   const game = simGame(c, home, away, true);
-  afterUserGame(c, game, prob);
+  afterUserGame(c, game, prob, menu);
   return { game, report };
 }
 
 /** プレイヤーの試合後の処理を行い,他の試合を進めて次の週へ. */
-function afterUserGame(c: Career, g: Game, prob: number): void {
+function afterUserGame(c: Career, g: Game, prob: number, menu: string): void {
   const us = userSide(g), them = us === g.home ? g.away : g.home, t = us.team;
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
@@ -107,6 +111,13 @@ function afterUserGame(c: Career, g: Game, prob: number): void {
   else if (us.runs < them.runs) { r.total.l++; r.streak = 0; }
   else r.total.d++;
   checkGame(c, g, them.team.id, boxScore(g, us).bat);
+  updateMissions(c, {
+    win: us.runs > them.runs, us: us.runs, them: them.runs, prob, menu,
+    hr: boxScore(g, us).bat.reduce((n, x) => n + x.hr, 0), k: boxScore(g, us).pit.reduce((n, x) => n + x.k, 0),
+  });
+  c.lastMenus.push(menu);
+  if (c.lastMenus.length > 5) c.lastMenus.shift();
+  tickMeal(c);
 
   const lg = c.leagues[c.level];
   // 同じ週の他のカードと,各チームの疲労・調子・練習

@@ -1,6 +1,7 @@
 /** 画面の描画と操作の受け付け. */
 import { LEAGUES } from '../data/constants';
 import type { MenuKey } from '../growth/training';
+import { cook } from '../growth/meals';
 import { resolveEvent } from '../league/events';
 import { standings } from '../league/schedule';
 import {
@@ -125,6 +126,7 @@ function onClick(e: MouseEvent): void {
     }
     case 'auto': if (c) { const u = userTeam(c); autoLineup(u); autoPitchers(u); state.sel = null; save(); } break;
     case 'draft': if (c) { pickDraft(c, i); save(); } break;
+    case 'cook': if (c) { const m = cook(c, k); if (m) { c.news = [`${m.name}を食べた!${m.desc}.`]; save(); } } break;
     case 'autoopen': state.autoOpen = !state.autoOpen; writeAutoOpen(state.autoOpen); break;
     case 'event': {
       if (!c) break;

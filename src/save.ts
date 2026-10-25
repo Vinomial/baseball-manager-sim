@@ -1,6 +1,8 @@
 import { newRecords, SAVE_VERSION } from './league/season';
 import type { Player } from './types';
+import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
+import { refillMissions } from './league/missions';
 import { fillOtherLeagues } from './league/world';
 import { genAbilities } from './growth/abilities';
 import { playerValue, salaryOf } from './growth/player';
@@ -68,6 +70,12 @@ export function migrate(raw: unknown): Career | null {
     }
     for (const p of (c.fa ?? []) as Player[]) genAbilities(p, playerValue(p) - 3);
     c.version = 9;
+  }
+  if (c.version === 9) {
+    // v10: ミッション,食材,料理を追加
+    Object.assign(c, { missions: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1 });
+    refillMissions(c as unknown as Career);
+    c.version = 10;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

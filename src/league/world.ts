@@ -108,6 +108,7 @@ export function weeklyUpkeep(c: Career, menuRisk = 1): void {
         if (heal(p, med) && t.user) c.news.push(`${p.name}の怪我が治りました.`);
         else if (!isHurt(p) && maybeInjure(p, 0.0025 * (t.user ? menuRisk : 1), med) && t.user) {
           c.news.push(`${p.name}が${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
+          if (p.inj!.major) (p.story ??= []).push({ season: c.season, text: `${p.inj!.name}の大怪我で長期離脱した.` });
         }
       }
       if (!t.user) { aiTrain(t, mult); for (const p of t.players) condDrift(p, 0); }
@@ -359,6 +360,7 @@ export function userDraftPick(c: Career, d: DraftState, i: number): void {
     const note = pressNote(p);
     takePick(c, d, teamById(c, c.userId), p);
     c.off?.press?.push(note);
+    (p.story ??= []).push({ season: c.season, text: 'ドラフトで入団した.' });
   }
   advanceDraft(c, d);
 }

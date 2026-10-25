@@ -1,6 +1,7 @@
 import { RECIPES, canCook } from '../../growth/meals';
 import { FACILITIES, upgradeCost, MAX_FAC } from '../../league/economy';
 import { goalProgress } from '../../league/goals';
+import { chapterTitle, PHASES, phaseOf, storyBeat } from '../../league/story';
 import { warnings } from '../../league/warnings';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
@@ -28,4 +29,12 @@ export function goalsHTML(c: Career): string {
   if (!c.goals.length) return '<p class="small muted" style="margin:0">今年の目標はまだありません.</p>';
   return `<p class="small muted" style="margin:0 0 6px">オーナーからの今年の目標です.達成すると,信頼度と資金がもらえます.判定は1年の終わりです.</p>
   <div class="plist">${c.goals.map((g) => `<div class="pl"><div class="top"><span class="nm">🎯 ${esc(g.text)}</span></div><span class="small">${esc(goalProgress(c, g))}</span><br><span class="small muted">報酬: 信頼度+${g.reward.trust} / 資金+${g.reward.funds}万円</span></div>`).join('')}</div>`;
+}
+
+/** 起承転結.いまがどの場面か,一言で見せる. */
+export function storyHTML(c: Career): string {
+  const ph = phaseOf(c);
+  return `<div class="card story"><p style="margin:0"><b>${esc(chapterTitle(c))}</b></p>
+  <div class="phases" role="list">${PHASES.map(([k, n, d]) => `<span class="ph ${k === ph ? 'on' : ''}" role="listitem" title="${d}"><b>${n}</b><small>${d}</small></span>`).join('')}</div>
+  <p class="small" style="margin:6px 0 0">${esc(storyBeat(c))}</p></div>`;
 }

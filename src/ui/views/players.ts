@@ -6,6 +6,7 @@ import { fielders, findPlayer } from '../../league/team';
 import type { Career, Player, Team } from '../../types';
 import { esc, fmtAvg, fmtEra } from '../../util/format';
 import { PERS } from '../../growth/personality';
+import { leavingRisk } from '../../league/contracts';
 import { avatar } from '../avatar';
 import { ovrStars } from '../../growth/stars';
 import { attrsHTML, condHTML, playerDetail, playerStars } from '../components';
@@ -20,7 +21,7 @@ export function playerCard(c: Career, p: Player, canRelease: boolean): string {
     : `${s.g}登板 ${s.w}勝${s.l}敗 防御率${fmtEra(s.r, s.outs)} ${s.k}奪三振`;
   const rar = ovrStars(p) >= 4 ? 4 : ovrStars(p) >= 3 ? 3 : ovrStars(p) >= 2 ? 2 : 1;
   return `<div class="pl rar-${rar}"><button class="pick plain" data-a="open" data-id="${p.id}" aria-expanded="${open}">
-    <div class="top"><span class="nm">${avatar(p, 32)} ${esc(p.name)}${rar >= 2 ? `<span class="rarity r${rar}">${['', '', 'RARE', 'EPIC', 'LEGEND'][rar]}</span>` : ''}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.seasons.length === 0 && p.age <= 23 ? '<span class="tag newbie">新人</span>' : ''}<span class="tag">${PERS[p.pers].name}</span>${p.morale < 35 ? '<span class="tag" style="color:var(--bad)">不満</span>' : ''}<span class="tag">${fmtYen(p.salary)}</span></span>${condHTML(p)}</div><div style="margin:2px 0">${playerStars(p)}</div>${attrsHTML(p)}
+    <div class="top"><span class="nm">${avatar(p, 32)} ${esc(p.name)}${rar >= 2 ? `<span class="rarity r${rar}">${['', '', 'RARE', 'EPIC', 'LEGEND'][rar]}</span>` : ''}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.seasons.length === 0 && p.age <= 23 ? '<span class="tag newbie">新人</span>' : ''}<span class="tag">${PERS[p.pers].name}</span>${p.morale < 35 ? '<span class="tag" style="color:var(--bad)">不満</span>' : ''}${leavingRisk(p) ? '<span class="tag" style="color:var(--bad)">退団の恐れ</span>' : ''}${p.loan !== undefined ? '<span class="tag">助っ人</span>' : ''}${(p.years ?? 1) > 1 ? `<span class="tag">${p.years}年契約</span>` : ''}<span class="tag">${fmtYen(p.salary)}</span></span>${condHTML(p)}</div><div style="margin:2px 0">${playerStars(p)}</div>${attrsHTML(p)}
     <div class="small muted">${c.phase === 'season' ? `今季 ${st}` : '今季の成績は「通算成績」で見られます'}</div></button>
     <button class="btn ghost" data-a="detail" data-id="${p.id}" style="margin-top:6px">📊 能力の詳細・通算成績</button>
     ${open ? `${playerDetail(p, c.phase === 'season', roomWord(p))}${canRelease ? `<div style="margin-top:6px"><button class="btn danger" data-a="release" data-id="${p.id}">放出する(自由契約)</button></div>` : ''}` : ''}</div>`;

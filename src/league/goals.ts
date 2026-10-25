@@ -2,7 +2,7 @@
 import { pick } from '../util/random';
 import type { Career, Goal, GoalResult, Review } from '../types';
 import { forecast } from './finance';
-import { moneyScale } from './economy';
+import { earn, moneyScale } from './economy';
 import { leagueTeams, standings } from './schedule';
 import { ovr } from './team';
 
@@ -58,7 +58,7 @@ export function judgeGoals(c: Career, rank: number, wins: number, ownTitle: bool
       case 'cup': done = cupWins >= g.target; break;
       case 'grow': done = (review.growers[0]?.delta ?? 0) >= g.target; break;
     }
-    if (done) { c.funds += g.reward.funds; }
+    if (done) earn(c, 'goal', g.reward.funds);
     return { text: g.text, done, rewardText: `信頼度+${g.reward.trust} / 資金+${Math.round(g.reward.funds)}万円` };
   });
 }

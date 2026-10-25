@@ -44,6 +44,12 @@ function starsHTML(c: Career): string {
   return h;
 }
 
+function albumHTML(c: Career): string {
+  if (!c.album.length) return '<p class="small muted">名場面はまだありません.サヨナラ勝ち,逆転勝ち,完封,優勝,昇格などが,ここに残ります.</p>';
+  const icon = { game: '⚾', title: '🏆', promo: '⬆', milestone: '⭐' } as const;
+  return `<div class="plist">${[...c.album].reverse().slice(0, 30).map((a) => `<div class="pl"><div class="top"><span class="nm">${icon[a.kind]} ${esc(a.text)}</span><span class="small muted">第${a.season}季 ${Math.floor(a.cal / 4) + 1}月</span></div></div>`).join('')}</div>`;
+}
+
 export function renderRecords(c: Career): string {
   const r = c.rec, unlocked = Object.keys(c.ach).length;
   let h = '';
@@ -57,6 +63,7 @@ export function renderRecords(c: Career): string {
   <tr><td>優勝回数</td><td class="num">${LEAGUES.map((_, i) => `${lgShort(i)} ${r.titles[i]}`).join(' / ')}</td></tr>
   <tr><td>メジャーの連覇</td><td class="num">${r.proStreak}</td></tr></tbody></table></div>
   <h2>ライバル</h2>${rivalHTML(c)}
+  <h2>名場面アルバム</h2>${albumHTML(c)}
   <h2>名選手</h2>${starsHTML(c)}
   <h2>実績 <span class="small muted">${unlocked}/${ACHIEVEMENTS.length}</span></h2><div class="achs">${ACHIEVEMENTS.map((a) => {
     const s = c.ach[a.id];

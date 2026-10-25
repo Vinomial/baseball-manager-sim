@@ -2,6 +2,7 @@
 import { LEAGUES } from '../data/constants';
 import type { AwardRow, Career, LegendRow, Player, Record3, Stats, Team } from '../types';
 import { careerStats, fmt3, leaders } from './leaders';
+import { addStory } from './story';
 import { leagueTeams } from './schedule';
 import { ovr } from './team';
 
@@ -17,8 +18,10 @@ export function computeAwards(c: Career, champIds: Record<number, number>): Awar
   const mineIds = new Set(c.teams.find((t) => t.user)!.players.map((p) => p.id));
   const kinds: Record<string, string> = { avg: '首位打者', hr: '本塁打王', rbi: '打点王', sb: '盗塁王', w: '最多勝', era: '最優秀防御率', k: '最多奪三振' };
   for (const lg of c.leagues) {
-    const add = (kind: string, p: Player, team: string, text: string) =>
+    const add = (kind: string, p: Player, team: string, text: string) => {
       out.push({ season: c.season, level: lg.level, kind, pid: p.id, name: p.name, team, text, mine: mineIds.has(p.id) });
+      if (mineIds.has(p.id)) addStory(c, p, `${LEAGUES[lg.level].name}の${kind}になった.`);
+    };
     for (const b of leaders(c, lg.level, 1)) if (b.rows[0]) add(kinds[b.key], b.rows[0].p, b.rows[0].team, b.rows[0].text);
     // 新人王: 1 年目の選手(まだ過去の成績がない)で,いちばん活躍した選手
     let rk: { p: Player; t: Team; v: number } | null = null;

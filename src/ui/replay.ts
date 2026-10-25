@@ -14,7 +14,7 @@ interface Frame {
   a: number;
   h: number;
   text: string;
-  kind: PlayKind | 'start' | 'end';
+  kind: PlayKind | 'start' | 'end' | 'walkoff';
   batter: string;
   pitcher: string;
   hl: boolean;
@@ -23,7 +23,7 @@ interface Frame {
 const HOME = [100, 160], BASE = [[150, 110], [100, 60], [50, 110]];
 const FIELDERS = [[100, 112], [100, 168], [143, 100], [122, 78], [78, 78], [57, 100], [45, 55], [100, 35], [155, 55]];
 const KIND_LABEL: Record<string, string> = {
-  k: '三振', bb: '四球', hit: '安打', xbh: '長打', hr: 'ホームラン!', gro: 'ゴロ', fly: 'フライ', dp: '併殺', sf: '犠飛', err: 'エラー', sub: '交代', end: '試合終了',
+  k: '三振', bb: '四球', hit: '安打', xbh: '長打', hr: 'ホームラン!', gro: 'ゴロ', fly: 'フライ', dp: '併殺', sf: '犠飛', err: 'エラー', sub: '交代', end: '試合終了', walkoff: 'サヨナラ!',
 };
 const BALL: Record<string, number[][]> = {
   hit: [[60, 70], [100, 62], [140, 70], [120, 98], [80, 98]],
@@ -43,7 +43,7 @@ export function buildFrames(g: Game): Frame[] {
     const over = e.t.startsWith('試合終了');
     frames.push({
       inning: e.inning, half: e.half, outs: Math.min(3, e.outs), bases: e.outs >= 3 ? ['', '', ''] : e.bases,
-      a: e.a, h: e.h, text: e.t, kind: over ? 'end' : e.kind, batter: e.batter, pitcher: e.pitcher, hl: e.hl,
+      a: e.a, h: e.h, text: e.t, kind: over ? 'end' : e.t === 'サヨナラ!' ? 'walkoff' : e.kind, batter: e.batter, pitcher: e.pitcher, hl: e.hl,
     });
   }
   return frames;
@@ -159,6 +159,7 @@ export function initReplay(root: HTMLElement, g: Game | null): void {
     else if (k === 'bb') sfx.walk();
     else if (['gro', 'fly', 'dp', 'sf'].includes(k)) sfx.out();
     else if (k === 'end') sfx.ok();
+    else if (k === 'walkoff') sfx.win();
   };
   let shown = -1;
   const show = (i: number, animate: boolean) => {

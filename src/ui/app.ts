@@ -12,9 +12,11 @@ import {
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
-import type { Career, Difficulty, FacKey, StaffRole, Ingredient, LineupPos, Pos } from '../types';
+import type { AttrKey, Career, Difficulty, FacKey, PlanKey, StaffRole, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
-import { negotiate } from '../league/contracts';
+import { extendContract, negotiate } from '../league/contracts';
+import { doTrade, extendHelper, hireHelper } from '../league/trade';
+import { setTrainGoal } from '../league/story';
 import { fireStaff, hireStaff } from '../league/staff';
 import { dispatchScout } from '../league/scouting';
 import { detailSheet } from './detail';
@@ -27,6 +29,7 @@ import { DIFFS } from '../data/constants';
 import { renderStart, renderTitle } from './views/start';
 import { recap } from '../engine/recap';
 import { gameText, seasonText, shareImage, shareText } from './share';
+import { isNotableHeadline } from '../league/story';
 import { confirmMessage } from '../league/warnings';
 import { userSide } from '../engine/game';
 import { applyPrefs, prefs, savePrefs, type FontSize, type Theme } from './prefs';
@@ -88,7 +91,7 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="bgm" aria-pressed="${sound.bgm}">🎵 BGM: ${sound.bgm ? 'ON' : 'OFF'}</button>
   <label class="vol">BGMの大きさ<input type="range" min="0" max="100" value="${Math.round(sound.vol.bgm * 100)}" data-vol="bgm" aria-label="BGMの大きさ"></label>
   ${'vibrate' in navigator ? `<button class="btn ghost" data-a="vib" aria-pressed="${sound.vib}">📳 振動: ${sound.vib ? 'ON' : 'OFF'}</button>` : ''}
-  <button class="btn ghost" data-a="autoopen" aria-pressed="${state.autoOpen}">試合後に結果を開く: ${state.autoOpen ? 'ON' : 'OFF(スキップ)'}</button>
+  <button class="btn ghost" data-a="autoopen">試合後の結果画面: ${state.autoOpen === 'all' ? 'いつも開く' : state.autoOpen === 'important' ? '重要な試合だけ開く' : '開かない(スキップ)'}</button>
   <p class="small muted" style="margin:6px 0 0">進行は自動でセーブされます.第${c.season}シーズン.</p></div>`;
 }
 
@@ -234,15 +237,26 @@ async function runWeeks(c: Career, limit: number, stops: boolean): Promise<void>
   render();
 }
 
+/** 結果画面を自動で開くほど重要な試合か(プレーオフ,選手権,ライバル戦,名場面) */
+function isImportant(c: Career, r: ReturnType<typeof playWeek>): boolean {
+  if (r.kind === 'playoff' || r.kind === 'cup') return true;
+  const g = r.games[r.games.length - 1];
+  if (!g || r.kind === 'practice') return false;
+  const us = userSide(g), them = us === g.home ? g.away : g.home;
+  if (them.team.id === c.rival) return true;
+  return isNotableHeadline(recap(g).headline);
+}
+
 /** 今週を進める */
 function doStart(c: Career): void {
   const r = playWeek(c, state.menuTouched ? state.menu : chooseMenu(c, null, state.menu), { practice: state.practice });
   state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: r.menu, report: r.report };
   state.menuTouched = false; state.practice = false;
-  if (state.autoOpen && r.games.length) { state.tab = 'game'; top(); }
+  if (r.games.length && (state.autoOpen === 'all' || (state.autoOpen === 'important' && isImportant(c, r)))) { state.tab = 'game'; top(); }
   const g = r.games[r.games.length - 1];
   if (g && r.kind !== 'practice') { const us = userSide(g), them = us === g.home ? g.away : g.home; resultSound(us.runs === them.runs ? null : us.runs > them.runs); }
   else if (c.news.some((n) => n.includes('実績解除') || n.includes('ミッション達成'))) sfx.ok();
+  if (c.news.some((n) => n.includes('ランクアップ'))) sfx.level();
   save();
 }
 
@@ -320,6 +334,16 @@ function onClick(e: MouseEvent): void {
     case 'hire': if (c) { const err = hireStaff(c, id); if (err) alert(err); else { sfx.coin(); save(); } } break;
     case 'fire': if (c && confirm('解雇します.よろしいですか?')) { const err = fireStaff(c, k as StaffRole); if (err) alert(err); else save(); } break;
     case 'auto-mode': if (c) { c.auto.mode = k as 'ability' | 'form' | 'develop'; save(); } break;
+    case 'plan': if (c) { const p = findPlayer(userTeam(c), id); if (p) { p.plan = k as PlanKey; save(); } } break;
+    case 'trainset': if (c) { const p = findPlayer(userTeam(c), id); if (p) { const err = setTrainGoal(c, p, k as AttrKey, i); if (err) alert(err); else save(); } } break;
+    case 'trainclear': if (c) { const p = findPlayer(userTeam(c), id); if (p) { p.train = null; save(); } } break;
+    case 'trade-team': state.trade = { teamId: id, want: null, give: [] }; break;
+    case 'trade-want': state.trade.want = id < 0 ? null : id; state.trade.give = []; break;
+    case 'trade-give': state.trade.give = state.trade.give.includes(id) ? state.trade.give.filter((x) => x !== id) : [...state.trade.give, id]; break;
+    case 'trade-do': if (c && state.trade.teamId !== null && state.trade.want !== null) { const err = doTrade(c, state.trade.teamId, state.trade.want, state.trade.give); if (err) alert(err); else { state.trade = { teamId: null, want: null, give: [] }; sfx.ok(); save(); } } break;
+    case 'helper-hire': if (c) { const err = hireHelper(c, id); if (err) alert(err); else { sfx.coin(); save(); } } break;
+    case 'helper-ext': if (c) { const err = extendHelper(c, id); if (err) alert(err); else save(); } break;
+    case 'extend': if (c) { const err = extendContract(c, id, i); if (err) alert(err); else { sfx.ok(); save(); } } break;
     case 'se': setSe(!sound.se); break;
     case 'term': state.term = k; break;
     case 'term-close': state.term = null; break;
@@ -369,7 +393,7 @@ function onClick(e: MouseEvent): void {
     case 'cook': if (c) { const m = cook(c, k); if (m) { c.news = [`${m.name}を食べた!${m.desc}.`]; save(); } } break;
     case 'upgrade': if (c) { const err = upgrade(c, k as FacKey); if (err) alert(err); else save(); } break;
     case 'sell': if (c) { const err = sellIngredient(c, k as Ingredient, i); if (err) alert(err); else save(); } break;
-    case 'autoopen': state.autoOpen = !state.autoOpen; writeAutoOpen(state.autoOpen); break;
+    case 'autoopen': state.autoOpen = state.autoOpen === 'important' ? 'all' : state.autoOpen === 'all' ? 'off' : 'important'; writeAutoOpen(state.autoOpen); break;
     case 'event': {
       if (!c) break;
       const text = resolveEvent(c, k);

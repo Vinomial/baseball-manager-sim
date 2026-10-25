@@ -1,6 +1,6 @@
 /** 資金,施設,食材の売却.DOM に依存しない. */
 import { ingName } from '../growth/meals';
-import type { Career, FacKey, Ingredient } from '../types';
+import type { Career, FacKey, Ingredient, LedgerRow } from '../types';
 import { clamp, rand } from '../util/random';
 import { budgetFor } from './finance';
 
@@ -15,6 +15,37 @@ export const FACILITIES: FacDef[] = [
   { key: 'canteen', name: '食堂', desc: (lv) => `料理の効き目 +${lv * 10}%${lv >= 3 ? ',効く期間も長い' : ''}` },
   { key: 'scout', name: 'スカウト室', desc: (lv) => `ドラフト候補の能力の見積もりが ${lv * 15}% 正確` },
 ];
+
+/** 収支の科目名 */
+export const INCOME_KINDS: Record<string, string> = { week: '毎週の収入', gate: '入場収入', sell: '食材の売却', trade: '選手の売却', event: '出来事・協賛', goal: '目標の報酬' };
+export const EXPENSE_KINDS: Record<string, string> = { staff: 'スタッフの給料', hire: '契約金・退職金', facility: '施設の強化', scout: 'スカウト' };
+
+/** 今年の収支の行 */
+export function ledgerRow(c: Career): LedgerRow {
+  let r = c.ledger[c.ledger.length - 1];
+  if (!r || r.season !== c.season) {
+    r = { season: c.season, income: {}, expense: {} };
+    c.ledger.push(r);
+    if (c.ledger.length > 12) c.ledger.shift();
+  }
+  return r;
+}
+
+/** 収入.資金を増やし,収支に記録する */
+export function earn(c: Career, kind: string, amount: number): void {
+  if (amount <= 0) return;
+  c.funds += amount;
+  const r = ledgerRow(c);
+  r.income[kind] = (r.income[kind] ?? 0) + amount;
+}
+
+/** 支出.資金を減らし,収支に記録する(足りない分は 0 にとどめる) */
+export function spend(c: Career, kind: string, amount: number): void {
+  if (amount <= 0) return;
+  c.funds = Math.max(0, c.funds - amount);
+  const r = ledgerRow(c);
+  r.expense[kind] = (r.expense[kind] ?? 0) + amount;
+}
 
 export const emptyFac = (): Record<FacKey, number> => ({ stadium: 0, ground: 0, clinic: 0, canteen: 0, scout: 0 });
 export const emptyMarket = (): Record<Ingredient, number> => ({ rice: 1, meat: 1, fish: 1, veg: 1, fruit: 1, egg: 1 });
@@ -41,7 +72,7 @@ export function upgrade(c: Career, key: FacKey): string | null {
   if (c.fac[key] >= MAX_FAC) return 'これ以上は強化できません.';
   const cost = upgradeCost(c, key);
   if (c.funds < cost) return '資金が足りません.';
-  c.funds -= cost;
+  spend(c, 'facility', cost);
   c.fac[key]++;
   return null;
 }
@@ -53,7 +84,7 @@ export function sellIngredient(c: Career, k: Ingredient, n: number): string | nu
   const have = Math.min(n, c.pantry[k]);
   if (have <= 0) return `${ingName(k)}がありません.`;
   c.pantry[k] -= have;
-  c.funds += have * ingredientPrice(c, k);
+  earn(c, 'sell', have * ingredientPrice(c, k));
   return null;
 }
 

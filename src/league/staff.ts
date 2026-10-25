@@ -2,7 +2,7 @@
 import { GIVEN_NAMES, SURNAMES } from '../data/constants';
 import type { AttrKey, Career, ManagerStyle, Player, Staff, StaffRole } from '../types';
 import { clamp, pick, randn, ri } from '../util/random';
-import { moneyScale } from './economy';
+import { moneyScale, spend } from './economy';
 
 export const ROLES: StaffRole[] = ['manager', 'batting', 'pitching', 'defense', 'trainer', 'mental'];
 
@@ -57,7 +57,7 @@ export function hireStaff(c: Career, id: number): string | null {
   const old = c.staff[s.role];
   const need = signingBonus(s) + (old ? severance(old) : 0);
   if (c.funds < need) return '資金が足りません(契約金と退職金が必要です).';
-  c.funds -= need;
+  spend(c, 'hire', need);
   c.staff[s.role] = { ...s, years: 0 };
   c.staffPool = c.staffPool.filter((x) => x.id !== id);
   return null;
@@ -67,7 +67,7 @@ export function fireStaff(c: Career, role: StaffRole): string | null {
   const s = c.staff[role];
   if (!s) return null;
   if (c.funds < severance(s)) return '資金が足りません(退職金が必要です).';
-  c.funds -= severance(s);
+  spend(c, 'hire', severance(s));
   c.staff[role] = null;
   return null;
 }
@@ -75,9 +75,9 @@ export function fireStaff(c: Career, role: StaffRole): string | null {
 /** 1 週ぶんの給料を払う.払えない分は,GMの信頼度が下がる. */
 export function paySalaries(c: Career): number {
   const weekly = staffCost(c) / 48;
-  if (c.funds >= weekly) { c.funds -= weekly; return 0; }
+  if (c.funds >= weekly) { spend(c, 'staff', weekly); return 0; }
   const short = weekly - c.funds;
-  c.funds = 0;
+  spend(c, 'staff', c.funds);
   return short;
 }
 

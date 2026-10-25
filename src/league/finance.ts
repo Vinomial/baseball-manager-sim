@@ -36,7 +36,14 @@ export function budgetFor(c: Career): number {
 /** 年俸をいまの力に合わせて更新する(契約更改). */
 export function renewContracts(c: Career): void {
   // 急に上がりすぎ・下がりすぎないよう,1年の変化には幅を持たせる
-  for (const t of c.teams) for (const p of t.players) p.salary = Math.max(50, Math.round(clamp(salaryOf(p), p.salary * 0.7, Math.max(p.salary * 1.6, 100)) / 10) * 10);
+  for (const t of c.teams) {
+    for (const p of t.players) {
+      // 複数年契約の選手は,年俸が据え置きのまま,残りの年数が減る
+      if ((p.years ?? 1) > 1) { p.years = (p.years ?? 1) - 1; continue; }
+      p.years = undefined;
+      p.salary = Math.max(50, Math.round(clamp(salaryOf(p), p.salary * 0.7, Math.max(p.salary * 1.6, 100)) / 10) * 10);
+    }
+  }
 }
 
 /* ===== 予想勝率 ===== */
@@ -112,3 +119,8 @@ export function checkFired(c: Career, text: string): void {
   if (!c.fired && c.trust <= 0) c.fired = { season: c.season, text };
 }
 
+
+/** そのリーグで昇格するチーム数 */
+export const upCount = (level: number): number => (level < MOVES.length ? MOVES[level] : 0);
+/** そのリーグで降格するチーム数 */
+export const downCount = (level: number): number => (level > 0 ? MOVES[level - 1] : 0);

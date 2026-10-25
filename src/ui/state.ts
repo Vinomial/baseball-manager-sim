@@ -31,6 +31,8 @@ export interface AppState {
   menuOpen: boolean;
   /** 詳細を開いている選手の ID */
   detail: number | null;
+  /** トレードの組み立て中の内容 */
+  trade: { teamId: number | null; want: number | null; give: number[] };
   /** 進む前の確認(疲れがたまっているときなど) */
   warn: string | null;
   /** セーブに失敗したか,容量が大きいか */
@@ -59,21 +61,25 @@ export interface AppState {
   /** 自由契約の表示 */
   faRole: '野手' | '投手';
   /** 試合のあとに結果を自動で開くか(切ると,試合を見ずに次へ進める) */
-  autoOpen: boolean;
+  autoOpen: AutoOpen;
   /** 試合のない週に練習試合を組むか */
   practice: boolean;
 }
 
 const AUTO_KEY = 'baseball-manager-sim/autoOpen';
-function readAutoOpen(): boolean {
-  try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; }
+export type AutoOpen = 'all' | 'important' | 'off';
+function readAutoOpen(): AutoOpen {
+  try {
+    const v = localStorage.getItem(AUTO_KEY);
+    return v === 'all' || v === 'off' ? v : 'important';
+  } catch { return 'important'; }
 }
-export function writeAutoOpen(v: boolean): void {
-  try { localStorage.setItem(AUTO_KEY, v ? '1' : '0'); } catch { /* 保存できなくても動く */ }
+export function writeAutoOpen(v: AutoOpen): void {
+  try { localStorage.setItem(AUTO_KEY, v); } catch { /* 保存できなくても動く */ }
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手',
   autoOpen: readAutoOpen(),
   practice: false,
 };

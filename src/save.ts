@@ -1,5 +1,6 @@
 import { emptyStaff, newRecords, SAVE_VERSION, snapshotYear } from './league/season';
 import { refreshPool } from './league/staff';
+import { refreshHelpers } from './league/trade';
 import type { Player } from './types';
 import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
@@ -195,6 +196,18 @@ export function migrate(raw: unknown): Career | null {
     const cc = c as unknown as Career;
     if (cc.auto) { cc.auto.train = 'recommend'; cc.auto.fixed = 'mix'; }
     c.version = 22;
+  }
+  if (c.version === 22) {
+    // v23: 名場面アルバム,収支の記録を追加
+    Object.assign(c, { album: [], ledger: [] });
+    c.version = 23;
+  }
+  if (c.version === 23) {
+    // v24: 助っ人,複数年契約を追加
+    const cc = c as unknown as Career;
+    cc.helpers = [];
+    try { refreshHelpers(cc); } catch { /* 次のシーズンから */ }
+    c.version = 24;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

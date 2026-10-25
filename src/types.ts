@@ -10,6 +10,7 @@ export type PitchKey = 'slider' | 'curve' | 'fork' | 'change' | 'sinker' | 'cutt
 export type SkillKey =
   | 'clutch' | 'contact' | 'slugger' | 'eye' | 'runner' | 'glove'   // 野手
   | 'closer' | 'iron' | 'ace' | 'killer';                           // 投手
+export type PlanKey = 'balance' | 'slugger' | 'contact' | 'speedster' | 'guardian' | 'ace' | 'control' | 'iron';
 export type Personality = 'fighter' | 'cool' | 'pace' | 'leader' | 'sensitive';
 export type GrowthType = '早熟' | '普通' | '晩成';
 
@@ -72,6 +73,16 @@ export interface Player {
   skills: SkillKey[];
   /** 自由契約になる前の所属チーム */
   prev?: string;
+  /** 助っ人(他リーグから借りた選手)の残り契約年数 */
+  loan?: number;
+  /** 複数年契約の残り年数(なければ 1 年ごとの契約) */
+  years?: number;
+  /** 育成方針 */
+  plan?: PlanKey;
+  /** 今年の特訓目標 */
+  train?: { attr: AttrKey; target: number; from: number; season: number } | null;
+  /** 選手のヒストリー(入団,タイトル,特訓の成功など) */
+  story?: { season: number; text: string }[];
   /** 性格 */
   pers: Personality;
   /** やる気 0〜100 */
@@ -351,6 +362,12 @@ export interface GoalResult { text: string; done: boolean; rewardText: string; }
 /** 契約更改で,選手が要求している年俸 */
 export interface ContractAsk { pid: number; old: number; ask: number; }
 
+/** 名場面アルバムの 1 件 */
+export interface AlbumRow { season: number; cal: number; kind: 'game' | 'title' | 'promo' | 'milestone'; text: string; pid?: number; }
+
+/** 1 シーズンの収支(科目ごとの合計,万円) */
+export interface LedgerRow { season: number; income: Record<string, number>; expense: Record<string, number>; }
+
 export interface Career {
   version: number;
   nid: number;
@@ -417,6 +434,12 @@ export interface Career {
   market: Record<Ingredient, number>;
   /** 今年のオーナーの目標 */
   goals: Goal[];
+  /** 助っ人の候補 */
+  helpers: Player[];
+  /** 名場面アルバム */
+  album: AlbumRow[];
+  /** 収支の記録(新しい年が後ろ) */
+  ledger: LedgerRow[];
   /** スカウトの派遣中(あと何週で戻るか) */
   scout: { weeks: number; type: '野手' | '投手' | '素質' } | null;
   /** スカウトが見つけた注目選手(ドラフトに出る) */

@@ -1,8 +1,14 @@
 /** 契約更改.大きく年俸が上がる選手は,要求を出してくる. */
+import { MIN_FIELDERS, MIN_PITCHERS } from '../data/constants';
+import { playerValue, salaryOf } from '../growth/player';
+import { toStars } from '../growth/stars';
 import type { Career, ContractAsk, Player } from '../types';
 import { clamp, rand } from '../util/random';
+import { spend } from './economy';
 import { payroll } from './finance';
-import { findPlayer } from './team';
+import { addStory } from './story';
+import { toFreeAgent } from './world';
+import { fielders, findPlayer, pitchersOf } from './team';
 
 const userT = (c: Career) => c.teams.find((t) => t.user)!;
 
@@ -60,4 +66,48 @@ export function settleAll(c: Career): void {
   if (!o?.contracts) return;
   for (const a of o.contracts) { const p = findPlayer(userT(c), a.pid); if (p) p.salary = a.ask; }
   o.contracts = [];
+}
+
+/* ===== 複数年契約とFA権 ===== */
+
+/** 複数年契約の年俸(1 年あたり).長いほど割安だが,力が落ちても払い続ける. */
+export function multiYearSalary(p: Player, years: number): number {
+  const base = Math.max(p.salary, salaryOf(p));
+  return Math.max(50, Math.round((base * (1 - 0.04 * (years - 1))) / 10) * 10);
+}
+
+export const extensionFee = (p: Player, years: number): number => Math.round(multiYearSalary(p, years) * 0.3 * years);
+
+/** 複数年契約を結ぶ.できないときは理由を返す. */
+export function extendContract(c: Career, pid: number, years: number): string | null {
+  const p = findPlayer(userT(c), pid);
+  if (!p) return '選手が見つかりません.';
+  if (years < 2 || years > 3) return '契約は2〜3年です.';
+  if ((p.years ?? 1) > 1) return 'すでに複数年契約です.';
+  if (p.loan !== undefined) return '助っ人は複数年契約にできません.';
+  const fee = extensionFee(p, years);
+  if (c.funds < fee) return '資金が足りません(契約金が必要です).';
+  spend(c, 'hire', fee);
+  p.salary = multiYearSalary(p, years);
+  p.years = years;
+  p.morale = clamp(p.morale + 10, 0, 100);
+  addStory(c, p, `${years}年契約を結んだ.`);
+  return null;
+}
+
+/** FA権を行使して,チームを去りそうか.1 年契約で,力があり,やる気が低い選手. */
+export const leavingRisk = (p: Player): boolean => (p.years ?? 1) <= 1 && p.loan === undefined && toStars(playerValue(p)) >= 3.5 && p.morale < 35;
+
+/** 1 年の終わりに,FA権を行使した選手が去る.去った選手の名前を返す. */
+export function departures(c: Career): string[] {
+  const u = userT(c);
+  const out: string[] = [];
+  for (const p of [...u.players]) {
+    if (!leavingRisk(p)) continue;
+    if (p.role === '野手' && fielders(u).length <= MIN_FIELDERS) continue;
+    if (p.role === '投手' && pitchersOf(u).length <= MIN_PITCHERS) continue;
+    toFreeAgent(c, u, p);
+    out.push(p.name);
+  }
+  return out;
 }

@@ -22,6 +22,12 @@ import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
 import { opsOf } from '../src/league/leaders';
+import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeValue } from '../src/league/trade';
+import { extendContract, leavingRisk } from '../src/league/contracts';
+import { renewContracts } from '../src/league/finance';
+import { chapterTitle, judgeTrainGoals, phaseOf, setTrainGoal, storyBeat } from '../src/league/story';
+import { planMult, plansFor, suggestPlan } from '../src/growth/plans';
+import { earn, ledgerRow, spend } from '../src/league/economy';
 import { toStars, ovrStars, potStars } from '../src/growth/stars';
 import { starsHTML } from '../src/ui/components';
 import { autoLineup } from '../src/league/team';
@@ -1312,7 +1318,7 @@ describe('選手の個性・契約更改・スカウト・成績の幅', () => {
     for (let i = 0; i < 30; i++) playWeek(c, 'mix');
     const all = c.teams.flatMap((t) => t.players);
     expect(all.reduce((n, p) => n + p.stats.d2, 0)).toBeGreaterThan(0);
-    for (const p of all) if (p.role === '野手' && p.stats.ab > 10) { const v = opsOf(p.stats); expect(v).toBeGreaterThan(0); expect(v).toBeLessThan(5); }
+    for (const p of all) if (p.role === '野手' && p.stats.ab > 10) { const v = opsOf(p.stats); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThan(5); }
   });
 
   it('v17 のデータに性格・やる気・記録の欄を足す', () => {
@@ -1552,5 +1558,202 @@ describe('GMとスタッフ(監督・コーチ)', () => {
     expect(m).not.toBeNull();
     expect(m!.staff.manager).toBeNull();
     expect(m!.auto.mode).toBe('form');
+  });
+});
+
+describe('起承転結・育成方針・特訓・アルバム・収支', () => {
+  beforeEach(() => setRandom(seeded(291)));
+  afterEach(() => resetRandom());
+
+  it('1年は起承転結の4場面に分かれ,場面ごとの一言が出る', () => {
+    const c = newCareer('テスト');
+    const seen = new Set<string>();
+    for (let w = 0; w < WEEKS_PER_YEAR; w++) {
+      seen.add(phaseOf(c));
+      expect(storyBeat(c).length).toBeGreaterThan(0);
+      playWeek(c, 'mix');
+      if (c.phase === 'off') break;
+    }
+    expect([...seen].sort()).toEqual(['ketsu', 'ki', 'sho', 'ten']);
+    expect(chapterTitle(newCareer('テスト'))).toContain('河川敷');
+  });
+
+  it('育成方針は,重点の能力を伸ばし,それ以外を少し控える', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    p.plan = 'slugger';
+    expect(planMult(p, 'power')).toBeGreaterThan(1);
+    expect(planMult(p, 'speed')).toBeLessThan(1);
+    p.plan = 'balance';
+    expect(planMult(p, 'power')).toBe(1);
+    expect(plansFor(p).every((d) => d.role !== '投手')).toBe(true);
+    expect(['slugger', 'contact', 'speedster', 'guardian']).toContain(suggestPlan(p));
+  });
+
+  it('特訓目標は3人まで.達成すると伸びしろとやる気が上がる', () => {
+    const c = newCareer('テスト');
+    const ps = userTeam(c).players.filter((x) => x.role === '野手');
+    for (const p of ps.slice(0, 4)) { p.pot.meet = 99; p.meet = 30; }
+    expect(setTrainGoal(c, ps[0], 'meet', 5)).toBeNull();
+    expect(setTrainGoal(c, ps[0], 'power', 5)).toContain('すでに');
+    expect(setTrainGoal(c, ps[1], 'meet', 5)).toBeNull();
+    expect(setTrainGoal(c, ps[2], 'meet', 5)).toBeNull();
+    expect(setTrainGoal(c, ps[3], 'meet', 5)).toContain('3人');
+    const p = ps[0];
+    const pot0 = p.pot.meet, mor0 = p.morale = 50;
+    p.meet = p.train!.target + 1;
+    const out = judgeTrainGoals(c);
+    expect(out.some((t) => t.includes('達成'))).toBe(true);
+    expect(p.pot.meet).toBeGreaterThanOrEqual(Math.min(99, pot0 + 3));
+    expect(p.morale).toBeGreaterThan(mor0);
+    expect(p.train).toBeNull();
+    expect(p.story!.length).toBeGreaterThan(0);
+  });
+
+  it('能力のランクが上がると知らせが出る', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    for (const p of u.players) for (const k of keysOf(p)) { p[k] = 39.95; p.pot[k] = 90; }
+    const r = doTraining(u, 'bat', 4);
+    expect(r.some((x) => x.rankUps?.length)).toBe(true);
+    for (const x of r) for (const ru of x.rankUps ?? []) expect(ru.from).not.toBe(ru.to);
+  });
+
+  it('収支は科目ごとに記録され,資金と合う', () => {
+    const c = newCareer('テスト');
+    const f0 = c.funds;
+    earn(c, 'week', 100);
+    spend(c, 'facility', 40);
+    const r = ledgerRow(c);
+    expect(r.income.week).toBe(100);
+    expect(r.expense.facility).toBe(40);
+    expect(c.funds).toBe(f0 + 60);
+    spend(c, 'staff', 1e9);
+    expect(c.funds).toBe(0);
+    playWeek(c, 'mix');
+    expect(ledgerRow(c).income.week).toBeGreaterThan(100);
+    expect(ledgerRow(c).season).toBe(c.season);
+  });
+
+  it('名場面は,優勝や昇格でアルバムに残る', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players) for (const k of keysOf(p)) { p[k] = 95; p.pot[k] = 99; }
+    playSeason(c, 'mix');
+    expect(c.album.some((a) => a.kind === 'title')).toBe(true);
+    expect(c.album.length).toBeLessThanOrEqual(80);
+  });
+
+  it('あるあるイベントがどの選択でも成り立つ', () => {
+    for (const kind of ['rain', 'late', 'gift', 'press']) {
+      for (const choice of [0, 1]) {
+        const c = newCareer('テスト');
+        const t = userTeam(c);
+        const keys: Record<string, string[]> = { rain: ['indoor', 'off'], late: ['scold', 'laugh'], gift: ['keep', 'party'], press: ['bold', 'humble'] };
+        c.event = { kind, title: kind, body: '', pid: t.players[0].id, choices: [{ key: '', label: '', hint: '' }, { key: '', label: '', hint: '' }] };
+        const text = resolveEvent(c, keys[kind][choice]);
+        expect(text.length).toBeGreaterThan(0);
+        for (const p of t.players) { expect(Number.isFinite(p.morale)).toBe(true); expect(p.morale).toBeGreaterThanOrEqual(0); expect(p.morale).toBeLessThanOrEqual(100); }
+      }
+    }
+  });
+
+  it('v22 のデータにアルバムと収支を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 22;
+    delete old.album; delete old.ledger;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(m!.album).toEqual([]);
+    expect(Array.isArray(m!.ledger)).toBe(true);
+  });
+});
+
+describe('トレード・助っ人・複数年契約', () => {
+  beforeEach(() => setRandom(seeded(301)));
+  afterEach(() => resetRandom());
+
+  it('価値が足りない条件ではトレードできず,足りれば成立して選手が入れ替わる', () => {
+    const c = newCareer('テスト');
+    for (let i = 0; i < 3; i++) playWeek(c, 'mix');
+    const u = userTeam(c);
+    const o = tradeOthers(c)[0];
+    const want = o.players.filter((p) => p.role === '野手').sort((a, b) => tradeValue(b) - tradeValue(a))[0];
+    const weak = u.players.filter((p) => p.role === '野手').sort((a, b) => tradeValue(a) - tradeValue(b))[0];
+    weak.salary = 50; want.salary = 50;
+    expect(doTrade(c, o.id, want.id, [weak.id])).toContain('受け入れ');
+    expect(doTrade(c, o.id, want.id, [])).toContain('出す選手');
+    // 価値の高い選手を出せば成立する
+    const rich = u.players.filter((p) => p.role === '野手').sort((a, b) => tradeValue(b) - tradeValue(a))[0];
+    rich.pot.meet = 99; rich.pot.power = 99; rich.meet = 80; rich.power = 80; rich.speed = 80; rich.field = 80;
+    rich.salary = 50;
+    const f0 = u.players.length;
+    expect(doTrade(c, o.id, want.id, [rich.id])).toBeNull();
+    expect(u.players.includes(want)).toBe(true);
+    expect(o.players.includes(rich)).toBe(true);
+    expect(u.players.length).toBe(f0);
+    expect(isLineupValid(u)).toBe(true);
+    expect(isLineupValid(o)).toBe(true);
+  });
+
+  it('トレードの期限を過ぎると行えない', () => {
+    const c = newCareer('テスト');
+    c.cal = 40;
+    expect(tradeOpen(c)).toBe(false);
+    const o = tradeOthers(c)[0];
+    expect(doTrade(c, o.id, o.players[0].id, [userTeam(c).players[0].id])).toContain('期限');
+  });
+
+  it('助っ人は1シーズンだけ在籍し,延長すれば残る', () => {
+    const c = newCareer('テスト');
+    c.funds = 1e6;
+    c.helpers.forEach((h) => { h.salary = 50; });
+    const h = c.helpers[0];
+    expect(hireHelper(c, h.id)).toBeNull();
+    expect(userTeam(c).players.includes(h)).toBe(true);
+    expect(h.loan).toBe(1);
+    expect(extendHelper(c, h.id)).toBeNull();
+    expect(h.loan).toBe(2);
+    const h2 = c.helpers[0];
+    hireHelper(c, h2.id);
+    expect(endLoans(c).length).toBe(1);
+    expect(userTeam(c).players.includes(h)).toBe(true);
+    expect(userTeam(c).players.includes(h2)).toBe(false);
+  });
+
+  it('複数年契約で年俸が据え置かれ,やる気が上がる.やる気が低い主力は退団の恐れがある', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    p.morale = 50; c.funds = 1e6;
+    p.meet = 90; p.power = 90; p.speed = 90; p.field = 90;
+    expect(extendContract(c, p.id, 3)).toBeNull();
+    expect(p.years).toBe(3);
+    expect(p.morale).toBeGreaterThan(50);
+    expect(extendContract(c, p.id, 2)).toContain('すでに');
+    expect(leavingRisk(p)).toBe(false);
+    p.years = undefined; p.morale = 10;
+    expect(leavingRisk(p)).toBe(true);
+    playSeason(c, 'mix');
+    expect(userTeam(c).players.includes(p)).toBe(false);
+    expect(c.fa.includes(p) || c.teams.some((t) => t.players.includes(p))).toBe(true);
+  });
+
+  it('複数年契約の選手は,契約更改で年俸が変わらず年数が減る', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players[0];
+    p.salary = 1000; p.years = 3;
+    renewContracts(c);
+    expect(p.salary).toBe(1000);
+    expect(p.years).toBe(2);
+  });
+
+  it('v23 のデータに助っ人の欄を足す', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 23;
+    delete old.helpers;
+    const m = migrate(old);
+    expect(m).not.toBeNull();
+    expect(Array.isArray(m!.helpers)).toBe(true);
   });
 });

@@ -148,7 +148,7 @@ export function renderOff(c: Career): string {
   const canNext = step === 2 ? o.draft.done : step < 3;
   const buttons = `<div class="row" style="margin-top:12px">${step > 0 ? '<button class="btn ghost" data-a="ostep" data-k="-1">← 前へ</button>' : ''}${step < 3 ? `<button class="btn" data-a="ostep" data-k="1" ${canNext ? '' : 'disabled'}>${STEPS[step + 1]}へ →</button>` : ''}${step === 2 && !o.draft.done ? '<span class="small muted">ドラフトが終わると進めます.</span>' : ''}</div>`;
   let body = '';
-  if (step === 0) body = backupNote(c) + resultHTML(c);
+  if (step === 0) body = backupNote(c) + c.news.map((n) => `<div class="news">★ ${esc(n)}</div>`).join('') + resultHTML(c);
   else if (step === 1) body = cutsHTML(c);
   else if (step === 2) body = draftHTML(c);
   else body = `${faHTML(c)}

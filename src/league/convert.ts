@@ -2,6 +2,7 @@
 import { POS_NAME } from '../data/constants';
 import type { Career, Player, Pos } from '../types';
 import { clamp, rand } from '../util/random';
+import { addStory } from './story';
 import { findPlayer } from './team';
 
 const INF: Pos[] = ['一', '二', '三', '遊'];
@@ -70,6 +71,7 @@ export function tickConvert(c: Career, menu: string): void {
       p.alt = [...(p.alt ?? []).filter((x) => x !== to && x !== from), from].slice(-2);
       p.pos = to;
       c.news.push(`${p.name}のコンバートが成功!${POS_NAME[to]}が本職になりました.`);
+      addStory(c, p, `${POS_NAME[from]}から${POS_NAME[to]}へコンバートした.`);
     } else {
       p.field = Math.max(5, p.field - 1);
       c.news.push(`${p.name}は${POS_NAME[to]}への転向に苦戦し,身につきませんでした.`);

@@ -4,6 +4,8 @@ import { addChem } from './chemistry';
 import { clamp } from '../util/random';
 import { isHurt } from '../league/health';
 import { maybeLearn } from './abilities';
+import { planMult } from './plans';
+import { grade } from '../util/format';
 import { moraleCondBias, moraleGrowth } from './personality';
 import { condDrift, growAttr, keysOf } from './player';
 import { findByPos } from '../league/team';
@@ -42,7 +44,15 @@ export const LOAD: Record<MenuKey, [number, number]> = {
   bat: [12, 4], run: [12, 6], field: [12, 4], pitch: [4, 14], stam: [16, 18], mix: [10, 10], rest: [-40, -40],
 };
 
-export interface GrowthReport { name: string; ups: [AttrKey, number][]; /** 球種や特殊能力を身につけたときの知らせ */ note?: string; }
+export interface GrowthReport {
+  name: string;
+  pid?: number;
+  ups: [AttrKey, number][];
+  /** 球種や特殊能力を身につけたときの知らせ */
+  note?: string;
+  /** 能力のランク(S〜G)が上がったときの知らせ */
+  rankUps?: { attr: AttrKey; from: string; to: string }[];
+}
 
 /** 1週間分の練習を行い,表示上の能力が上がった選手の一覧を返す. */
 /** @param scale 試合数が多いリーグほど1週あたりの練習量を減らすための係数
@@ -56,9 +66,10 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
   for (const p of t.players) {
     const keys = keysOf(p);
     const before = Object.fromEntries(keys.map((k) => [k, Math.round(p[k])])) as Record<AttrKey, number>;
+    const gradeBefore = Object.fromEntries(keys.map((k) => [k, grade(p[k])])) as Record<AttrKey, string>;
     const hurt = isHurt(p) ? 0.3 : 1;
     const mor = moraleGrowth(p);
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor * (extra.mult?.(p, k) ?? 1));
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor * planMult(p, k) * (extra.mult?.(p, k) ?? 1));
     condDrift(p, (m.rest ? 1 : 0) + condBias + moraleCondBias(p));
     // 練習の負担.休養は疲れをとる
     const load = LOAD[menu];
@@ -66,7 +77,8 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
     p.fatigue = clamp(p.fatigue + (ld > 0 ? ld * (extra.load ?? 1) : ld), 0, 100);
     const ups = keys.map((k) => [k, Math.round(p[k]) - before[k]] as [AttrKey, number]).filter((x) => x[1] > 0);
     const note = maybeLearn(p, menu, 0.012 * scale) ?? undefined;
-    if (ups.length || note) rep.push({ name: p.name, ups, note });
+    const rankUps = keys.filter((k) => grade(p[k]) !== gradeBefore[k] && Math.round(p[k]) > before[k]).map((k) => ({ attr: k, from: gradeBefore[k], to: grade(p[k]) }));
+    if (ups.length || note) rep.push({ name: p.name, pid: p.id, ups, note, rankUps: rankUps.length ? rankUps : undefined });
   }
   if (m.chem === 'field') {
     const a = findByPos(t, '二'), b = findByPos(t, '遊');

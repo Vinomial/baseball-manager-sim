@@ -17,6 +17,15 @@ function effectText(s: Staff): string {
   }
 }
 
+/** いまの人と比べた,伸びの違い(空席は標準 0%) */
+function preview(s: Staff, cur: Staff | null): string {
+  if (s.role === 'manager') return '';
+  const now = cur ? Math.round(((cur.skill - 50) / 50) * 12) : 0;
+  const after = Math.round(((s.skill - 50) / 50) * 12);
+  const d = after - now;
+  return `<br><span class="small ${d >= 0 ? 'up' : 'dn'}">雇うと,担当の伸びが いま ${now >= 0 ? '+' : ''}${now}% → ${after >= 0 ? '+' : ''}${after}%(${d >= 0 ? '+' : ''}${d})</span>`;
+}
+
 function staffRow(s: Staff, extra: string): string {
   return `<div class="top"><span class="nm">${esc(s.name)}<span class="tag">${s.age}歳</span>${s.style ? `<span class="tag">${STYLE_INFO[s.style].name}</span>` : ''}</span><span class="small">${starsHTML(staffStars(s.skill), 'ovr', '能力')}</span></div>
   <span class="small">${esc(effectText(s))}</span><br><span class="small muted">年俸 ${fmtYen(s.salary)}${extra}</span>`;
@@ -36,7 +45,7 @@ export function renderStaff(c: Career): string {
       : '<div class="pl"><span class="small muted">空席です.</span></div>';
     h += `<details class="fold card" data-fold="staff-${r}" ${state.folds[`staff-${r}`] ? 'open' : ''} style="margin-top:6px"><summary><b>候補を見る</b> <span class="small muted">${cands.length}人</span></summary><div class="fold-body"><div class="plist">${cands.map((s) => {
       const need = signingBonus(s) + (cur ? severance(cur) : 0);
-      return `<div class="pl">${staffRow(s, `/ 契約金 ${fmtYen(signingBonus(s))}${cur ? ` + 退職金 ${fmtYen(severance(cur))}` : ''}`)}<div style="margin-top:6px"><button class="btn" data-a="hire" data-id="${s.id}" ${c.funds < need ? 'disabled' : ''}>${cur ? '入れ替える' : '雇う'}</button></div></div>`;
+      return `<div class="pl">${staffRow(s, `/ 契約金 ${fmtYen(signingBonus(s))}${cur ? ` + 退職金 ${fmtYen(severance(cur))}` : ''}`)}${preview(s, cur)}<div style="margin-top:6px"><button class="btn" data-a="hire" data-id="${s.id}" ${c.funds < need ? 'disabled' : ''}>${cur ? '入れ替える' : '雇う'}</button></div></div>`;
     }).join('') || '<p class="small muted">候補はいません.来シーズンに新しい候補が出ます.</p>'}</div></div></details>`;
   }
   return h;

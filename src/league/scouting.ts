@@ -3,7 +3,7 @@ import { LEAGUES } from '../data/constants';
 import { genPlayer, keysOf } from '../growth/player';
 import type { Career, Player } from '../types';
 import { clamp, ri } from '../util/random';
-import { moneyScale } from './economy';
+import { moneyScale, spend } from './economy';
 
 export const SCOUT_WEEKS = 3;
 export const WATCH_MAX = 6;
@@ -17,7 +17,7 @@ export function dispatchScout(c: Career, type: '野手' | '投手' | '素質'): 
   if (c.watch.length >= WATCH_MAX) return `注目選手は${WATCH_MAX}人までです.`;
   const cost = scoutCost(c, type);
   if (c.funds < cost) return '資金が足りません.';
-  c.funds -= cost;
+  spend(c, 'scout', cost);
   c.scout = { weeks: SCOUT_WEEKS, type };
   return null;
 }

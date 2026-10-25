@@ -8,7 +8,7 @@ import type { AttrKey, Career, GameEvent, Player, Team } from '../types';
 import { clamp, pick, rand, ri, shuffle } from '../util/random';
 import { leagueTeams } from './schedule';
 import { autoLineup, autoPitchers, fielders, findByPos, findPlayer, pitchersOf } from './team';
-import { moneyScale, weeklyIncome } from './economy';
+import { earn, moneyScale, weeklyIncome } from './economy';
 import { addTrust, fmtYen } from './finance';
 
 /** 1 週ごとに出来事が起きる確率 */
@@ -154,6 +154,45 @@ const makers: Maker[] = [
     choices: [
       { key: 'host', label: '開催する', hint: '資金が増え,信頼度も少し上がる.数人が疲れる.' },
       { key: 'skip', label: '練習に集中する', hint: '何も起きない.' },
+    ],
+  }),
+  // あるある: 雨
+  () => ({
+    kind: 'rain', title: '雨で練習ができない',
+    body: '朝から雨.グラウンドが使えず,選手たちが顔を見合わせています.',
+    choices: [
+      { key: 'indoor', label: '室内で軽く調整する', hint: '疲れが少し抜ける.' },
+      { key: 'off', label: '思い切って休みにする', hint: '疲れが大きく抜け,数人の調子が上がる.' },
+    ],
+  }),
+  // あるある: 寝坊
+  (_c, t) => {
+    const p = pick(t.players);
+    return {
+      kind: 'late', pid: p.id, title: `${p.name}が練習に遅刻`,
+      body: `${p.name}が,集合時間に間に合いませんでした.「すみません,目覚ましが…」`,
+      choices: [
+        { key: 'scold', label: 'ビシッと叱る', hint: 'やる気は少し下がるが,チームが引き締まる.' },
+        { key: 'laugh', label: '笑って許す', hint: '本人のやる気が上がる.' },
+      ],
+    };
+  },
+  // あるある: 差し入れ
+  () => ({
+    kind: 'gift', title: '商店街から差し入れ',
+    body: '地元の商店街の人が,野菜やお米をたくさん持ってきてくれました.',
+    choices: [
+      { key: 'keep', label: '食材として受け取る', hint: '食材が2つ手に入る.' },
+      { key: 'party', label: 'みんなで食べる', hint: '全員のやる気が少し上がる.' },
+    ],
+  }),
+  // あるある: インタビュー
+  () => ({
+    kind: 'press', title: '記者のインタビュー',
+    body: '地元の記者が,今シーズンの意気込みを聞きに来ました.',
+    choices: [
+      { key: 'bold', label: '強気に語る', hint: '当たれば信頼度が上がり,外れると下がる.' },
+      { key: 'humble', label: '控えめに語る', hint: '信頼度が少し上がる.' },
     ],
   }),
   // スポンサー
@@ -311,7 +350,7 @@ export function resolveEvent(c: Career, key: string): string {
     case 'poach': {
       const o = c.teams.find((x) => x.id === e.teamId);
       if (key !== 'sell' || !p || !o) { if (p) p.cond = clamp(p.cond + 1, 0, 4); text = `${p?.name ?? '選手'}は「必要とされている」と張り切っています.`; break; }
-      c.funds += p.salary * 8;
+      earn(c, 'trade', p.salary * 8);
       t.players = t.players.filter((x) => x !== p);
       t.pitchers = t.pitchers.filter((id) => id !== p.id);
       t.lineup = t.lineup.filter((x) => x.pid !== p.id);
@@ -324,15 +363,33 @@ export function resolveEvent(c: Career, key: string): string {
     }
     case 'fan':
       if (key === 'host') {
-        c.funds += weeklyIncome(c) * 2;
+        earn(c, 'event', weeklyIncome(c) * 2);
         addTrust(c, 1.5);
         for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
         text = 'ファン感謝イベントは大盛況でした!資金が増えました.';
       } else text = '今回は見送り,練習に集中しました.';
       break;
+    case 'rain':
+      for (const x of t.players) x.fatigue = Math.max(0, x.fatigue - (key === 'off' ? 25 : 10));
+      if (key === 'off') for (const x of shuffle(t.players).slice(0, 4)) x.cond = clamp(x.cond + 1, 0, 4);
+      text = key === 'off' ? '思い切って休みにしたら,選手たちの表情が明るくなりました.' : '室内で軽く体を動かしました.';
+      break;
+    case 'late':
+      if (!p) break;
+      if (key === 'scold') { p.morale = clamp(p.morale - (p.pers === 'sensitive' ? 14 : p.pers === 'fighter' ? -4 : 8), 0, 100); text = `${p.name}は反省し,チームも引き締まりました.`; for (const x of t.players) x.cond = clamp(x.cond + (rand() < 0.2 ? 1 : 0), 0, 4); }
+      else { p.morale = clamp(p.morale + 8, 0, 100); text = `${p.name}は「次は絶対に遅れません!」と頭を下げました.`; }
+      break;
+    case 'gift':
+      if (key === 'keep') { for (let i = 0; i < 2; i++) c.pantry[pick(['rice', 'meat', 'fish', 'veg', 'fruit', 'egg'] as const)]++; text = '食材を2つ受け取りました.'; }
+      else { for (const x of t.players) x.morale = clamp(x.morale + 3, 0, 100); text = 'みんなで食べて,チームが一つになりました.'; }
+      break;
+    case 'press':
+      if (key === 'bold') { const ok = rand() < 0.55; addTrust(c, ok ? 3 : -3); text = ok ? '強気の発言が話題になり,期待が高まりました.' : '強気の発言が裏目に出て,批判されました…'; }
+      else { addTrust(c, 1); text = '謙虚な姿勢が好感を呼びました.'; }
+      break;
     case 'sponsor':
       if (key === 'accept') {
-        c.funds += Math.round(moneyScale(c) * 0.05);
+        earn(c, 'event', Math.round(moneyScale(c) * 0.05));
         for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
         text = '広告に出演し,協賛金を受け取りました.';
       } else { addTrust(c, 1); text = '「練習に集中するGM」と好評です.'; }

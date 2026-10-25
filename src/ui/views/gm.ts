@@ -9,9 +9,11 @@ import { fold } from '../components';
 import { facilitiesHTML, facilitiesSummary } from './facilities';
 import { kitchenHTML, kitchenSummary, missionsHTML } from './kitchen';
 import { scoutHTML, scoutSummary } from './scout';
+import { helpersHTML, tradeHTML, tradeSummary } from './trade';
 import { renderStaff } from './staff';
 import { forecastHTML, forecastSummary, trustHTML, trustSummary } from './status';
 import { goalsHTML } from './todo';
+import { ledgerHTML, ledgerSummary } from './ledger';
 
 /** GM画面.お金,スタッフ,施設,スカウト,目標など,チームの運営をまとめる. */
 export function renderGm(c: Career): string {
@@ -25,9 +27,12 @@ export function renderGm(c: Career): string {
     <div class="tile"><small>スタッフ費</small><b>${fmtYen(staffCost(c))}</b><small>年</small></div>
     <div class="tile"><small>登録</small><b>${u.players.length}/${userRosterMax(c)}</b><small>人</small></div>
   </div></div>`;
+  h += fold('ledger', '収支', ledgerSummary(c), ledgerHTML(c));
   h += fold('goals', 'オーナーの目標', `${c.goals.length}件`, goalsHTML(c), true);
   h += fold('staffs', 'スタッフ(監督・コーチ)', `${Object.values(c.staff).filter(Boolean).length}/6人`, renderStaff(c));
   h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
+  h += fold('trade', 'トレード', tradeSummary(c), tradeHTML(c));
+  h += fold('helpers', '助っ人', `候補${c.helpers.length}人`, helpersHTML(c));
   h += fold('scout', 'スカウト', scoutSummary(c), scoutHTML(c));
   h += fold('missions', 'ミッション', `${c.missions.length}件 進行中`, missionsHTML(c));
   h += fold('kitchen', '台所', kitchenSummary(c) + (sumPantry && !c.meal ? ' / 料理が作れます' : ''), kitchenHTML(c));

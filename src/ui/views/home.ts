@@ -9,7 +9,8 @@ import { standings } from '../../league/schedule';
 import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import { warnings } from '../../league/warnings';
-import type { Career } from '../../types';
+import type { Career, Game } from '../../types';
+import { userSide } from '../../engine/game';
 import { esc } from '../../util/format';
 import { fold, starsHTML } from '../components';
 import { term } from '../glossary';
@@ -17,7 +18,7 @@ import { state } from '../state';
 import { tutorialCard } from '../tutorial';
 import { renderOff } from './offseason';
 import { winProbHTML } from './status';
-import { todoHTML } from './todo';
+import { storyHTML, todoHTML } from './todo';
 import { renderTraining } from './training';
 
 /** ホームの上のダッシュボード.いまの状況を 4 つの数字で見せる. */
@@ -35,12 +36,18 @@ function dashboardHTML(c: Career): string {
   <button class="tile" data-a="tab" data-k="gm"><small>目標</small><b>${c.goals.length}件</b><small>オーナー</small></button></div>`;
 }
 
+function scoreLine(g: Game): string {
+  const us = userSide(g), them = us === g.home ? g.away : g.home;
+  return `${us.runs}-${them.runs}${us.runs > them.runs ? ' 勝ち' : us.runs < them.runs ? ' 負け' : ' 引き分け'}`;
+}
+
 export function renderHome(c: Career): string {
   if (c.phase === 'off') return renderOff(c);
   const u = userTeam(c);
   const m = userMatch(c);
   const info = weekInfo(c);
   let h = dashboardHTML(c);
+  h += storyHTML(c);
   h += tutorialCard();
   if (c.last) h += `<div class="notice">${esc(c.last)}</div>`;
   for (const n of c.news) h += `<div class="news">★ ${esc(n)}</div>`;
@@ -49,7 +56,7 @@ export function renderHome(c: Career): string {
   }
   if (state.last?.game) {
     const r = recap(state.last.game);
-    h += `<div class="card"><p style="margin:0"><b>前の試合</b> <span class="small muted">${esc(r.headline)}</span></p><button class="btn ghost" data-a="tab" data-k="game" style="margin-top:6px">結果・再生を見る</button></div>`;
+    h += `<div class="card"><p style="margin:0"><b>前の試合</b> <span class="small">${state.last.game ? scoreLine(state.last.game) : ''}</span> <span class="small muted">${esc(r.headline)}</span></p><button class="btn ghost" data-a="tab" data-k="game" style="margin-top:6px">結果・再生を見る</button></div>`;
   }
   for (const w of warnings(c, state.menu, state.practice)) h += `<div class="warnbox ${w.level}">${w.level === 'info' ? 'ℹ' : '⚠'} ${esc(w.text)}${w.level !== 'info' && w.text.startsWith('疲れ') && state.menu !== 'rest' ? ' <button class="btn ghost" data-a="menu" data-k="rest" style="margin-top:6px">休養にする</button>' : ''}</div>`;
   h += todoHTML(c);

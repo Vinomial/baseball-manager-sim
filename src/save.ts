@@ -209,6 +209,11 @@ export function migrate(raw: unknown): Career | null {
     try { refreshHelpers(cc); } catch { /* 次のシーズンから */ }
     c.version = 24;
   }
+  if (c.version === 24) {
+    // v25: プロとメジャーが 2 地区(A・B)で 12 チームに.足りないチームは次のシーズンから加わる
+    addDivisions(c as unknown as Career);
+    c.version = 25;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

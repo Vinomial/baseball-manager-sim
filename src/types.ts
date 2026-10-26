@@ -203,6 +203,8 @@ export interface OffSeason {
   retired: string[];
   /** プレーオフの結果(プレイヤーのリーグ) */
   playoff: string;
+  /** 入れ替え戦の結果 */
+  swaps?: string[];
   draft: DraftState;
   /** 全日本選手権でのプレイヤーの結果 */
   cup: string;

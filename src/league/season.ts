@@ -32,11 +32,11 @@ import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
-  computeNextLevels, draftOrder, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
+  computeNextLevels, draftOrder, expandLeagues, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -303,7 +303,8 @@ export function finishSeason(c: Career): void {
   c.awards.push(...computeAwards(c, champIds));
   if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
 
-  const next = computeNextLevels(c);
+  const swaps = playSwaps(c);
+  const next = computeNextLevels(c, swaps);
   const from = c.level, to = next[c.userId];
   const move = (to > from ? 1 : to < from ? -1 : 0) as -1 | 0 | 1;
 
@@ -362,7 +363,7 @@ export function finishSeason(c: Career): void {
   if (move > 0) addAlbum(c, 'promo', `${LEAGUES[to].name}へ昇格!`);
   review.goals = judgeGoals(c, rank, rec.w, champIds[from] === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
-  c.off = { rank, rec, move, from, to, next, retired, playoff, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: swaps.map((x) => x.text), draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
   c.phase = 'off';
 }
 
@@ -439,7 +440,8 @@ export function newSeason(c: Career): void {
   const u = userTeam(c);
   // 交渉が済んでいない契約は,要求どおりに結ぶ
   settleAll(c);
-  // 全チームの移動
+  // 全チームの移動(足りないリーグには新しいチームが加わる)
+  expandLeagues(c, o.next);
   for (const lg of c.leagues) lg.teamIds = c.teams.filter((t) => o.next[t.id] === lg.level).map((t) => t.id);
   c.level = o.to;
   // 自由契約の市場と AI の補強

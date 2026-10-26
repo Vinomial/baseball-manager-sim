@@ -62,6 +62,7 @@ function resultHTML(c: Career): string {
   return `<h2>シーズン${c.season} 終了</h2>
   <div class="card"><div class="result px">${o.rank}位 ${o.rec.w}勝${o.rec.l}敗${o.rec.d}分</div>
   <p style="text-align:center;margin:0"><b>${mv}</b></p><p class="small" style="text-align:center;margin:4px 0">${esc(o.playoff)}</p>
+  ${o.swaps?.length ? `<p class="small" style="text-align:center;margin:4px 0">${o.swaps.map(esc).join('<br>')}</p>` : ''}
   <p class="small" style="text-align:center;margin:4px 0">全日本選手権: ${esc(o.cup || '出場')}(詳しくは「順位」タブ)</p>
   ${o.retired.length ? `<p class="small">引退: ${o.retired.map(esc).join(',')}</p>` : '<p class="small muted">今オフの引退選手はいません.</p>'}
   <p class="small muted">全選手が1歳年をとりました.ピークを過ぎた選手は能力が少し落ちています.他のリーグの結果は「順位」タブで見られます.</p></div>${reviewHTML(c)}`;

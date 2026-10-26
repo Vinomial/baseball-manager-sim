@@ -67,6 +67,9 @@ export interface Forecast {
   /** 昇格・降格するチーム数 */
   upN: number;
   downN: number;
+  /** 入れ替え戦(昇格側・降格側)に回る確率 */
+  swapUp: number;
+  swapDown: number;
 }
 
 /** 残りの試合を何度か作って,最終順位の見込みを出す. */
@@ -96,6 +99,7 @@ export function forecast(c: Career, runs = 250): Forecast {
   const sum = (from: number, to: number) => pr.slice(from, to).reduce((s, v) => s + v, 0);
   return {
     wins: wins / runs, rank: pr, up: sum(0, upN), playoff: sum(0, 4), down: downN ? sum(ids.length - downN, ids.length) : 0, upN, downN,
+    swapUp: upN ? sum(upN, upN + 1) : 0, swapDown: downN ? sum(ids.length - downN - 1, ids.length - downN) : 0,
   };
 }
 

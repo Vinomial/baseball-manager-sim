@@ -37,7 +37,7 @@ import { autoLineup } from '../src/league/team';
 import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
-import { playoffSeeds, weeklyUpkeep } from '../src/league/world';
+import { expandLeagues, playoffSeeds, weeklyUpkeep } from '../src/league/world';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
 import { resultSound, setScene, setVolume, sfx, sound, startBgm, stopBgm, vibrate } from '../src/ui/sound';
@@ -724,8 +724,8 @@ describe('1年48週のカレンダー', () => {
         if (i) expect(lg.weeks[i]).toBeGreaterThan(lg.weeks[i - 1]);
       }
     }
-    // 試合数が最も多いプロリーグは毎週試合がある
-    expect(c.leagues[3].weeks).toEqual(Array.from({ length: 28 }, (_, i) => SEASON_START + i));
+    // 試合数が最も多い独立リーグでも,1週に1試合までに収まる
+    expect(Math.max(...c.leagues.map((lg) => lg.weeks.length))).toBeLessThanOrEqual(28);
   });
 
   it('1年は48週で終わり,プレーオフと全日本選手権まで終わる', () => {
@@ -1176,12 +1176,45 @@ describe('昇格・降格の枠', () => {
     for (let l = 0; l < LEAGUES.length - 1; l++) {
       const up = c.leagues[l].teamIds.filter((id) => o.next[id] === l + 1).length;
       const down = c.leagues[l + 1].teamIds.filter((id) => o.next[id] === l).length;
-      expect(up).toBe(MOVES[l]);
-      expect(down).toBe(MOVES[l]);
+      // 自動の入れ替えに,入れ替え戦で下が勝てばもう 1 チーム
+      const swap = o.swaps?.length ? up - MOVES[l] : 0;
+      expect(swap === 0 || swap === 1).toBe(true);
+      expect(up).toBe(MOVES[l] + swap);
+      expect(down).toBe(up);
     }
     // 最下位リーグの最下位は降格しない
     const last = standings(c, 0).slice(-1)[0].t.id;
     expect(o.next[last]).toBe(0);
+  });
+});
+
+describe('入れ替え戦と拡張', () => {
+  beforeEach(() => setRandom(seeded(321)));
+  afterEach(() => resetRandom());
+
+  it('2位と下から2番目の入れ替え戦の結果が記録され,勝った方が上に残る', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const o = c.off!;
+    expect(o.swaps).toHaveLength(LEAGUES.length - 1);
+    for (let l = 0; l < LEAGUES.length - 1; l++) {
+      const lo = standings(c, l)[MOVES[l]].t.id, up = standings(c, l + 1).slice().reverse()[MOVES[l]].t.id;
+      expect([o.next[lo], o.next[up]].sort()).toEqual([l, l + 1]);
+    }
+  });
+
+  it('足りないチームは,次のシーズンの開幕で AI チームとして加わる', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    // 古いセーブのように,プロから 2 チームが少ない状態にする
+    const pro = c.leagues[3];
+    for (const id of pro.teamIds.slice(-2)) {
+      c.teams = c.teams.filter((t) => t.id !== id);
+      delete c.off!.next[id];
+    }
+    pro.teamIds = pro.teamIds.slice(0, -2);
+    expandLeagues(c, c.off!.next);
+    expect(c.teams.filter((t) => c.off!.next[t.id] === 3)).toHaveLength(LEAGUES[3].teams);
   });
 });
 
@@ -1359,10 +1392,10 @@ describe('2周目の引き継ぎと地区', () => {
     expect(b.funds).toBeGreaterThan(3000);
   });
 
-  it('最上位のリーグだけが,2 つの地区に分かれる', () => {
+  it('プロとメジャーだけが,2 つの地区(A・B リーグ)に分かれる', () => {
     const c = newCareer('テスト');
     c.leagues.forEach((lg, i) => {
-      if (i === LEAGUES.length - 1) {
+      if (LEAGUES[i].divs) {
         expect(lg.divs).toBeDefined();
         expect(lg.divs!.flat().sort()).toEqual([...lg.teamIds].sort());
         expect(lg.divs![0].length + lg.divs![1].length).toBe(lg.teamIds.length);

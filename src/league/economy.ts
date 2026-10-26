@@ -17,8 +17,8 @@ export const FACILITIES: FacDef[] = [
 ];
 
 /** 収支の科目名 */
-export const INCOME_KINDS: Record<string, string> = { week: '毎週の収入', gate: '入場収入', sell: '食材の売却', trade: '選手の売却', event: '出来事・協賛', goal: '目標の報酬' };
-export const EXPENSE_KINDS: Record<string, string> = { staff: 'スタッフの給料', hire: '契約金・退職金', facility: '施設の強化', scout: 'スカウト' };
+export const INCOME_KINDS: Record<string, string> = { week: '毎週の収入', gate: '入場収入', sell: '食材の売却', trade: '選手の売却', event: '出来事・協賛', goal: '目標の報酬', mission: 'ミッションの報酬' };
+export const EXPENSE_KINDS: Record<string, string> = { staff: 'スタッフの給料', hire: '契約金・退職金', facility: '施設の強化', scout: 'スカウト', event: '出来事の費用' };
 
 /** 今年の収支の行 */
 export function ledgerRow(c: Career): LedgerRow {

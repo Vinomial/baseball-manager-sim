@@ -15,8 +15,10 @@ import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
-import { keysOf } from '../src/growth/player';
-import { cook, mealMult, RECIPES } from '../src/growth/meals';
+import { driftPot, growAttr, keysOf } from '../src/growth/player';
+import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
+import { adviseMeals } from '../src/growth/mealAdvice';
+import { updateMissions } from '../src/league/missions';
 import { DIFFS, FOREIGN_FIRST, MOVES } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
@@ -1142,6 +1144,30 @@ describe('選手の顔・追加の出来事・入団会見', () => {
     }
   });
 
+  it('新しい出来事(シェフ・覚醒・OB・情報・寄付・慶事)がどの選択でも成り立つ', () => {
+    for (const choice of [0, 1]) {
+      const c = newCareer('テスト');
+      const t = userTeam(c);
+      const young = t.players.find((p) => p.age <= 23) ?? t.players[0];
+      const mk = (kind: string): GameEvent => ({
+        kind, title: kind, body: '', pid: young.id, choices: [{ key: '', label: '', hint: '' }, { key: '', label: '', hint: '' }],
+      });
+      const keys: Record<string, string[]> = {
+        chef: ['cook', 'learn'], awake: ['push', 'watch'], ob: ['talk', 'batting'], tip: ['check', 'skip'], donate: ['accept', 'decline'], family: ['party', 'quiet'],
+      };
+      for (const kind of Object.keys(keys)) {
+        c.event = mk(kind);
+        const w0 = c.watch.length, f0 = c.funds;
+        const text = resolveEvent(c, keys[kind][choice]);
+        expect(text.length).toBeGreaterThan(0);
+        expect(c.event).toBeNull();
+        if (kind === 'tip' && choice === 0) { expect(c.watch.length).toBe(w0 + 1); expect(c.funds).toBeLessThan(f0); }
+        if (kind === 'donate' && choice === 0) expect(c.funds).toBeGreaterThan(f0);
+        if (kind === 'chef' && choice === 0) expect(c.meal).not.toBeNull();
+      }
+    }
+  });
+
   it('ドラフトで指名すると,新人の入団会見のコメントが残る', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
@@ -1953,5 +1979,78 @@ describe('ポジションを考えたおすすめ・コンバート提案・オ�
     for (const p of userTeam(c).players) expect(p.stats.g).toBe(0);
     expect(c.results.length).toBe(0);
     expect(c.cal).toBe(12);
+  });
+});
+
+describe('料理と成長上限とミッション', () => {
+  beforeEach(() => setRandom(seeded(555)));
+  afterEach(() => resetRandom());
+
+  it('料理は種類が増え,旬の食材を使うと効き目が大きい', () => {
+    expect(RECIPES.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(RECIPES.map((r) => r.kind)).size).toBeGreaterThanOrEqual(5);
+    const c = newCareer('テスト');
+    c.cal = 16; // 5月ごろ: 野菜が旬
+    for (const k of Object.keys(c.pantry) as (keyof typeof c.pantry)[]) c.pantry[k] = 5;
+    const plain = cook(c, 'onigiri')!;
+    const inSeason = cook(c, 'soup')!;
+    expect(seasonalIng(c.cal)).toBe('veg');
+    expect(inSeason.name).toContain('旬');
+    expect(plain.name).not.toContain('旬');
+    expect(inSeason.mult.stam).toBeGreaterThan(1 + (RECIPES.find((r) => r.key === 'soup')!.mult.stam! - 1));
+  });
+
+  it('おすすめ料理は作れるものだけで,材料が足りなければ出さない', () => {
+    const c = newCareer('テスト');
+    for (const k of Object.keys(c.pantry) as (keyof typeof c.pantry)[]) c.pantry[k] = 0;
+    expect(adviseMeals(c)).toHaveLength(0);
+    c.pantry.rice = 1; c.pantry.meat = 2; c.pantry.egg = 1;
+    const tips = adviseMeals(c);
+    expect(tips.length).toBeGreaterThan(0);
+    expect(tips.every((t) => canCook(c, t.recipe))).toBe(true);
+    expect(tips[0].reason.length).toBeGreaterThan(0);
+  });
+
+  it('料理の勝負めしは,食べると全員の調子が上がる', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players) p.cond = 1;
+    cook(c, 'victory', true);
+    expect(userTeam(c).players.every((p) => p.cond === 3)).toBe(true);
+  });
+
+  it('ミッションの報酬には資金が含まれ,達成すると受け取れる', () => {
+    const c = newCareer('テスト');
+    expect(c.missions.every((m) => (m.cash ?? 0) > 0)).toBe(true);
+    const m = c.missions[0];
+    const f0 = c.funds;
+    m.progress = m.target;
+    updateMissions(c, { menu: 'mix', games: [] });
+    expect(c.funds).toBeGreaterThanOrEqual(f0 + (m.cash ?? 0));
+  });
+
+  it('成長の上限は目安で,超えた先も少しずつ伸びる', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players[0];
+    p.age = 24;
+    p.meet = 60; p.pot.meet = 60;
+    let over = 0;
+    for (let i = 0; i < 400; i++) { growAttr(p, 'meet', 1); if (p.pot.meet - p.meet < -3) break; over++; }
+    expect(p.meet).toBeGreaterThan(60);
+    expect(over).toBeGreaterThan(5);
+  });
+
+  it('上限は年ごとにゆらぎ,まれに覚醒して大きく広がる', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    p.age = 20;
+    let wake = 0;
+    for (let i = 0; i < 400; i++) {
+      const before = { ...p.pot };
+      const k = driftPot(p);
+      if (k) { wake++; expect(p.pot[k]).toBeGreaterThanOrEqual(before[k]); }
+      p.age = 20;
+    }
+    expect(wake).toBeGreaterThan(3);
+    expect(wake).toBeLessThan(60);
   });
 });

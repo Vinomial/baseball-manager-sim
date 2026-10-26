@@ -1,4 +1,5 @@
-import { canCook, INGREDIENTS, RECIPES, recipeNeedText } from '../../growth/meals';
+import { canCook, INGREDIENTS, RECIPES, RECIPE_KINDS, recipeNeedText, SEASON_NAME, seasonalIng, ingName } from '../../growth/meals';
+import { adviseMeals } from '../../growth/mealAdvice';
 import { ingredientPrice } from '../../league/economy';
 import { fmtYen } from '../../league/finance';
 import { rewardText } from '../../league/missions';
@@ -18,6 +19,7 @@ export function kitchenSummary(c: Career): string {
 
 export function kitchenHTML(c: Career): string {
   const meal = c.meal;
+  const tips = adviseMeals(c);
   const pantry = INGREDIENTS.map((i) => `<span class="ing ${c.pantry[i.key] ? '' : 'none'}"><b>${i.name}</b>×${c.pantry[i.key]}</span>`).join('');
   const sell = INGREDIENTS.map((i) => {
     const pr = ingredientPrice(c, i.key), mk = c.market[i.key];
@@ -27,10 +29,12 @@ export function kitchenHTML(c: Career): string {
   ${meal ? `<p class="meal-on"><span class="rec star">効果中</span> <b>${esc(meal.name)}</b> <span class="small">あと${meal.weeks}週 / ${esc(meal.desc)}</span></p>` : '<p class="small muted" style="margin:0 0 6px">いま効いている料理はありません.ミッションや試合で食材を集めて,料理を作りましょう.</p>'}
   <div class="pantry">${pantry}</div>
   <h3>食材を売る <span class="small muted">相場は毎週動きます</span></h3><div class="sells">${sell}</div>
+  <p class="small muted" style="margin:6px 0 0">${SEASON_NAME(c.cal)}の旬は<b>${ingName(seasonalIng(c.cal))}</b>.旬の食材を使うと効き目が1割5分大きくなります.</p>
+  ${tips.length ? `<h3>おすすめ料理</h3><div class="plist">${tips.slice(0, 2).map((t, i) => `<div class="pl star"><div class="top"><span class="nm"><span class="rec star">${i ? 'ほかの候補' : '★おすすめ'}</span>${esc(t.recipe.name)}</span><button class="btn" data-a="cook" data-k="${t.recipe.key}">作る</button></div><span class="small muted">${esc(t.reason)}</span></div>`).join('')}</div>` : ''}
   <h3>料理を作る <span class="small muted">${RECIPES.filter((r) => canCook(c, r)).length}品 作れます</span></h3>
-  <div class="plist">${RECIPES.map((r) => {
+  ${RECIPE_KINDS.map((kind) => `<h4 style="margin:8px 0 2px" class="small muted">${kind}</h4><div class="plist">${RECIPES.filter((r) => r.kind === kind).map((r) => {
     const ok = canCook(c, r);
-    return `<div class="pl ${ok ? 'star' : ''}"><div class="top"><span class="nm">${esc(r.name)}</span><button class="btn ${ok ? '' : 'ghost'}" data-a="cook" data-k="${r.key}" ${ok ? '' : 'disabled'}>作る</button></div>
-    <span class="small">材料: ${esc(recipeNeedText(r))}</span><br><span class="small muted">${esc(r.desc)}</span></div>`;
-  }).join('')}</div></div>`;
+    return `<div class="pl ${ok ? 'star' : ''}"><div class="top"><span class="nm">${esc(r.name)}${r.need[seasonalIng(c.cal)] ? '<span class="tag">旬</span>' : ''}</span><button class="btn ${ok ? '' : 'ghost'}" data-a="cook" data-k="${r.key}" ${ok ? '' : 'disabled'}>作る</button></div>
+    <span class="small">材料: ${esc(recipeNeedText(r))}</span><br><span class="small muted">${esc(r.desc)}${r.cond ? '(調子も上がる)' : ''}</span></div>`;
+  }).join('')}</div>`).join('')}</div>`;
 }

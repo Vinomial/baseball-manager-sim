@@ -1,5 +1,7 @@
 /** 週ごとの出来事.選手の相談や,チームの雰囲気など.DOM に依存しない. */
-import { LABEL, MIN_FIELDERS, MIN_PITCHERS } from '../data/constants';
+import { LABEL, LEAGUES, MIN_FIELDERS, MIN_PITCHERS } from '../data/constants';
+import { cook } from '../growth/meals';
+import { genPlayer } from '../growth/player';
 import { maybeLearn } from '../growth/abilities';
 import { addChem } from '../growth/chemistry';
 import { futureValue, growAttr, keysOf, playerValue, salaryOf } from '../growth/player';
@@ -8,11 +10,11 @@ import type { AttrKey, Career, GameEvent, Player, Team } from '../types';
 import { clamp, pick, rand, ri, shuffle } from '../util/random';
 import { leagueTeams } from './schedule';
 import { autoLineup, autoPitchers, fielders, findByPos, findPlayer, pitchersOf } from './team';
-import { earn, moneyScale, weeklyIncome } from './economy';
+import { earn, moneyScale, spend, weeklyIncome } from './economy';
 import { addTrust, fmtYen } from './finance';
 
 /** 1 週ごとに出来事が起きる確率 */
-export const EVENT_RATE = 0.2;
+export const EVENT_RATE = 0.3;
 
 const userT = (c: Career): Team => c.teams.find((t) => t.user)!;
 const bestKey = (p: Player): AttrKey => keysOf(p).reduce((a, b) => (p[b] > p[a] ? b : a));
@@ -204,6 +206,75 @@ const makers: Maker[] = [
       { key: 'decline', label: '断る', hint: '信頼度が少し上がる.「練習に集中するGM」と評判に.' },
     ],
   }),
+  // 名シェフの申し出
+  () => ({
+    kind: 'chef', title: '名シェフの申し出',
+    body: '有名なシェフが,「選手たちに料理をふるまいたい」と訪ねてきました.',
+    choices: [
+      { key: 'cook', label: 'ごちそうを作ってもらう', hint: '食材を使わずに「栄養満点鍋」の効き目が出る.' },
+      { key: 'learn', label: '料理を教わる', hint: '食材が3つ手に入る.' },
+    ],
+  }),
+  // 若手の覚醒の兆し
+  (_c, t) => {
+    const ps = t.players.filter((p) => p.age <= 24 && keysOf(p).some((k) => p.pot[k] - p[k] > 4));
+    if (!ps.length) return null;
+    const p = pick(ps);
+    const k = bestKey(p);
+    return {
+      kind: 'awake', pid: p.id, title: `${p.name}に覚醒の兆し`,
+      body: `${p.name}の${LABEL[k]}が,急に見違えるようになってきました.このまま伸びるか,ここで一気に鍛えるか...`,
+      choices: [
+        { key: 'push', label: '一気に鍛える', hint: `${LABEL[k]}の限界が広がることも.疲れがたまる.` },
+        { key: 'watch', label: '様子を見る', hint: '無理をさせず,調子を整える.' },
+      ],
+    };
+  },
+  // OBの来訪
+  (_c, t) => {
+    const ys = t.players.filter((p) => p.age <= 23);
+    if (ys.length < 2) return null;
+    return {
+      kind: 'ob', title: 'OBの来訪',
+      body: 'チームの先輩にあたる元選手が,練習を見に来ました.若手に何か伝えたいそうです.',
+      choices: [
+        { key: 'talk', label: '若手に話をしてもらう', hint: '若手の能力が伸び,やる気が上がる.' },
+        { key: 'batting', label: '打撃投手をお願いする', hint: '野手の調子が上がる.' },
+      ],
+    };
+  },
+  // 地元のスカウト情報
+  () => ({
+    kind: 'tip', title: '有望な選手の情報',
+    body: '地元の野球好きが,「近所にいい選手がいる」と教えてくれました.',
+    choices: [
+      { key: 'check', label: '調べにいく', hint: '少し費用がかかるが,ドラフトの注目選手に加わる.' },
+      { key: 'skip', label: '聞き流す', hint: '何も起きない.' },
+    ],
+  }),
+  // 後援会の寄付
+  () => ({
+    kind: 'donate', title: '後援会からの寄付',
+    body: '後援会が,チームのためにまとまった寄付をしたいと申し出ています.',
+    choices: [
+      { key: 'accept', label: '受け取る', hint: '資金が入る.お礼の挨拶回りで数人が疲れる.' },
+      { key: 'decline', label: '辞退して,応援をお願いする', hint: '信頼度が少し上がり,ファンが増える.' },
+    ],
+  }),
+  // 選手の慶事
+  (_c, t) => {
+    const ps = t.players.filter((p) => p.age >= 24 && p.age <= 33);
+    if (!ps.length) return null;
+    const p = pick(ps);
+    return {
+      kind: 'family', pid: p.id, title: `${p.name}に吉報`,
+      body: `${p.name}に,おめでたい知らせが届きました.チームでお祝いしますか?`,
+      choices: [
+        { key: 'party', label: 'みんなで祝う', hint: '少し費用がかかるが,チーム全体のやる気が上がる.' },
+        { key: 'quiet', label: 'そっとしておく', hint: '本人のやる気が上がる.' },
+      ],
+    };
+  },
   // 他球団からのトレード打診
   (c, t) => {
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
@@ -393,6 +464,51 @@ export function resolveEvent(c: Career, key: string): string {
         for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
         text = '広告に出演し,協賛金を受け取りました.';
       } else { addTrust(c, 1); text = '「練習に集中するGM」と好評です.'; }
+      break;
+    case 'chef':
+      if (key === 'cook') { const m = cook(c, 'nabe', true); text = m ? `シェフのごちそうで,${m.name}の効き目が出ました.` : ''; }
+      else { for (let i = 0; i < 3; i++) c.pantry[pick(['rice', 'meat', 'fish', 'veg', 'fruit', 'egg'] as const)]++; text = '料理のコツと食材を分けてもらいました.'; }
+      break;
+    case 'awake':
+      if (!p) break;
+      if (key === 'push') {
+        const k = bestKey(p);
+        if (rand() < 0.6) { p.pot[k] = clamp(p.pot[k] + ri(6, 12), p[k], 99); growAttr(p, k, 1.6); text = `${p.name}が覚醒!${LABEL[k]}の限界が大きく広がりました.`; }
+        else text = `${p.name}は懸命に練習しましたが,今回は壁を破れませんでした.`;
+        p.fatigue = clamp(p.fatigue + 25, 0, 100);
+      } else { p.cond = clamp(p.cond + 1, 0, 4); text = `${p.name}は落ち着いて,自分のペースで伸びています.`; }
+      break;
+    case 'ob': {
+      const ys = t.players.filter((x) => x.age <= 23);
+      if (key === 'talk') { for (const x of ys) { x.morale = clamp(x.morale + 6, 0, 100); growAttr(x, bestKey(x), 0.8); } text = `OBの話に若手${ys.length}人が聞き入り,やる気が上がりました.`; }
+      else { for (const x of fielders(t)) x.cond = clamp(x.cond + (rand() < 0.5 ? 1 : 0), 0, 4); text = 'OBが打撃投手をつとめ,野手たちの感覚が研ぎ澄まされました.'; }
+      break;
+    }
+    case 'tip':
+      if (key === 'check') {
+        spend(c, 'event', Math.round(moneyScale(c) * 0.02));
+        const role = rand() < 0.5 ? '野手' : '投手';
+        const q = genPlayer(c, role, LEAGUES[c.level].base - 2, { age: ri(18, 22), potMul: 1.2 });
+        q.watched = true;
+        c.watch.push(q);
+        text = `${q.name}(${q.age}歳)の情報を集めました.ドラフトの注目選手に入りました.`;
+      } else text = '話は聞き流しました.';
+      break;
+    case 'donate':
+      if (key === 'accept') {
+        earn(c, 'event', Math.round(moneyScale(c) * 0.08));
+        for (const x of shuffle(t.players).slice(0, 3)) x.fatigue = clamp(x.fatigue + 8, 0, 100);
+        text = '寄付を受け取りました.資金が増えました.';
+      } else { addTrust(c, 1.5); c.revenue = Math.min(1.3, c.revenue + 0.02); text = '辞退の姿勢にファンが感動し,応援が増えました.'; }
+      break;
+    case 'family':
+      if (!p) break;
+      if (key === 'party') {
+        spend(c, 'event', Math.round(moneyScale(c) * 0.01));
+        for (const x of t.players) x.morale = clamp(x.morale + 4, 0, 100);
+        p.morale = clamp(p.morale + 10, 0, 100);
+        text = `みんなで${p.name}を祝い,チームの雰囲気がよくなりました.`;
+      } else { p.morale = clamp(p.morale + 12, 0, 100); text = `${p.name}は気遣いに感謝し,やる気が上がりました.`; }
       break;
     case 'trade': {
       if (key !== 'accept' || !p || e.teamId === undefined || e.pid2 === undefined) { text = '申し出を断りました.'; break; }

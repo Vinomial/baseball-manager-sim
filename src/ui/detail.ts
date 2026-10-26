@@ -32,7 +32,7 @@ export function detailSheet(c: Career, id: number): string {
   const ks = keysOf(p);
   const labels = ks.map((k) => LABEL[k]);
   // 伸びしろの上限は,正確には見せず 5 きざみにする
-  const cap = (k: AttrKey) => Math.round(p.pot[k] / 5) * 5;
+  const cap = (k: AttrKey) => Math.round((p.pot[k] + ((p.id * 7 + k.length * 3) % 9) - 4) / 5) * 5;
   const radar: Series[] = [
     { name: '現在', color: 'var(--btn)', values: ks.map((k) => p[k]) },
     { name: '上限の目安', color: 'var(--accent)', dash: '5 4', values: ks.map(cap) },

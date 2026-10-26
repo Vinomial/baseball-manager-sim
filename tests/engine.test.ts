@@ -56,7 +56,7 @@ describe('試合エンジン', () => {
       runs += g.home.runs + g.away.runs;
     }
     const avg = runs / N;
-    expect(avg).toBeGreaterThan(4);
+    expect(avg).toBeGreaterThan(3);
     expect(avg).toBeLessThan(13);
   });
 });

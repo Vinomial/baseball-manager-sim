@@ -1,5 +1,6 @@
 /** ミッション.達成すると食材がもらえて,料理で練習の伸びを大きくできる. */
 import { ingName } from '../growth/meals';
+import { earn, moneyScale } from './economy';
 import type { Career, Ingredient, Mission } from '../types';
 import { pick, rand, ri, shuffle } from '../util/random';
 
@@ -7,6 +8,9 @@ interface Kind {
   key: string;
   make: () => { title: string; target: number };
   reward: () => Partial<Record<Ingredient, number>>;
+  /** 資金報酬の大きさ(お金の目安に対する割合) */
+  cash: number;
+  trust?: number;
 }
 
 const ING: Ingredient[] = ['rice', 'meat', 'fish', 'veg', 'fruit', 'egg'];
@@ -17,21 +21,22 @@ const some = (n: number): Partial<Record<Ingredient, number>> => {
 };
 
 const KINDS: Kind[] = [
-  { key: 'win', make: () => { const n = ri(2, 4); return { title: `${n}勝する`, target: n }; }, reward: () => some(2) },
-  { key: 'streak', make: () => { const n = ri(2, 3); return { title: `${n}連勝する`, target: n }; }, reward: () => some(3) },
-  { key: 'shutout', make: () => ({ title: '完封勝ちする', target: 1 }), reward: () => ({ ...some(2), meat: 1 }) },
-  { key: 'score', make: () => { const n = ri(5, 7); return { title: `${n}点以上取って勝つ`, target: 1 }; }, reward: () => some(2) },
-  { key: 'hr', make: () => { const n = ri(2, 4); return { title: `チームで${n}本塁打を打つ`, target: n }; }, reward: () => ({ ...some(1), meat: 1 }) },
-  { key: 'k', make: () => { const n = ri(15, 25); return { title: `投手陣で${n}奪三振`, target: n }; }, reward: () => ({ ...some(1), fish: 1 }) },
-  { key: 'upset', make: () => ({ title: '勝てないと言われた相手(予想40%未満)に勝つ', target: 1 }), reward: () => some(4) },
-  { key: 'train', make: () => ({ title: '練習を3回続けて行う', target: 3 }), reward: () => ({ ...some(1), veg: 1 }) },
-  { key: 'rest', make: () => ({ title: '休養を1回とる', target: 1 }), reward: () => ({ fruit: 1, egg: 1 }) },
+  { key: 'win', make: () => { const n = ri(2, 4); return { title: `${n}勝する`, target: n }; }, reward: () => some(2), cash: 0.02 },
+  { key: 'streak', make: () => { const n = ri(2, 3); return { title: `${n}連勝する`, target: n }; }, reward: () => some(3), cash: 0.03 },
+  { key: 'shutout', make: () => ({ title: '完封勝ちする', target: 1 }), reward: () => ({ ...some(2), meat: 1 }), cash: 0.035 },
+  { key: 'score', make: () => { const n = ri(5, 7); return { title: `${n}点以上取って勝つ`, target: 1 }; }, reward: () => some(2), cash: 0.025 },
+  { key: 'hr', make: () => { const n = ri(2, 4); return { title: `チームで${n}本塁打を打つ`, target: n }; }, reward: () => ({ ...some(1), meat: 1 }), cash: 0.025 },
+  { key: 'k', make: () => { const n = ri(15, 25); return { title: `投手陣で${n}奪三振`, target: n }; }, reward: () => ({ ...some(1), fish: 1 }), cash: 0.025 },
+  { key: 'upset', make: () => ({ title: '勝てないと言われた相手(予想40%未満)に勝つ', target: 1 }), reward: () => some(4), cash: 0.06 },
+  { key: 'train', make: () => ({ title: '練習を3回続けて行う', target: 3 }), reward: () => ({ ...some(1), veg: 1 }), cash: 0.015 },
+  { key: 'rest', make: () => ({ title: '休養を1回とる', target: 1 }), reward: () => ({ fruit: 1, egg: 1 }), cash: 0.01 },
 ];
 
 export function newMission(c: Career, avoid: string[]): Mission {
   const k = pick(KINDS.filter((x) => !avoid.includes(x.key)).length ? KINDS.filter((x) => !avoid.includes(x.key)) : KINDS);
   const { title, target } = k.make();
-  return { id: c.mid++, kind: k.key, title, target, progress: 0, reward: k.reward() };
+  const trust = k.key === 'upset' || k.key === 'streak' ? 1 : undefined;
+  return { id: c.mid++, kind: k.key, title, target, progress: 0, reward: k.reward(), cash: Math.round((moneyScale(c) * k.cash) / 10) * 10, trust };
 }
 
 /** 進行中のミッションが 3 つになるまで補充する */
@@ -39,8 +44,11 @@ export function refillMissions(c: Career): void {
   while (c.missions.length < 3) c.missions.push(newMission(c, c.missions.map((m) => m.kind)));
 }
 
-export function rewardText(r: Partial<Record<Ingredient, number>>): string {
-  return (Object.entries(r) as [Ingredient, number][]).map(([k, n]) => `${ingName(k)}${n}`).join(' ');
+export function rewardText(r: Partial<Record<Ingredient, number>>, m?: Pick<Mission, 'cash' | 'trust'>): string {
+  const ing = (Object.entries(r) as [Ingredient, number][]).map(([k, n]) => `${ingName(k)}${n}`);
+  if (m?.cash) ing.push(`資金${m.cash}万円`);
+  if (m?.trust) ing.push(`信頼+${m.trust}`);
+  return ing.join(' ');
 }
 
 export interface GameCtx {
@@ -79,7 +87,9 @@ export function updateMissions(c: Career, w: WeekCtx): void {
   const done = c.missions.filter((m) => m.progress >= m.target);
   for (const m of done) {
     for (const [k, n] of Object.entries(m.reward) as [Ingredient, number][]) c.pantry[k] += n;
-    c.news.push(`ミッション達成「${m.title}」 食材 ${rewardText(m.reward)} を手に入れた!`);
+    if (m.cash) earn(c, 'mission', m.cash);
+    if (m.trust) c.trust = Math.min(100, c.trust + m.trust);
+    c.news.push(`ミッション達成「${m.title}」 ${rewardText(m.reward, m)} を手に入れた!`);
   }
   c.missions = c.missions.filter((m) => m.progress < m.target);
   // 公式戦のたびに,勝てば食材が少し手に入る.試合のない週は,たまに.

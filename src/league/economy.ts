@@ -64,8 +64,11 @@ export function gateIncome(c: Career, big: boolean): number {
   return Math.round(moneyScale(c) * 0.006 * (1 + c.fac.stadium * 0.15) * (big ? 2 : 1));
 }
 
+/** 施設費の目安.収入ほどは増えないよう,リーグが上がるほど割安になる. */
+const facScale = (c: Career): number => 500 * (moneyScale(c) / 500) ** 0.75;
+
 export const upgradeCost = (c: Career, key: FacKey): number =>
-  Math.round((moneyScale(c) * [0.5, 0.9, 1.5, 2.3, 3.4][Math.min(4, c.fac[key])]) / 10) * 10;
+  Math.round((facScale(c) * [0.5, 0.9, 1.5, 2.3, 3.4][Math.min(4, c.fac[key])]) / 10) * 10;
 
 /** 施設を強くする.できないときは理由を返す. */
 export function upgrade(c: Career, key: FacKey): string | null {

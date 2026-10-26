@@ -287,6 +287,10 @@ export interface Mission {
   target: number;
   progress: number;
   reward: Partial<Record<Ingredient, number>>;
+  /** 報酬の資金(万円) */
+  cash?: number;
+  /** 報酬の信頼度 */
+  trust?: number;
 }
 
 /** 食べた料理の効き目 */

@@ -75,7 +75,8 @@ export function ageFactor(p: Player): number {
  */
 export function growAttr(p: Player, k: AttrKey, mult: number): void {
   const room = p.pot[k] - p[k];
-  const rf = room <= 0 ? 0.04 : Math.min(1, 0.25 + room / 14);
+  // 上限は目安.超えても止まらず,超えたぶんだけ伸びにくくなる
+  const rf = room <= 0 ? 0.12 / (1 + -room / 4) : Math.min(1, 0.25 + room / 14);
   p[k] = Math.min(99, p[k] + (0.7 + rand() * 1.6) * mult * ageFactor(p) * rf);
 }
 
@@ -100,6 +101,21 @@ export function agePlayer(p: Player): boolean {
     }
   }
   return p.age >= 37 || (p.age >= 34 && rand() < 0.35);
+}
+
+/**
+ * 1年に1度,上限が少しずつ動く.若いうちはゆらぎ,まれに「覚醒」して大きく伸びる.
+ * 覚醒した能力を返す(なければ null).
+ */
+export function driftPot(p: Player): AttrKey | null {
+  const ks = keysOf(p);
+  if (p.age <= PEAK[p.type][1]) for (const k of ks) p.pot[k] = clamp(Math.round(p.pot[k] + randn() * 1.5), Math.ceil(p[k]), 99);
+  if (p.age <= PEAK[p.type][1] + 2 && rand() < 0.04) {
+    const k = pick(ks);
+    p.pot[k] = clamp(p.pot[k] + ri(6, 12), Math.ceil(p[k]), 99);
+    return k;
+  }
+  return null;
 }
 
 /** 伸びしろのおおまかな表示 */

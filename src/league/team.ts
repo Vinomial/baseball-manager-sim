@@ -43,6 +43,10 @@ export function fit(p: Player, pos: LineupPos): number {
   return inf.includes(pos) === inf.includes(p.pos) ? -12 : -25;
 }
 
+/** その守備位置に置いたときの価値.本職を優先し,守備位置のずれは重く見る. */
+export const posVal = (p: Player, pos: LineupPos): number =>
+  batVal(p) + (p.field + fit(p, pos)) * 0.9 + (pos !== '指' && p.pos === pos ? 7 : 0);
+
 /** おまかせオーダーの組み方.form: 調子と疲れ,怪我を見る.develop: 若く伸びしろのある選手にも出番を与える.noise: 組み方のぶれ. */
 export interface AutoOpts { mode?: 'ability' | 'form' | 'develop'; noise?: number; }
 
@@ -67,7 +71,7 @@ export function autoLineup(t: Team, o: AutoOpts = {}): void {
     let best: Player | null = null, bv = -1e9;
     for (const p of F) {
       if (used.has(p.id)) continue;
-      const v = batVal(p) + (p.field + fit(p, pos)) * 0.9 + (bonus.get(p.id) ?? 0);
+      const v = posVal(p, pos) + (bonus.get(p.id) ?? 0);
       if (v > bv) { bv = v; best = p; }
     }
     if (best) { used.add(best.id); chosen.push({ pid: best.id, pos }); }
@@ -113,7 +117,7 @@ export function effectiveLineup(t: Team): { pid: number; pos: LineupPos }[] {
     let best: Player | null = null, bv = -1e9;
     for (const p of bench) {
       if (taken.has(p.id)) continue;
-      const v = batVal(p) + (p.field + fit(p, e.pos)) * 0.9;
+      const v = posVal(p, e.pos);
       if (v > bv) { bv = v; best = p; }
     }
     if (!best) return e;

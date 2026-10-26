@@ -86,7 +86,7 @@ export function judgeTrainGoals(c: Career): string[] {
     const t = p.train;
     if (!t || t.season !== c.season) continue;
     if (p[t.attr] >= t.target) {
-      p.pot[t.attr] = Math.min(99, p.pot[t.attr] + 3);
+      p.pot[t.attr] = Math.min(99, p.pot[t.attr] + 8);
       p.morale = Math.min(100, p.morale + 25);
       out.push(`${p.name}が特訓目標を達成!(${LABEL[t.attr]} ${t.from}→${Math.round(p[t.attr])})`);
       addStory(c, p, `特訓で${LABEL[t.attr]}を${t.from}から${Math.round(p[t.attr])}まで伸ばした.`);

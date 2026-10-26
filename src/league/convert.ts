@@ -121,11 +121,12 @@ export function convertAdvice(c: Career): ConvertTip[] {
     if (e.pos === '指') continue;
     const pos = e.pos as Pos;
     const inc = findPlayer(u, e.pid);
+    // 本職の選手が守っている位置は,控えを転向させて競わせるだけにとどめる(本職を外す提案はしない)
     if (!inc) continue;
     for (const b of u.players) {
       if (b.role !== '野手' || inL.has(b.id) || b.conv || seen.has(b.id) || b.pos === pos || b.alt?.includes(pos)) continue;
       const gap = suitability(b, pos) - suitability(inc, pos);
-      if (gap < 6) continue;
+      if (gap < (inc.pos === pos ? 10 : 6)) continue;
       tips.push({
         pid: b.id, to: pos, weeks: convertWeeks(b.pos as Pos, pos), chance: convertChance(b, pos), gain: gap,
         text: `控えの${b.name}(${POS_NAME[b.pos]},${b.age}歳)は,${POS_NAME[pos]}に向いています(適性${suitability(b, pos)}).${POS_NAME[pos]}の${inc.name}(適性${suitability(inc, pos)})より上で,競争を促せます.`,

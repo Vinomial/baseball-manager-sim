@@ -312,7 +312,9 @@ export function finishSeason(c: Career): void {
   for (const lg of c.leagues) {
     for (const t of leagueTeams(c, lg.level)) {
       archiveSeason(c, t, lg.level);
-      const out = ageTeam(t);
+      const awakened: string[] = [];
+      const out = ageTeam(t, awakened);
+      if (t.user) c.news.push(...awakened);
       for (const p of out) addLegend(c, p, t);
       if (t.user) retired.push(...out.map((p) => p.name));
     }

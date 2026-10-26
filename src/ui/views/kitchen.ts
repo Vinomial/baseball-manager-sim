@@ -8,7 +8,7 @@ import { esc } from '../../util/format';
 /** ミッションと台所.食材を集めて料理を作ると,練習の伸びが大きくなる. */
 export function missionsHTML(c: Career): string {
   return `<div class="plist">${c.missions.map((m) =>
-    `<div class="pl"><div class="top"><span class="nm">${esc(m.title)}</span><span class="small muted">報酬 ${esc(rewardText(m.reward))}</span></div>
+    `<div class="pl"><div class="top"><span class="nm">${esc(m.title)}</span><span class="small muted">報酬 ${esc(rewardText(m.reward, m))}</span></div>
     <div class="chem"><span class="bar"><i style="width:${Math.min(100, (m.progress / m.target) * 100)}%"></i></span><span class="small">${m.progress}/${m.target}</span></div></div>`).join('')}</div>`;
 }
 

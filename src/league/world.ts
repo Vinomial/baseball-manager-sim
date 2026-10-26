@@ -4,7 +4,7 @@
  */
 import { DIFFS, DRAFT_ROUNDS, LABEL, MOVES, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
-import { agePlayer, condDrift, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
+import { agePlayer, condDrift, driftPot, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
 import { heal, isHurt, maybeInjure } from './health';
@@ -244,10 +244,12 @@ export function archiveSeason(c: Career, t: Team, level: number): void {
 }
 
 /** 1年分の加齢.引退した選手の名前を返す. */
-export function ageTeam(t: Team): Player[] {
+export function ageTeam(t: Team, awakened?: string[]): Player[] {
   const out: Player[] = [];
   for (const p of [...t.players]) {
-    if (agePlayer(p)) { out.push(p); t.players = t.players.filter((x) => x !== p); }
+    if (agePlayer(p)) { out.push(p); t.players = t.players.filter((x) => x !== p); continue; }
+    const k = driftPot(p);
+    if (k && awakened) awakened.push(`${p.name}が覚醒! ${LABEL[k]}の限界が大きく広がった.`);
   }
   t.pitchers = t.pitchers.filter((id) => t.players.some((p) => p.id === id));
   t.lineup = t.lineup.filter((e) => t.players.some((p) => p.id === e.pid));

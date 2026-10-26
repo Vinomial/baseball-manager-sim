@@ -14,7 +14,7 @@ import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from '
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
-export const AI_YEAR_GAIN = [2.7, 3.2, 4, 5, 5.5];
+export const AI_YEAR_GAIN = [2.7, 3.3, 4.3, 5.6, 6.3];
 
 /** AI チームの連携の初期値はリーグが上がるほど高い */
 export const aiChem = (level: number): number => 20 + level * 12;

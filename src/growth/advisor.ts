@@ -105,8 +105,8 @@ export function adviseTraining(t: Team, lgAvg: Gains, weeks: number, scale: numb
 }
 
 /** プレイヤー以外の,リーグ内の他チームの能力の平均 */
-export function leagueAvgAttrs(c: Career, level: number = c.level): Gains {
-  const others = leagueTeams(c, level).filter((t) => !t.user);
+export function leagueAvgAttrs(c: Career): Gains {
+  const others = leagueTeams(c).filter((t) => !t.user);
   const out = zero();
   if (!others.length) return out;
   for (const t of others) { const a = teamAttrs(t); for (const k of ALL_KEYS) out[k] += a[k] / others.length; }

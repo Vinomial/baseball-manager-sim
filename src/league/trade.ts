@@ -26,7 +26,7 @@ export function tradeRatio(give: Player[], want: Player): number {
 }
 
 export function tradeOthers(c: Career): Team[] {
-  return leagueTeams(c, c.level).filter((t) => !t.user);
+  return leagueTeams(c).filter((t) => !t.user);
 }
 
 /** トレードを行う.できないときは理由を返す. */

@@ -97,7 +97,7 @@ for (const menu of ['mix', 'bat'] as MenuKey[]) {
       while (c.phase === 'season' && !c.fired) playWeek(c, menu);
       if (c.fired) { fired++; break; }
       lv[s] += c.off!.from / R; rk[s] += c.off!.rank / R; my[s] += c.hist[c.hist.length - 1].ovr / R;
-      LEAGUES.forEach((_, l) => { lgOvr[l][s] += leagueTeams(c, l).reduce((a, t) => a + ovr(t), 0) / leagueTeams(c, l).length / R; });
+      LEAGUES.forEach((_, l) => { lgOvr[l][s] += leagueTeams(c, c.leagues[l]).reduce((a, t) => a + ovr(t), 0) / leagueTeams(c, c.leagues[l]).length / R; });
       if (c.off!.playoff.includes('優勝')) { titles++; if (c.off!.from === 3) protitles++; }
       autoOffseason(c);
     }

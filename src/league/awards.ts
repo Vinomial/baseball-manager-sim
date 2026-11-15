@@ -22,10 +22,10 @@ export function computeAwards(c: Career, champIds: Record<number, number>): Awar
       out.push({ season: c.season, level: lg.level, kind, pid: p.id, name: p.name, team, text, mine: mineIds.has(p.id) });
       if (mineIds.has(p.id)) addStory(c, p, `${LEAGUES[lg.level].name}の${kind}になった.`);
     };
-    for (const b of leaders(c, lg.level, 1)) if (b.rows[0]) add(kinds[b.key], b.rows[0].p, b.rows[0].team, b.rows[0].text);
+    for (const b of leaders(c, lg, 1)) if (b.rows[0]) add(kinds[b.key], b.rows[0].p, b.rows[0].team, b.rows[0].text);
     // 新人王: 1 年目の選手(まだ過去の成績がない)で,いちばん活躍した選手
     let rk: { p: Player; t: Team; v: number } | null = null;
-    for (const t of leagueTeams(c, lg.level)) {
+    for (const t of leagueTeams(c, lg)) {
       for (const p of t.players) {
         if (p.seasons.length > 0 || p.stats.g < 3) continue;
         const v = seasonScore(p);
@@ -35,7 +35,7 @@ export function computeAwards(c: Career, champIds: Record<number, number>): Awar
     if (rk && rk.v > 0) add('新人王', rk.p, rk.t.name, rk.p.role === '野手' ? `${rk.p.stats.hr}本 ${rk.p.stats.rbi}打点` : `${rk.p.stats.w}勝 ${rk.p.stats.k}奪三振`);
     // MVP: 優勝チームの選手は少し有利
     let best: { p: Player; t: Team; v: number } | null = null;
-    for (const t of leagueTeams(c, lg.level)) {
+    for (const t of leagueTeams(c, lg)) {
       for (const p of t.players) {
         const v = seasonScore(p) * (t.id === champIds[lg.level] ? 1.15 : 1);
         if (!best || v > best.v) best = { p, t, v };
@@ -84,7 +84,7 @@ export function recordGame(c: Career, oppId: number, us: number, them: number): 
 
 /** ライバルを決める.同じリーグにいる間は同じチーム.いなくなったら,いちばん強い他チーム. */
 export function pickRival(c: Career): void {
-  const others = leagueTeams(c, c.level).filter((t) => !t.user);
+  const others = leagueTeams(c).filter((t) => !t.user);
   if (c.rival !== null && others.some((t) => t.id === c.rival)) return;
   c.rival = others.length ? others.reduce((a, b) => (ovr(b) > ovr(a) ? b : a)).id : null;
 }

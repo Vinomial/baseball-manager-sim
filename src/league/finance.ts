@@ -4,6 +4,7 @@ import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
 import { clamp, seeded } from '../util/random';
 import { ovr } from './team';
+import { userLeague } from './schedule';
 
 export const payroll = (t: Team): number => t.players.reduce((s, p) => s + p.salary, 0);
 
@@ -74,7 +75,7 @@ export interface Forecast {
 
 /** 残りの試合を何度か作って,最終順位の見込みを出す. */
 export function forecast(c: Career, runs = 250): Forecast {
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   // 同じ状況なら,いつも同じ予想になる(画面を開き直すたびに数字が変わらない).ゲームの乱数も使わない.
   const rand = seeded((c.season * 1009 + c.cal * 101 + lg.week * 13 + c.userId * 7 + runs) >>> 0);
   const ids = lg.teamIds;

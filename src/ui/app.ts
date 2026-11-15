@@ -10,7 +10,7 @@ import { sellIngredient, upgrade } from '../league/economy';
 import { chooseMenu, stopReason } from '../league/autoplay';
 import { WEEKS_PER_YEAR, weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
-import { standings } from '../league/schedule';
+import { standings, userLeague } from '../league/schedule';
 import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
@@ -187,7 +187,7 @@ function renderInner(): void {
   if (state.screen === 'new') { root.innerHTML = renderStart(true); return; }
   if (c.fired) { root.innerHTML = renderFired(c); return; }
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
-  const rec = c.phase === 'season' ? c.leagues[c.level].stand[c.userId] : c.off!.rec;
+  const rec = c.phase === 'season' ? userLeague(c).stand[c.userId] : c.off!.rec;
   const weekLabel = c.phase === 'season' ? weekInfo(c).label.replace(' 第', '') : 'オフ';
   const body = {
     home: () => renderHome(c),

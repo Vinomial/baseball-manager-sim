@@ -3,7 +3,7 @@ import { LABEL } from '../data/constants';
 import type { AttrKey, Career, Player } from '../types';
 import { goalProgress } from './goals';
 import { downCount, upCount } from './finance';
-import { standings } from './schedule';
+import { standings, userLeague } from './schedule';
 
 export type Phase = 'ki' | 'sho' | 'ten' | 'ketsu';
 
@@ -21,7 +21,7 @@ export const chapterTitle = (c: Career): string => `第${c.season}季「${CHAPTE
 /** いまの場面の一言.状況によって変わる. */
 export function storyBeat(c: Career): string {
   const ph = phaseOf(c);
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   const tbl = standings(c);
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
   const n = tbl.length;

@@ -21,7 +21,7 @@ export function renderTable(c: Career): string {
     `<button data-a="lv" data-i="${i}" aria-pressed="${i === level}">${x.name.replace('リーグ', '')}${i === c.level ? ' ★' : ''}</button>`).join('')}</div>`;
   const upN = level < MOVES.length ? MOVES[level] : 0, downN = level > 0 ? MOVES[level - 1] : 0;
   const moveNote = `${upN ? `上位${upN}チームは自動昇格,${upN + 1}位は上のリーグとの入れ替え戦.` : ''}${downN ? `下位${downN}チームは自動降格,下から${downN + 1}番目は入れ替え戦.` : ''}${lg.divs ? '各地区の上位2チームが' : '上位4チームが'}プレーオフに進みます.`;
-  const tbl = standings(c, level);
+  const tbl = standings(c, lg);
   let h = `${tabs}<h2>${L.name} 順位表 <span class="small muted">(${lg.week}/${lg.schedule.length}試合)</span></h2><p class="small muted">${moveNote}</p>
   <div class="card scroll"><table class="std"><thead><tr><th>順位</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>得失点</th><th>戦力</th></tr></thead><tbody>
   ${tbl.map((r, i) => `<tr class="${r.t.user ? 'me' : ''}"><td>${i + 1}</td><td>${emblem(r.t, 18)} <button class="linkish" data-a="vteam" data-id="${r.t.id}">${esc(r.t.name)}</button>${lg.divs ? `<span class="tag">${lg.divs[0].includes(r.t.id) ? 'A' : 'B'}</span>` : ''}</td><td>${r.w + r.l + r.d}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${r.w + r.l ? (r.w / (r.w + r.l)).toFixed(3) : '---'}</td><td>${r.rf - r.ra > 0 ? '+' : ''}${r.rf - r.ra}</td><td>${gradeHTML(ovr(r.t))}</td></tr>`).join('')}
@@ -34,7 +34,7 @@ export function renderTable(c: Career): string {
     h += `<p class="small muted">チーム名をタップすると,選手と通算成績が見られます.</p>`;
   }
 
-  h += `<h2>個人成績 <span class="small muted">(${L.name})</span></h2><div class="boards">${leaders(c, level).map((b) =>
+  h += `<h2>個人成績 <span class="small muted">(${L.name})</span></h2><div class="boards">${leaders(c, lg).map((b) =>
     `<div class="board2"><h4>${b.name}</h4>${b.rows.length ? `<ol>${b.rows.map((r) => `<li><span>${esc(r.p.name)} <span class="muted">${esc(r.team.slice(0, 4))}</span></span><b>${r.text}</b></li>`).join('')}</ol>` : '<span class="small muted">まだありません</span>'}</div>`).join('')}</div>`;
 
   const rh = lg.teamIds.map((id) => ({ name: teamById(c, id).name, values: lg.rankHist[id] ?? [], user: id === c.userId }));

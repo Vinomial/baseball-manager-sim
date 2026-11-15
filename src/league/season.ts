@@ -28,7 +28,7 @@ import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
-import { leagueOfTeam, leagueTeams, standings, teamById } from './schedule';
+import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
@@ -97,7 +97,7 @@ function carryOver(c: Career, prev: Career): void {
 
 /** 次のリーグ戦のプレイヤーの対戦カード(シーズンが終わっていれば null) */
 export function userMatch(c: Career): { home: boolean; opp: Team; pair: [number, number]; cal: number } | null {
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   if (lg.week >= lg.schedule.length) return null;
   const pair = lg.schedule[lg.week].find((x) => x.includes(c.userId));
   if (!pair) return null;
@@ -131,7 +131,7 @@ export interface WeekResult {
 /** 練習試合.本物の選手には影響させず,疲れと小さな経験だけを返す. */
 function playPractice(c: Career): Game {
   const u = userTeam(c);
-  const others = leagueTeams(c, c.level).filter((t) => !t.user);
+  const others = leagueTeams(c).filter((t) => !t.user);
   // オープン戦は,週ごとに相手が変わる(リーグの他チームを順番に)
   const opp = c.cal >= 8 && c.cal < 12 ? others[(c.cal - 8) % others.length] : pick(others);
   const g = newGame(structuredClone(u), structuredClone(opp), true);
@@ -216,7 +216,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
 
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);
-  c.week = c.leagues[c.level].week;
+  c.week = userLeague(c).week;
   updateMorale(c, kind === 'league' || kind === 'playoff' || kind === 'cup' ? ctx.some((x) => x.win) ? true : ctx.length ? false : null : null, mentalBoost(c));
   tickConvert(c, menu);
   tickScout(c);
@@ -286,12 +286,12 @@ export function finishSeason(c: Career): void {
   stepLeagues(c, false);
   const tbl = standings(c);
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
-  const rec = { ...c.leagues[c.level].stand[c.userId] };
+  const rec = { ...userLeague(c).stand[c.userId] };
 
   // プレーオフと全日本選手権の結果
   const champIds: Record<number, number> = {};
   for (const lg of c.leagues) if (lg.po?.champion != null) champIds[lg.level] = lg.po.champion;
-  const playoff = playoffText(c, c.leagues[c.level]);
+  const playoff = playoffText(c, userLeague(c));
   const cup = cupSummary(c);
   if (cup.wins > 0) {
     addTrust(c, cup.wins * 1.5 + cup.giantKills * 3 + (cup.champion ? 8 : 0));
@@ -311,7 +311,7 @@ export function finishSeason(c: Career): void {
   // 成績の記録と加齢(年俸は加齢のあとに契約更改で見直す)
   const retired: string[] = [];
   for (const lg of c.leagues) {
-    for (const t of leagueTeams(c, lg.level)) {
+    for (const t of leagueTeams(c, lg)) {
       archiveSeason(c, t, lg.level);
       const awakened: string[] = [];
       const out = ageTeam(t, awakened);
@@ -342,7 +342,7 @@ export function finishSeason(c: Career): void {
     }
   }
   // GMの信頼度.順位,昇降格,優勝で変わる
-  const expRank = [...leagueTeams(c, from)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
+  const expRank = [...leagueTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
   addTrust(c, (expRank - rank) * 1.5 + (champIds[from] === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
   checkFired(c, `${c.season}年目の成績不振が続き,球団から解任されました.`);
   c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= 4, champIds[from] === c.userId, c.revenue);

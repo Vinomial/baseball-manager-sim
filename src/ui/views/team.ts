@@ -15,7 +15,7 @@ const LEAGUE = 'var(--accent)';
 export function renderTeam(c: Career): string {
   const u = userTeam(c);
   const mine = teamAttrs(u);
-  const lgTeams = leagueTeams(c, c.level);
+  const lgTeams = leagueTeams(c);
   const lg = leagueAvgAttrs(c);
 
   const radar: Series[] = [

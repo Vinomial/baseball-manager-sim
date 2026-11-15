@@ -92,7 +92,7 @@ export function playRound(c: Career, lg: LeagueState, skipUser: boolean): void {
   }
   lg.week++;
   // 順位の遷移を記録する
-  standings(c, lg.level).forEach((r, i) => { (lg.rankHist[r.t.id] ??= []).push(i + 1); });
+  standings(c, lg).forEach((r, i) => { (lg.rankHist[r.t.id] ??= []).push(i + 1); });
 }
 
 /** 暦の週が進むたびに,すべてのチームで行うこと.疲れの回復,AI の練習と調子. */
@@ -166,7 +166,7 @@ export function playSeries(c: Career, hi: Team, lo: Team, wins: number): SeriesR
 
 /** プレーオフに進む 4 チーム.地区があれば,各地区の上位 2 チーム(地区優勝が上位シード). */
 export function playoffSeeds(c: Career, lg: LeagueState): number[] {
-  const tbl = standings(c, lg.level);
+  const tbl = standings(c, lg);
   if (!lg.divs) return tbl.slice(0, 4).map((r) => r.t.id);
   const inDiv = lg.divs.map((d) => tbl.filter((r) => d.includes(r.t.id)).map((r) => r.t.id));
   const winners = inDiv.map((d) => d[0]).sort((a, b) => tbl.findIndex((r) => r.t.id === a) - tbl.findIndex((r) => r.t.id === b));
@@ -229,7 +229,7 @@ export interface Swap { l: number; lower: number; upper: number; winner: number;
 export function playSwaps(c: Career): Swap[] {
   const out: Swap[] = [];
   for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const lower = standings(c, l), upper = standings(c, l + 1);
+    const lower = standings(c, c.leagues[l]), upper = standings(c, c.leagues[l + 1]);
     const k = MOVES[l];
     const lo = lower[k]?.t, up = upper[upper.length - 1 - k]?.t;
     if (!lo || !up) continue;
@@ -245,7 +245,7 @@ export function computeNextLevels(c: Career, swaps: Swap[] = []): Record<number,
   const next: Record<number, number> = {};
   for (const lg of c.leagues) for (const id of lg.teamIds) next[id] = lg.level;
   for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const lower = standings(c, l), upper = standings(c, l + 1);
+    const lower = standings(c, c.leagues[l]), upper = standings(c, c.leagues[l + 1]);
     const k = MOVES[l];
     for (const r of lower.slice(0, k)) next[r.t.id] = l + 1;
     for (const r of upper.slice(-k)) next[r.t.id] = l;

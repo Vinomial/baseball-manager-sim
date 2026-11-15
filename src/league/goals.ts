@@ -3,12 +3,12 @@ import { pick } from '../util/random';
 import type { Career, Goal, GoalResult, Review } from '../types';
 import { forecast } from './finance';
 import { earn, moneyScale } from './economy';
-import { leagueTeams, standings } from './schedule';
+import { leagueTeams, standings, userLeague } from './schedule';
 import { ovr } from './team';
 
 /** 今のチームの強さの順位(総合力で見た順位,1 が最も強い) */
 export function expectedRank(c: Career): number {
-  return [...leagueTeams(c, c.level)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
+  return [...leagueTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
 }
 
 /** 新しいシーズンの目標を 2 つ決める.強さに応じて,少し背伸びした目標になる. */
@@ -35,7 +35,7 @@ export function makeGoals(c: Career): Goal[] {
 
 /** 目標の進み具合の表示(シーズン中) */
 export function goalProgress(c: Career, g: Goal): string {
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   const st = lg.stand[c.userId];
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
   switch (g.kind) {

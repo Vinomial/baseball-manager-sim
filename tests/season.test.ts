@@ -1214,7 +1214,7 @@ describe('昇格・降格の枠', () => {
       expect(down).toBe(up);
     }
     // 最下位リーグの最下位は降格しない
-    const last = standings(c, 0).slice(-1)[0].t.id;
+    const last = standings(c, c.leagues[0]).slice(-1)[0].t.id;
     expect(o.next[last]).toBe(0);
   });
 });
@@ -1246,7 +1246,7 @@ describe('入れ替え戦と拡張', () => {
     const o = c.off!;
     expect(o.swaps).toHaveLength(LEAGUES.length - 1);
     for (let l = 0; l < LEAGUES.length - 1; l++) {
-      const lo = standings(c, l)[MOVES[l]].t.id, up = standings(c, l + 1).slice().reverse()[MOVES[l]].t.id;
+      const lo = standings(c, c.leagues[l])[MOVES[l]].t.id, up = standings(c, c.leagues[l + 1]).slice().reverse()[MOVES[l]].t.id;
       expect([o.next[lo], o.next[up]].sort()).toEqual([l, l + 1]);
     }
   });

@@ -2,6 +2,7 @@ import { DIFFS, LEAGUES } from '../../data/constants';
 import { userTeam } from '../../league/season';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { userLeague } from '../../league/schedule';
 
 /** 新しいチームを作る画面.canCancel のときは,タイトルに戻れる. */
 export function renderStart(canCancel = false): string {
@@ -25,9 +26,9 @@ export function renderTitle(c: Career | null): string {
   <div class="team">草野球から,プロの頂点へ.</div></header>`;
   if (c) {
     const u = userTeam(c);
-    const rec = c.phase === 'season' ? c.leagues[c.level].stand[c.userId] : c.off!.rec;
+    const rec = c.phase === 'season' ? userLeague(c).stand[c.userId] : c.off!.rec;
     h += `<div class="card"><p style="margin:0 0 4px"><b>${esc(u.name)}</b> <span class="small muted">${LEAGUES[c.level].name}</span></p>
-    <p class="small muted" style="margin:0 0 10px">第${c.season}シーズン ${c.phase === 'season' ? `${c.week}/${c.leagues[c.level].schedule.length}試合` : 'オフシーズン'} / ${rec.w}勝${rec.l}敗${rec.d}分 / 信頼度 ${Math.round(c.trust)}</p>
+    <p class="small muted" style="margin:0 0 10px">第${c.season}シーズン ${c.phase === 'season' ? `${c.week}/${userLeague(c).schedule.length}試合` : 'オフシーズン'} / ${rec.w}勝${rec.l}敗${rec.d}分 / 信頼度 ${Math.round(c.trust)}</p>
     <button class="btn" data-a="screen" data-k="play" style="width:100%">▶ つづきから</button></div>`;
   }
   h += `<div class="card"><div class="row"><button class="btn ghost" data-a="screen" data-k="new">${c ? '新しく始める' : 'はじめる'}</button>

@@ -4,7 +4,7 @@ import { MENUS } from '../../growth/training';
 import { weekInfo } from '../../league/calendar';
 import { fmtYen } from '../../league/finance';
 import { hurtPlayers } from '../../league/health';
-import { standings } from '../../league/schedule';
+import { standings, userLeague } from '../../league/schedule';
 import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import { warnings } from '../../league/warnings';
@@ -25,7 +25,7 @@ import { renderTraining } from './training';
 function dashboardHTML(c: Career): string {
   const u = userTeam(c);
   const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
-  const rec = c.leagues[c.level].stand[c.userId];
+  const rec = userLeague(c).stand[c.userId];
   const hurt = hurtPlayers(u).length;
   const tired = u.players.filter((p) => p.fatigue >= 70 && !(p.inj && p.inj.weeks > 0)).length;
   const cond = hurt || tired ? `${hurt ? `🩹${hurt}` : ''}${hurt && tired ? ' ' : ''}${tired ? `疲${tired}` : ''}` : '良好';
@@ -62,7 +62,7 @@ export function renderHome(c: Career): string {
   h += todoHTML(c);
   if (c.cal < 12) h += convertTipsHTML(c, '春季キャンプのコンバート提案');
 
-  const total = c.leagues[c.level].schedule.length, lg = LEAGUES[c.level];
+  const total = userLeague(c).schedule.length, lg = LEAGUES[c.level];
   h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;
   if (info.note) h += `<p class="small" style="margin:0 0 6px">${esc(info.note)}</p>`;
   if (info.userGame === 'league' && m) {

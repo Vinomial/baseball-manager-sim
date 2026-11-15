@@ -139,7 +139,7 @@ const makers: Maker[] = [
     if (!ps.length) return null;
     const p = pick(ps);
     if ((p.role === '野手' ? fielders(t).length : pitchersOf(t).length) <= (p.role === '野手' ? MIN_FIELDERS : MIN_PITCHERS) + 1) return null;
-    const o = pick(leagueTeams(c, c.level).filter((x) => !x.user));
+    const o = pick(leagueTeams(c).filter((x) => !x.user));
     return {
       kind: 'poach', pid: p.id, teamId: o.id, title: `${o.name}が${p.name}を希望`,
       body: `${o.name}が,控えの${p.name}を${fmtYen(p.salary * 8)}で譲ってほしいと申し出ました.`,
@@ -281,7 +281,7 @@ const makers: Maker[] = [
     const mine = t.players.filter((p) => !core.has(p.id) && p.age <= 25 && futureValue(p) > playerValue(p) + 6);
     if (!mine.length) return null;
     const p = pick(mine);
-    const others = leagueTeams(c, c.level).filter((x) => !x.user);
+    const others = leagueTeams(c).filter((x) => !x.user);
     const cand = shuffle(others).flatMap((o) => o.players.filter((q) => q.role === p.role && q.age >= 28 && playerValue(q) >= playerValue(p) + 5).map((q) => ({ o, q })));
     if (!cand.length) return null;
     const { o, q } = cand.reduce((a, b) => (playerValue(b.q) > playerValue(a.q) ? b : a));

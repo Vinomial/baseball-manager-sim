@@ -1,6 +1,6 @@
 /** 個人成績のランキングと通算成績.DOM に依存しない. */
 import { emptyStats } from '../growth/player';
-import type { Career, Player, Stats } from '../types';
+import type { Career, LeagueState, Player, Stats } from '../types';
 import { leagueTeams } from './schedule';
 
 export interface LeaderRow { p: Player; team: string; value: number; text: string; }
@@ -19,11 +19,10 @@ export const whipOf = (s: Stats): number => (s.outs ? ((s.ha + s.bba) * 3) / s.o
 export const fmt3 = (v: number): string => (v >= 1 ? '1.000' : '.' + String(Math.round(v * 1000)).padStart(3, '0'));
 
 /** 今シーズンの個人成績ランキング.規定に満たない選手は打率・防御率から除く. */
-export function leaders(c: Career, level: number, n = 5): Board[] {
-  const lg = c.leagues[level];
+export function leaders(c: Career, lg: LeagueState, n = 5): Board[] {
   const games = lg.week;
   const rows: { p: Player; team: string }[] = [];
-  for (const t of leagueTeams(c, level)) for (const p of t.players) rows.push({ p, team: t.name });
+  for (const t of leagueTeams(c, lg)) for (const p of t.players) rows.push({ p, team: t.name });
   const bats = rows.filter((r) => r.p.role === '野手'), pits = rows.filter((r) => r.p.role === '投手');
   const top = (list: { p: Player; team: string }[], f: (s: Stats) => number, text: (v: number) => string, asc = false, ok: (s: Stats) => boolean = () => true): LeaderRow[] =>
     list.filter((r) => ok(r.p.stats))

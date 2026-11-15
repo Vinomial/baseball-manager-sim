@@ -2,7 +2,7 @@
 import { LEAGUES } from '../data/constants';
 import type { Career, CupMatch, Game, Team } from '../types';
 import { cupRoundName } from './calendar';
-import { standings, teamById } from './schedule';
+import { leaguesInTier, standings, teamById } from './schedule';
 import { playSeries } from './world';
 
 /** 標準の対戦表の並び(シード 1 が最後に当たる位置に置く) */
@@ -15,7 +15,7 @@ function bracketOrder(n: number): number[] {
 /** シードは上のリーグ,そのリーグの順位の順.上位のシードは 1 回戦が免除される. */
 export function startCup(c: Career): void {
   const seeds: Team[] = [];
-  for (let l = LEAGUES.length - 1; l >= 0; l--) seeds.push(...standings(c, l).map((r) => r.t));
+  for (let l = LEAGUES.length - 1; l >= 0; l--) for (const lg of leaguesInTier(c, l)) seeds.push(...standings(c, lg).map((r) => r.t));
   c.cup = { slots: bracketOrder(64).map((s) => seeds[s - 1]?.id ?? null), round: 0, done: false };
   c.cupBracket = [];
 }

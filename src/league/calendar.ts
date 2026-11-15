@@ -1,5 +1,6 @@
 /** 1 年 = 12 か月 × 4 週 = 48 週.週ごとに何が行われるか. */
 import type { Career, GameKind } from '../types';
+import { userLeague } from './schedule';
 
 export const WEEKS_PER_YEAR = 48;
 /** リーグ戦は 4 月(12 週目)から 10 月までの 28 週 */
@@ -49,7 +50,7 @@ export const cupRoundName = (round: number): string => CUP_NAMES[round] ?? `${ro
 
 /** プレイヤーがこの週に出る公式戦 */
 export function userGameKind(c: Career): Exclude<GameKind, 'practice'> | null {
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   if (c.cal >= SEASON_START && c.cal < PLAYOFF_START) {
     return lg.week < lg.schedule.length && lg.weeks[lg.week] <= c.cal ? 'league' : null;
   }

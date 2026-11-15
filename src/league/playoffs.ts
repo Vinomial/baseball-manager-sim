@@ -2,7 +2,7 @@
 import type { Career, LeagueState, Team } from '../types';
 import { CUP_START } from './calendar';
 import { winProb } from './finance';
-import { teamById } from './schedule';
+import { teamById, userLeague } from './schedule';
 
 /** 1 試合の勝率が p のとき,先に wins 勝するシリーズに勝つ確率 */
 export function seriesWinProb(p: number, wins: number): number {
@@ -32,7 +32,7 @@ export interface SeriesInfo {
 /** いま(今週)のプレイヤーのプレーオフまたは選手権の対戦.なければ null. */
 export function userSeries(c: Career): SeriesInfo | null {
   const u = c.teams.find((t) => t.user)!;
-  const lg = c.leagues[c.level];
+  const lg = userLeague(c);
   const po = lg.po;
   const mk = (kind: 'playoff' | 'cup', label: string, opp: Team | null, wins: number): SeriesInfo => {
     const pGame = opp ? winProb(u, opp) : 1;

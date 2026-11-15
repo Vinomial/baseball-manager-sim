@@ -2,6 +2,8 @@
  * 効果音と BGM.音声ファイルは使わず,Web Audio で小さな電子音を鳴らす(ドット風の雰囲気).
  * ブラウザの決まりで,最初の操作のあとからしか鳴らせない.
  */
+import { freq, notesAt, SONGS, type Scene } from './music';
+
 const KEY_SE = 'baseball-manager-sim/se';
 const KEY_BGM = 'baseball-manager-sim/bgm';
 const KEY_VOL = 'baseball-manager-sim/vol';
@@ -98,32 +100,92 @@ export const sfx = {
 /** 試合の結果で,勝ち負けの音を出す */
 export const resultSound = (win: boolean | null): void => { if (win === true) sfx.win(); else if (win === false) sfx.lose(); };
 
-/* ===== BGM(場面ごとのかんたんな音形のくりかえし) ===== */
-export type Scene = 'title' | 'home' | 'game' | 'off';
-interface Tune { melody: number[]; bass: number[]; ms: number; wave: OscillatorType; }
-const TUNES: Record<Scene, Tune> = {
-  title: { melody: [523, 0, 659, 0, 784, 0, 659, 0, 587, 0, 698, 0, 880, 0, 784, 0], bass: [131, 175, 196, 131], ms: 300, wave: 'triangle' },
-  home: { melody: [523, 0, 659, 0, 784, 659, 523, 0, 587, 0, 698, 0, 784, 698, 587, 0, 659, 0, 784, 0, 880, 784, 659, 0, 587, 659, 523, 0, 392, 0, 0, 0], bass: [131, 131, 196, 196, 175, 175, 196, 196], ms: 230, wave: 'square' },
-  game: { melody: [659, 659, 0, 784, 880, 0, 784, 659, 523, 0, 659, 0, 784, 880, 988, 0, 880, 0, 784, 0, 659, 784, 659, 0, 587, 0, 659, 0, 523, 0, 0, 0], bass: [131, 196, 131, 196, 175, 262, 175, 262], ms: 170, wave: 'square' },
-  off: { melody: [784, 0, 988, 0, 1175, 988, 784, 0, 880, 0, 1047, 0, 1319, 1047, 880, 0], bass: [196, 262, 196, 330], ms: 260, wave: 'triangle' },
-};
+/* ===== BGM(ファミコン風の 4 チャンネル.楽譜は music.ts) ===== */
+export type { Scene };
+
+/** 矩形波の幅(25% や 12.5%)を変えた音色.ファミコンらしい細い音になる. */
+const pulses = new Map<number, PeriodicWave>();
+function pulse(a: AudioContext, duty: number): PeriodicWave {
+  let w = pulses.get(duty);
+  if (!w) {
+    const n = 32, re = new Float32Array(n), im = new Float32Array(n);
+    for (let k = 1; k < n; k++) re[k] = (2 / (k * Math.PI)) * Math.sin(k * Math.PI * duty);
+    w = a.createPeriodicWave(re, im);
+    pulses.set(duty, w);
+  }
+  return w;
+}
+
+/** BGM の 1 音.t は AudioContext の時刻.音の頭と終わりを少しなめらかにして,プツッという音を防ぐ. */
+function voice(a: AudioContext, hz: number, t: number, dur: number, wave: 'p12' | 'p25' | 'p50' | 'tri', vol: number): void {
+  if (!bgmBus) return;
+  const o = a.createOscillator(), g = a.createGain();
+  if (wave === 'tri') o.type = 'triangle';
+  else if (wave === 'p50') o.type = 'square';
+  else o.setPeriodicWave(pulse(a, wave === 'p25' ? 0.25 : 0.125));
+  o.frequency.setValueAtTime(hz, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.01);
+  g.gain.setValueAtTime(vol, t + Math.max(0.02, dur - 0.04));
+  g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(bgmBus);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+let noiseBuf: AudioBuffer | null = null;
+function drum(a: AudioContext, kind: 'k' | 's' | 'h', t: number): void {
+  if (!bgmBus) return;
+  if (kind === 'k') {
+    // キック: 音程が急に下がる三角波
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    o.connect(g); g.connect(bgmBus); o.start(t); o.stop(t + 0.16);
+    return;
+  }
+  if (!noiseBuf) {
+    noiseBuf = a.createBuffer(1, Math.floor(a.sampleRate * 0.2), a.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = kind === 'h' ? 7000 : 1800;
+  const len = kind === 'h' ? 0.035 : 0.12, vol = kind === 'h' ? 0.035 : 0.09;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  s.connect(f); f.connect(g); g.connect(bgmBus);
+  s.start(t); s.stop(t + len + 0.02);
+}
+
 let bgmTimer: number | null = null;
 let step = 0;
+let nextAt = 0;
 let scene: Scene = 'home';
 
-function bgmTick(): void {
-  if (!sound.bgm) return;
-  const t = TUNES[scene];
-  const m = t.melody[step % t.melody.length];
-  if (m) tone(m, t.ms / 1000 * 0.75, t.wave, 0.04, 0, undefined, true);
-  if (step % 4 === 0) tone(t.bass[(step / 4) % t.bass.length], t.ms / 1000 * 2, 'triangle', 0.06, 0, undefined, true);
-  step++;
+/** 少し先(0.15 秒)までの音を,オーディオの時計で予約する.タイマーのずれでテンポが乱れない. */
+function schedule(): void {
+  const a = ac();
+  if (!a || !sound.bgm) return;
+  const song = SONGS[scene];
+  const dt = 30 / song.bpm;
+  if (nextAt < a.currentTime) nextAt = a.currentTime + 0.05;
+  while (nextAt < a.currentTime + 0.15) {
+    const n = notesAt(song, step);
+    if (n.lead) voice(a, freq(n.lead.midi), nextAt, dt * n.lead.len * 0.92, song.lead, song.lead === 'tri' ? 0.09 : 0.035);
+    if (n.bass !== null) voice(a, freq(n.bass), nextAt, dt * (song.bass === 'long' ? 3.6 : 0.9), 'tri', 0.1);
+    if (n.arp !== null) voice(a, freq(n.arp), nextAt, dt * 0.5, 'p12', 0.014);
+    if (n.drum) drum(a, n.drum, nextAt);
+    nextAt += dt;
+    step++;
+  }
 }
 
 function restartTimer(): void {
   if (bgmTimer !== null) { window.clearInterval(bgmTimer); bgmTimer = null; }
-  if (!sound.bgm || !ac()) return;
-  bgmTimer = window.setInterval(bgmTick, TUNES[scene].ms);
+  const a = ac();
+  if (!sound.bgm || !a) return;
+  nextAt = a.currentTime + 0.05;
+  bgmTimer = window.setInterval(schedule, 25);
 }
 
 export function startBgm(): void {
@@ -133,7 +195,7 @@ export function startBgm(): void {
 export function stopBgm(): void {
   if (bgmTimer !== null) { window.clearInterval(bgmTimer); bgmTimer = null; }
 }
-/** 場面に合わせて,BGM を切り替える */
+/** 場面に合わせて,BGM を切り替える(曲の頭から) */
 export function setScene(s: Scene): void {
   if (s === scene) return;
   scene = s;

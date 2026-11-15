@@ -13,6 +13,7 @@ import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgrad
 import { effectiveLineup, fit } from '../src/league/team';
 import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
+import { chordTones, freq, midi, notesAt, SONGS, songSteps, STEPS_PER_BAR } from '../src/ui/music';
 import { cardSVG, rarityOf } from '../src/ui/card';
 import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
 import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
@@ -2114,5 +2115,38 @@ describe('見た目(カード・エンブレム・トーナメント表)', () =>
     const lg = c.leagues[c.level];
     const svg = playoffBracketSVG(c, lg);
     expect(svg).toContain('準決勝');
+  });
+});
+
+describe('BGM の楽譜', () => {
+  it('どの曲も,1 小節が 8 ステップで,音名がすべて読め,コードと小節の数がそろう', () => {
+    for (const [name, s] of Object.entries(SONGS)) {
+      expect(s.chords.length, name).toBe(s.melody.length);
+      for (const bar of s.melody) {
+        const toks = bar.split(/\s+/);
+        expect(toks, `${name}: ${bar}`).toHaveLength(STEPS_PER_BAR);
+        for (const t of toks) if (t !== '-' && t !== '.') expect(midi(t), `${name}: ${t}`).not.toBeNull();
+        expect(toks[0], `${name}: 小節の頭がのばしになっている`).not.toBe('-');
+      }
+      if (s.drums) expect(s.drums).toHaveLength(STEPS_PER_BAR);
+    }
+  });
+
+  it('音の高さとコードの計算が正しい', () => {
+    expect(midi('A4')).toBe(69);
+    expect(midi('C4')).toBe(60);
+    expect(midi('Bb4')).toBe(70);
+    expect(midi('F#5')).toBe(78);
+    expect(Math.round(freq(69))).toBe(440);
+    expect(chordTones('Am')).toEqual({ root: 9, tones: [0, 3, 7] });
+    expect(chordTones('Bb').root).toBe(10);
+  });
+
+  it('のばしの記号でメロディの音の長さが決まり,曲はくり返す', () => {
+    const s = SONGS.title;
+    expect(notesAt(s, 0).lead).toEqual({ midi: midi('E5'), len: 2 });
+    expect(notesAt(s, 1).lead).toBeNull();
+    expect(notesAt(s, songSteps(s))).toEqual(notesAt(s, 0));
+    expect(notesAt(SONGS.game, 0).drum).toBe('k');
   });
 });

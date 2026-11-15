@@ -4,7 +4,7 @@ import { futureValue } from '../growth/player';
 import type { Career, Player } from '../types';
 import { projectedPayroll } from './contracts';
 import { budgetFor, fmtYen } from './finance';
-import { fielders, pitchersOf } from './team';
+import { activePlayers, fielders, pitchersOf } from './team';
 import { userRosterMax } from './season';
 
 export interface CutAdvice {
@@ -25,7 +25,7 @@ export function adviseCuts(c: Career): CutAdvice[] {
   if (!bench.length) return [];
   const fv = bench.map(futureValue).sort((a, b) => a - b);
   const median = fv[Math.floor(fv.length / 2)];
-  const over = Math.max(0, u.players.length - userRosterMax(c));
+  const over = Math.max(0, activePlayers(u).length - userRosterMax(c));
   let overBudget = Math.max(0, projectedPayroll(c) - budgetFor(c));
   const rows: CutAdvice[] = bench.map((p) => {
     const old = Math.max(0, p.age - 29);

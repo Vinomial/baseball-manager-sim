@@ -14,6 +14,7 @@ import { renderStaff } from './staff';
 import { forecastHTML, forecastSummary, trustHTML, trustSummary } from './status';
 import { goalsHTML } from './todo';
 import { ledgerHTML, ledgerSummary } from './ledger';
+import { activePlayers } from '../../league/team';
 
 /** GM画面.お金,スタッフ,施設,スカウト,目標など,チームの運営をまとめる. */
 export function renderGm(c: Career): string {
@@ -25,7 +26,7 @@ export function renderGm(c: Career): string {
     <div class="tile"><small>${term('fund')}</small><b>${fmtYen(c.funds)}</b><small>週 +${fmtYen(weeklyIncome(c))}</small></div>
     <div class="tile"><small>${term('salary')}総額</small><b>${fmtYen(pay)}</b><small>${term('budget')} ${fmtYen(bud)}</small></div>
     <div class="tile"><small>スタッフ費</small><b>${fmtYen(staffCost(c))}</b><small>年</small></div>
-    <div class="tile"><small>登録</small><b>${u.players.length}/${userRosterMax(c)}</b><small>人</small></div>
+    <div class="tile"><small>登録</small><b>${activePlayers(u).length}/${userRosterMax(c)}</b><small>人</small></div>
   </div></div>`;
   h += fold('ledger', '収支', ledgerSummary(c), ledgerHTML(c));
   h += fold('goals', 'オーナーの目標', `${c.goals.length}件`, goalsHTML(c), true);

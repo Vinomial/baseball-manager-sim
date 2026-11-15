@@ -19,8 +19,40 @@ export function findByPos(t: Team, pos: LineupPos): Player | undefined {
   return e && findPlayer(t, e.pid);
 }
 
-export const fielders = (t: Team): Player[] => t.players.filter((p) => p.role === '野手');
-export const pitchersOf = (t: Team): Player[] => t.players.filter((p) => p.role === '投手');
+/** 二軍の選手か */
+export const isFarm = (t: Team, p: Player): boolean => !!t.farm?.includes(p.id);
+/** 一軍の選手(登録人数に数える) */
+export const activePlayers = (t: Team): Player[] => (t.farm?.length ? t.players.filter((p) => !isFarm(t, p)) : t.players);
+/** 二軍に置ける人数 */
+export const FARM_MAX = 8;
+
+/** 一軍の野手・投手(二軍の選手は試合に出ないので除く) */
+export const fielders = (t: Team): Player[] => activePlayers(t).filter((p) => p.role === '野手');
+export const pitchersOf = (t: Team): Player[] => activePlayers(t).filter((p) => p.role === '投手');
+
+/** 二軍に送る.できないときは理由を返す. */
+export function toFarm(t: Team, id: number): string | null {
+  const p = findPlayer(t, id);
+  if (!p) return '選手が見つかりません.';
+  if (isFarm(t, p)) return 'すでに二軍です.';
+  t.farm = (t.farm ?? []).filter((x) => t.players.some((q) => q.id === x));
+  if (t.farm.length >= FARM_MAX) return `二軍は${FARM_MAX}人までです.`;
+  if (p.role === '野手' && fielders(t).length <= MIN_FIELDERS) return `一軍の野手は${MIN_FIELDERS}人以上必要です.`;
+  if (p.role === '投手' && pitchersOf(t).length <= MIN_PITCHERS) return `一軍の投手は${MIN_PITCHERS}人以上必要です.`;
+  t.farm = [...(t.farm ?? []), id];
+  t.pitchers = t.pitchers.filter((x) => x !== id);
+  if (t.lineup.some((e) => e.pid === id)) autoLineup(t);
+  return null;
+}
+
+/** 一軍に上げる.max は一軍の登録上限.できないときは理由を返す. */
+export function fromFarm(t: Team, id: number, max: number): string | null {
+  if (activePlayers(t).length >= max) return `一軍の登録は${max}人までです.先に誰かを二軍に送ってください.`;
+  t.farm = (t.farm ?? []).filter((x) => x !== id);
+  const p = findPlayer(t, id);
+  if (p?.role === '投手' && !t.pitchers.includes(id)) t.pitchers.push(id);
+  return null;
+}
 
 export function genTeam(ids: TeamIdSource, name: string, base: number, baseChem: number, user = false): Team {
   const t: Team = { id: ids.tid++, name, user, players: [], lineup: [], pitchers: [], rotIdx: 0, chem: {}, baseChem, bonds: [] };

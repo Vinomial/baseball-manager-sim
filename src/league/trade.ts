@@ -8,7 +8,7 @@ import { projectedPayroll } from './contracts';
 import { budgetFor } from './finance';
 import { leagueTeams } from './schedule';
 import { addStory } from './story';
-import { autoLineup, autoPitchers, fielders, findPlayer, pitchersOf } from './team';
+import { activePlayers, autoLineup, autoPitchers, fielders, findPlayer, pitchersOf } from './team';
 
 const userRosterMax = (c: Career): number => rosterMax(c.off ? c.off.to : c.level);
 const userT = (c: Career): Team => c.teams.find((t) => t.user)!;
@@ -43,7 +43,7 @@ export function doTrade(c: Career, teamId: number, wantId: number, giveIds: numb
   const fAfter = fielders(u).length - give.filter((p) => p.role === '野手').length + (want.role === '野手' ? 1 : 0);
   const pAfter = pitchersOf(u).length - give.filter((p) => p.role === '投手').length + (want.role === '投手' ? 1 : 0);
   if (fAfter < MIN_FIELDERS || pAfter < MIN_PITCHERS) return `野手${MIN_FIELDERS}人・投手${MIN_PITCHERS}人以上が必要です.`;
-  if (u.players.length - give.length + 1 > userRosterMax(c)) return '登録人数の上限を超えます.';
+  if (activePlayers(u).length - give.length + 1 > userRosterMax(c)) return '登録人数の上限を超えます.';
   const oF = fielders(o).length + give.filter((p) => p.role === '野手').length - (want.role === '野手' ? 1 : 0);
   const oP = pitchersOf(o).length + give.filter((p) => p.role === '投手').length - (want.role === '投手' ? 1 : 0);
   if (oF < MIN_FIELDERS || oP < MIN_PITCHERS) return '相手チームの人数が足りなくなるため,成立しません.';
@@ -89,7 +89,7 @@ export function refreshHelpers(c: Career): void {
 export function hireHelper(c: Career, id: number): string | null {
   const u = userT(c), p = c.helpers.find((x) => x.id === id);
   if (!p) return '候補が見つかりません.';
-  if (u.players.length >= userRosterMax(c)) return '登録人数の上限です.';
+  if (activePlayers(u).length >= userRosterMax(c)) return '登録人数の上限です.';
   if (projectedPayroll(c) + p.salary > budgetFor(c)) return '年俸の予算を超えてしまいます.';
   const fee = Math.round(p.salary * 0.5);
   if (c.funds < fee) return '資金が足りません(契約金が必要です).';

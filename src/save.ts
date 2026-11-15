@@ -274,6 +274,11 @@ export function migrate(raw: unknown): Career | null {
     migrateV25(c as unknown as Career);
     c.version = 26;
   }
+  if (c.version === 26) {
+    // v27: 月の方針(plan)と二軍(farm)を追加.どちらもなくても動くので,足すだけ
+    (c as unknown as Career).plan ??= null;
+    c.version = 27;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

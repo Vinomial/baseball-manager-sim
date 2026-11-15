@@ -117,6 +117,8 @@ export interface Team {
   med?: number;
   /** 監督の作戦による試合の補正.プレイヤーのチームだけ. */
   staffFx?: { hit: number; hr: number; k: number; dp: number; def: number; cmd: number };
+  /** 二軍の選手(ID).一軍の登録人数に数えず,公式戦には出ない.プレイヤーのチームだけ. */
+  farm?: number[];
 }
 
 export interface Standing { w: number; l: number; d: number; rf: number; ra: number; }

@@ -12,7 +12,7 @@ import { WEEKS_PER_YEAR, weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings, userLeague } from '../league/schedule';
 import {
-  newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
+  newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, initStorage, migrate, rawSave, saveCareer, sizeWarn } from '../save';
@@ -44,6 +44,7 @@ import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
 import { ACTION_SLOTS, actionDef, setMonthPlan, type ActionKey } from '../league/actions';
+import { fromFarm, toFarm } from '../league/team';
 
 let root: HTMLElement;
 
@@ -388,6 +389,8 @@ function onClick(e: MouseEvent): void {
       break;
     case 'open': state.open = state.open === id ? null : id; break;
     case 'cards': state.cards = !state.cards; break;
+    case 'farm': if (c) { const why = toFarm(userTeam(c), id); if (why) alert(why); else { sfx.ok(); save(); } } break;
+    case 'unfarm': if (c) { const why = fromFarm(userTeam(c), id, userRosterMax(c)); if (why) alert(why); else { sfx.ok(); save(); } } break;
     case 'pmenu': state.planDraft.menu = k ? (k as MenuKey) : null; break;
     case 'pact': {
       const d = state.planDraft, key = k as ActionKey;

@@ -3,7 +3,7 @@ import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constant
 import { applyGameResultToStanding } from './result';
 import { newGame, stepToEnd, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
-import { ageFactor, emptyStats, genPlayer, keysOf } from '../growth/player';
+import { emptyStats, gameExperience, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
 import type { Career, DraftState, Difficulty, Game, GameKind, Review, Team, TeamRecords } from '../types';
 import { boxScore, recap } from '../engine/recap';
@@ -29,7 +29,7 @@ import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter,
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './schedule';
-import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
+import { activePlayers, autoLineup, autoPitchers, fielders, findPlayer, genTeam, isFarm, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import { userCupDef } from '../data/cups';
 import { ensurePlan } from './actions';
 import {
@@ -38,7 +38,7 @@ import {
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 26;
+export const SAVE_VERSION = 27;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -146,12 +146,9 @@ function playPractice(c: Career): Game {
       if (maybeInjure(real, 0.003)) c.news.push(`${real.name}が練習試合で${real.inj!.name}をしました(${real.inj!.weeks}週間).`);
     }
   }
-  for (const e of us.lineup) {
-    const real = findPlayer(u, e.p.id);
-    if (!real) continue;
-    const k = pick(keysOf(real));
-    if (real.pot[k] > real[k]) real[k] = Math.min(99, real[k] + 0.35 * ageFactor(real));
-  }
+  // 練習試合の経験(公式戦の 6 割)
+  for (const e of us.lineup) { const real = findPlayer(u, e.p.id); if (real) gameExperience(real, 1, 0.6); }
+  for (const p of us.used) { const real = findPlayer(u, p.id); if (real && real.role === '投手') gameExperience(real, (us.pcBy[p.id] ?? 0) / 100, 0.6); }
   return g;
 }
 
@@ -174,6 +171,8 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
     opt = { ...opt, practice: false };
     c.news.push('疲れがたまっていたため,自動で休養にしました.');
   }
+  // 二軍の選手は,二軍の試合で経験を積む(一軍の半分)
+  for (const p of u.players) if (isFarm(u, p)) { gameExperience(p, 0.5); p.fatigue = clamp(p.fatigue + 6, 0, 100); }
   const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal, { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
 
   for (const r of report) {
@@ -255,11 +254,9 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
   const prob = winProb(t, opp);
   for (const p of us.used) addChem(t, us.catcher.id, p.id, 4);
   addChem(t, us.sec.id, us.ss.id, 4);
-  // 試合経験による小さな成長
-  for (const e of us.lineup) {
-    const k = pick(keysOf(e.p));
-    if (e.p.pot[k] > e.p[k]) e.p[k] = Math.min(99, e.p[k] + 0.3 * ageFactor(e.p));
-  }
+  // 試合の経験による成長.出番が多いほど,若いほど伸びる
+  for (const e of us.lineup) gameExperience(e.p, 1);
+  for (const p of us.used) if (p.role === '投手') gameExperience(p, (us.pcBy[p.id] ?? 0) / 100);
   const win = us.runs > them.runs;
   const res = win ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
   const tag = kind === 'league' ? `第${c.week + 1}戦` : kind === 'playoff' ? 'プレーオフ' : userCupDef(c).short;
@@ -402,7 +399,7 @@ export function signFreeAgent(c: Career, id: number): string | null {
   if (!p) return '選手が見つかりません.';
   if (projectedPayroll(c) + p.salary > budgetFor(c)) return '年俸の予算を超えてしまいます.';
   const max = userRosterMax(c);
-  if (u.players.length >= max) return `登録は${max}人までです.先に放出してください.`;
+  if (activePlayers(u).length >= max) return `一軍の登録は${max}人までです.先に放出するか,二軍に送ってください.`;
   c.fa = c.fa.filter((x) => x !== p);
   delete p.prev;
   u.players.push(p);
@@ -418,8 +415,9 @@ export function releasePlayer(c: Career, id: number): string | null {
   const u = userTeam(c);
   const p = findPlayer(u, id);
   if (!p) return '選手が見つかりません.';
-  if (p.role === '野手' && fielders(u).length <= MIN_FIELDERS) return `野手は${MIN_FIELDERS}人以上必要です.`;
-  if (p.role === '投手' && pitchersOf(u).length <= MIN_PITCHERS) return `投手は${MIN_PITCHERS}人以上必要です.`;
+  if (!isFarm(u, p) && p.role === '野手' && fielders(u).length <= MIN_FIELDERS) return `野手は${MIN_FIELDERS}人以上必要です.`;
+  if (!isFarm(u, p) && p.role === '投手' && pitchersOf(u).length <= MIN_PITCHERS) return `投手は${MIN_PITCHERS}人以上必要です.`;
+  u.farm = (u.farm ?? []).filter((x) => x !== id);
   toFreeAgent(c, u, p);
   c.off?.released.push(p.name);
   if (u.lineup.length < 9 || u.lineup.some((e) => e.pid === id)) autoLineup(u);
@@ -435,7 +433,7 @@ export function overBudgetLocked(c: Career): boolean {
 }
 
 export const canStartSeason = (c: Career): boolean =>
-  c.phase === 'off' && !!c.off?.draft.done && userTeam(c).players.length <= userRosterMax(c) && !overBudgetLocked(c);
+  c.phase === 'off' && !!c.off?.draft.done && activePlayers(userTeam(c)).length <= userRosterMax(c) && !overBudgetLocked(c);
 
 export function newSeason(c: Career): void {
   const o = c.off;
@@ -458,6 +456,8 @@ export function newSeason(c: Career): void {
     t.rotIdx = 0;
   }
   pruneFreeAgents(c);
+  // 移籍などでいなくなった選手を,二軍の名簿から消す
+  if (u.farm) u.farm = u.farm.filter((id) => u.players.some((p) => p.id === id));
   const notes = repairTeam(c, u, c.level);
   if (payroll(u) > budgetFor(c)) {
     addTrust(c, -8);

@@ -80,6 +80,19 @@ export function growAttr(p: Player, k: AttrKey, mult: number): void {
   p[k] = Math.min(99, p[k] + (0.7 + rand() * 1.6) * mult * ageFactor(p) * rf);
 }
 
+/** 試合 1 つで,出場した選手が経験から得る伸び(全能力に).練習の 1 週ぶんより少し小さい. */
+export const EXP_GAIN = 0.07;
+
+/**
+ * 試合に出た経験で伸びる.出番が多いほど(share は 0〜1),若いほどよく伸びる.
+ * 上限の目安を超えると伸びにくいのは練習と同じ.
+ */
+export function gameExperience(p: Player, share: number, mult = 1): void {
+  if (share <= 0) return;
+  const young = p.age <= 22 ? 1.4 : p.age <= 25 ? 1.15 : 1;
+  for (const k of keysOf(p)) growAttr(p, k, EXP_GAIN * Math.min(1, share) * young * mult);
+}
+
 /** 調子の変動.bias が大きいほど上がりやすい. */
 export function condDrift(p: Player, bias: number): void {
   const r = rand();

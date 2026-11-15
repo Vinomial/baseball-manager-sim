@@ -4,7 +4,7 @@ import { PERS } from '../../growth/personality';
 import { adviseCuts } from '../../league/cuts';
 import { budgetFor, fmtYen, payroll } from '../../league/finance';
 import { canStartSeason, userRosterMax, userTeam } from '../../league/season';
-import { fielders, pitchersOf } from '../../league/team';
+import { activePlayers, fielders, pitchersOf } from '../../league/team';
 import { faAppeal, faVerdict } from '../../league/world';
 import { keysOf } from '../../growth/player';
 import type { Career, Player } from '../../types';
@@ -95,7 +95,7 @@ function faHTML(c: Career): string {
   const pool = c.fa.filter((p) => p.role === state.faRole);
   const adv = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
   const rows = [...pool].sort((a, b) => ((adv.get(b.id)?.score ?? -1) - (adv.get(a.id)?.score ?? -1)) || (b.meet + b.velo) - (a.meet + a.velo));
-  const max = userRosterMax(c), full = u.players.length >= max;
+  const max = userRosterMax(c), full = activePlayers(u).length >= max;
   const room = budgetFor(c) - payroll(u), over = (p: Player) => p.salary > room;
   const card = (p: Player) => {
     const ok = faVerdict(c, p) === 'ok', a = adv.get(p.id);
@@ -133,7 +133,7 @@ function contractsHTML(c: Career): string {
 
 function cutsHTML(c: Career): string {
   const u = userTeam(c), max = userRosterMax(c), rows = adviseCuts(c);
-  const n = u.players.length;
+  const n = activePlayers(u).length;
   return `${contractsHTML(c)}<h2>戦力外・契約の整理</h2><p class="small muted">来シーズンは${LEAGUES[c.off!.to].name}で,登録は${max}人までです(いま${n}人).先発とローテーションの選手以外から,「おすすめ」を示しています.放出した選手は自由契約になります.</p>
   ${n > max ? `<p class="small" style="color:var(--bad)">登録上限を${n - max}人超えています.</p>` : ''}
   ${budgetBar(c)}
@@ -143,7 +143,7 @@ function cutsHTML(c: Career): string {
 }
 
 export function renderOff(c: Career): string {
-  const o = c.off!, u = userTeam(c), n = u.players.length, max = userRosterMax(c);
+  const o = c.off!, u = userTeam(c), n = activePlayers(u).length, max = userRosterMax(c);
   const step = Math.min(o.step, 3);
   const nav = `<div class="stepper" role="list">${STEPS.map((x, i) => `<span class="stp ${i === step ? 'on' : i < step ? 'done' : ''}" role="listitem">${i + 1}.${x}</span>`).join('')}</div>`;
   const canNext = step === 2 ? o.draft.done : step < 3;

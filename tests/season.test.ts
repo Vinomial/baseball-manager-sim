@@ -5,7 +5,7 @@ import {
   canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam,
 } from '../src/league/season';
 import { makeSchedule } from '../src/league/schedule';
-import { fielders, isLineupValid, pitchersOf, teamAttrs } from '../src/league/team';
+import { activePlayers, fielders, findPlayer, fromFarm, isFarm, isLineupValid, pitchersOf, teamAttrs, toFarm } from '../src/league/team';
 import { resolveEvent, rollEvent } from '../src/league/events';
 import { adviseCuts } from '../src/league/cuts';
 import { fatigueRisk, isHurt, maybeInjure } from '../src/league/health';
@@ -20,7 +20,7 @@ import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
 import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
-import { driftPot, emptyStats, growAttr, keysOf } from '../src/growth/player';
+import { driftPot, emptyStats, gameExperience, genPlayer, growAttr, keysOf } from '../src/growth/player';
 import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
 import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
@@ -2337,5 +2337,73 @@ describe('月の方針と行動枠', () => {
     c.missions = [{ id: 99, kind: 'act', title: 'x', target: 1, progress: 0, reward: {} }];
     updateMissions(c, { menu: 'mix', games: [] });
     expect(c.missions.some((m) => m.id === 99)).toBe(false);
+  });
+});
+
+describe('出場で伸びる育成と二軍', () => {
+  beforeEach(() => setRandom(seeded(3131)));
+  afterEach(() => resetRandom());
+
+  it('試合に出た経験で伸び,出番が多いほど,若いほど伸びる', () => {
+    const c = newCareer('テスト');
+    const mk = (age: number) => { const p = genPlayer(c, '野手', 40, { age }); for (const k of keysOf(p)) { p[k] = 40; p.pot[k] = 90; } return p; };
+    const sum = (p: Player) => keysOf(p).reduce((s, k) => s + p[k], 0);
+    const full = mk(20), half = mk(20), old = mk(30), none = mk(20);
+    for (let i = 0; i < 30; i++) { gameExperience(full, 1); gameExperience(half, 0.5); gameExperience(old, 1); gameExperience(none, 0); }
+    expect(sum(full)).toBeGreaterThan(sum(half));
+    expect(sum(half)).toBeGreaterThan(sum(none));
+    expect(sum(full)).toBeGreaterThan(sum(old));
+    expect(sum(none)).toBe(160);
+  });
+
+  it('公式戦に出たレギュラーは,控えより伸びる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const starter = findPlayer(u, u.lineup[0].pid)!;
+    const bench = fielders(u).find((p) => !u.lineup.some((e) => e.pid === p.id))!;
+    for (const p of [starter, bench]) { p.age = 21; for (const k of keysOf(p)) { p[k] = 45; p.pot[k] = 90; } }
+    c.auto.lineup = false;
+    while (c.cal < 30) playWeek(c, 'rest');
+    const s = (p: Player) => keysOf(p).reduce((a, k) => a + p[k], 0);
+    expect(s(starter)).toBeGreaterThan(s(bench) + 2);
+  });
+
+  it('二軍の選手は一軍の人数に数えず,試合に出ず,一軍の最低人数は守られる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const p = fielders(u).find((x) => !u.lineup.some((e) => e.pid === x.id))!;
+    const before = activePlayers(u).length;
+    expect(toFarm(u, p.id)).toBeNull();
+    expect(activePlayers(u).length).toBe(before - 1);
+    expect(fielders(u).includes(p)).toBe(false);
+    expect(toFarm(u, p.id)).not.toBeNull();
+    // 一軍の野手を最低人数まで減らすと,それ以上は送れない
+    while (fielders(u).length > MIN_FIELDERS) {
+      const q = fielders(u).find((x) => !u.lineup.some((e) => e.pid === x.id)) ?? fielders(u)[0];
+      if (toFarm(u, q.id)) break;
+    }
+    expect(fielders(u).length).toBeGreaterThanOrEqual(MIN_FIELDERS);
+    expect(isLineupValid(u)).toBe(true);
+    // 一軍が上限なら,上げられない
+    expect(fromFarm(u, p.id, activePlayers(u).length)).not.toBeNull();
+    expect(fromFarm(u, p.id, 99)).toBeNull();
+    expect(isFarm(u, p)).toBe(false);
+    // 二軍の投手は,登板の順番から外れる
+    const pit = pitchersOf(u)[pitchersOf(u).length - 1];
+    toFarm(u, pit.id);
+    expect(u.pitchers.includes(pit.id)).toBe(false);
+    fromFarm(u, pit.id, 99);
+    expect(u.pitchers.includes(pit.id)).toBe(true);
+  });
+
+  it('二軍の若手も,毎週少しずつ経験を積む', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const p = fielders(u).find((x) => !u.lineup.some((e) => e.pid === x.id))!;
+    p.age = 20; for (const k of keysOf(p)) { p[k] = 40; p.pot[k] = 90; }
+    toFarm(u, p.id);
+    const s0 = keysOf(p).reduce((a, k) => a + p[k], 0);
+    for (let i = 0; i < 8; i++) playWeek(c, 'rest');
+    expect(keysOf(p).reduce((a, k) => a + p[k], 0)).toBeGreaterThan(s0 + 1);
   });
 });

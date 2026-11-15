@@ -8,7 +8,7 @@ import { findCombos, sumFx } from '../league/combos';
 import { effectiveLineup, fit, getPlayer } from '../league/team';
 import { isHurt } from '../league/health';
 import type { PitchKey } from '../types';
-import type { Game, PlayKind, Player, Side, Team } from '../types';
+import type { Game, LogEntry, PlayKind, Player, Side, Team } from '../types';
 import { clamp, pick, rand } from '../util/random';
 
 /** この球数を超えると能力が落ち始める */
@@ -376,4 +376,109 @@ export function stepToEnd(g: Game): void {
   let n = 0;
   while (!g.over && n++ < 500) step(g);
   if (!g.over) finish(g);
+}
+
+/* ===== 勝負どころ(監督から GM への相談) ===== */
+
+/** 試合の勝負どころ.代打を送るか,継投するか. */
+export interface Moment {
+  kind: 'pinch' | 'relief';
+  /** 相談の文(監督のことば) */
+  text: string;
+  /** 交代させる選手と,代わりに出す選手 */
+  out: Player;
+  in: Player;
+  inning: number;
+  /** プレイヤーのチームから見た点数 */
+  us: number;
+  them: number;
+  outs: number;
+  /** 走者(「二塁・三塁」など) */
+  onBase: string;
+  /** 監督に任せたとき,監督がどうするか */
+  managerSays: boolean;
+}
+
+const BASE_NAMES = ['一塁', '二塁', '三塁'];
+function situation(g: Game, user: Side, other: Side): Pick<Moment, 'us' | 'them' | 'outs' | 'onBase' | 'inning'> {
+  const on = g.bases.map((b, i) => (b ? BASE_NAMES[i] : '')).filter(Boolean);
+  return { us: user.runs, them: other.runs, outs: g.outs, onBase: on.length === 3 ? '満塁' : on.length ? on.join('・') : 'なし', inning: g.inning };
+}
+export type MomentChoice = 'yes' | 'no' | 'auto';
+
+const benchBats = (s: Side): Player[] => {
+  const inL = new Set(s.lineup.map((e) => e.p.id));
+  return s.team.players.filter((p) => p.role === '野手' && !inL.has(p.id) && !isHurt(p) && !s.team.farm?.includes(p.id));
+};
+const batPower = (p: Player): number => eff(p, 'meet') * 0.55 + eff(p, 'power') * 0.45;
+
+/** 次の打席の前に,プレイヤーのチームの勝負どころかどうかを見る(1 試合に 1 回まで). */
+export function findMoment(g: Game): Moment | null {
+  if (g.over || g.momentDone || g.inning < 7) return null;
+  const off = offense(g), def = defense(g);
+  const diff = off.runs - def.runs;
+  if (off.team.user && diff <= 0 && diff >= -3 && (g.bases[1] || g.bases[2])) {
+    const b = off.lineup[off.bi].p;
+    const best = benchBats(off).sort((a, c) => batPower(c) - batPower(a))[0];
+    if (best && batPower(best) >= batPower(b) + 6) {
+      return {
+        kind: 'pinch', out: b, in: best, ...situation(g, off, def), managerSays: batPower(best) >= batPower(b) + 12,
+        text: `${g.inning}回,${diff === 0 ? '同点' : `${-diff}点差`}で得点のチャンスです.${b.name}に代えて,代打に${best.name}を送りますか?`,
+      };
+    }
+  }
+  if (def.team.user && diff <= 0 && diff >= -3 && (def.pc >= 85 || def.pr >= 3)) {
+    const r = relievers(def).sort((a, c) => (c.velo * 1.2 + c.ctrl) - (a.velo * 1.2 + a.ctrl))[0];
+    if (r && r !== def.pitcher) {
+      const lead = -diff;
+      return {
+        kind: 'relief', out: def.pitcher, in: r, ...situation(g, def, off), managerSays: def.pc >= 100 || def.pr >= 4,
+        text: `${g.inning}回,${lead === 0 ? '同点' : `${lead}点リード`}.${def.pitcher.name}は${def.pc}球を投げています.${r.name}に継投しますか?`,
+      };
+    }
+  }
+  return null;
+}
+
+/** 勝負どころの答えを試合に反映する.代えたかどうかを返す. */
+export function applyMoment(g: Game, m: Moment, choice: MomentChoice): boolean {
+  g.momentDone = true;
+  const go = choice === 'yes' || (choice === 'auto' && m.managerSays);
+  const who = choice === 'auto' ? '監督の判断で' : 'GMの決断で';
+  if (go && m.kind === 'pinch') {
+    const off = offense(g);
+    const e = off.lineup.find((x) => x.p === m.out);
+    if (e) { e.p = m.in; log(g, `${who},代打 ${m.in.name}(${m.out.name}に代えて)`, true, 'sub'); }
+  } else if (go && m.kind === 'relief') {
+    const def = defense(g);
+    log(g, `${who},継投`, true, 'info');
+    changePitcher(g, def, m.in);
+  } else {
+    log(g, `${who},${m.kind === 'pinch' ? `${m.out.name}にそのまま任せる` : `${m.out.name}を続投させる`}`, true, 'info');
+  }
+  g.moment = { kind: m.kind, text: m.text, choice, went: go, inName: m.in.name, outName: m.out.name, runsBefore: offense(g).runs, logAt: g.log.length };
+  return go;
+}
+
+/** 試合終了まで進める.勝負どころが来たら,答えを待つ(ジェネレーター). */
+export function* stepToEndGen(g: Game): Generator<Moment, void, MomentChoice> {
+  let n = 0;
+  while (!g.over && n++ < 500) {
+    const m = findMoment(g);
+    if (m) {
+      const choice: MomentChoice = yield m;
+      applyMoment(g, m, choice ?? 'auto');
+    }
+    step(g);
+  }
+  if (!g.over) finish(g);
+}
+
+/** 勝負どころのあと,同じ攻撃のうちに起きたこと(古い順,最大 4 つ).記録は新しい順に並んでいるので,先頭の側を見る. */
+export function momentFollowUp(g: Game): LogEntry[] {
+  const m = g.moment;
+  if (!m) return [];
+  const k = g.log.length - m.logAt;
+  const at = g.log[k];
+  return g.log.slice(Math.max(0, k - 8), k).reverse().filter((e) => !at || (e.inning === at.inning && e.half === at.half)).slice(0, 4);
 }

@@ -12,7 +12,7 @@ import { WEEKS_PER_YEAR, weekInfo } from '../league/calendar';
 import { resolveEvent } from '../league/events';
 import { standings, userLeague } from '../league/schedule';
 import {
-  newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam,
+  newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam, weekGen, type WeekResult,
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
 import { clearSave, initStorage, migrate, rawSave, saveCareer, sizeWarn } from '../save';
@@ -46,6 +46,8 @@ import { renderTeamTab } from './views/teamtab';
 import { ACTION_SLOTS, actionDef, setMonthPlan, type ActionKey } from '../league/actions';
 import { fromFarm, toFarm } from '../league/team';
 import { setTactic, type TacticKey } from '../league/tactics';
+import type { Moment, MomentChoice } from '../engine/game';
+import type { MomentGen } from '../league/world';
 
 let root: HTMLElement;
 
@@ -158,6 +160,19 @@ function downloadText(text: string, name: string): void {
 }
 
 /** 疲れがたまっているときの確認 */
+/** 勝負どころ.監督が GM に相談する */
+function momentSheet(m: Moment): string {
+  const lead = m.us - m.them;
+  return `<div class="sheet-bg"></div><div class="sheet moment" role="alertdialog" aria-label="勝負どころ">
+  <div class="sheet-h"><b>📣 勝負どころ</b></div>
+  <div class="moment-board px"><span>${m.inning}回</span><span>${m.us} - ${m.them}</span><span>${m.outs}アウト</span><span>走者 ${esc(m.onBase)}</span></div>
+  <p style="margin:6px 0"><b>監督:</b> ${esc(m.text)}</p>
+  <p class="small muted" style="margin:0 0 6px">${lead > 0 ? 'リードを守れるかの場面です.' : lead === 0 ? '同点です.ここが勝負の分かれ目.' : '追いかける展開です.'}監督は「${m.managerSays ? (m.kind === 'pinch' ? '代打を出したい' : '代えたい') : (m.kind === 'pinch' ? 'このまま打たせたい' : '続投させたい')}」と考えています.</p>
+  <button class="btn" data-a="moment" data-k="yes">${m.kind === 'pinch' ? `代打 ${esc(m.in.name)} を送る` : `${esc(m.in.name)} に継投する`}</button>
+  <button class="btn ghost" data-a="moment" data-k="no">${m.kind === 'pinch' ? `${esc(m.out.name)} に任せる` : `${esc(m.out.name)} を続投させる`}</button>
+  <button class="btn ghost" data-a="moment" data-k="auto">監督に任せる</button></div>`;
+}
+
 function warnSheet(msg: string): string {
   return `<div class="sheet-bg" data-a="warn-cancel"></div><div class="sheet" role="alertdialog" aria-label="休養のおすすめ">
   <div class="sheet-h"><b>⚠ 休養をおすすめします</b></div>
@@ -219,6 +234,7 @@ function renderInner(): void {
   }
   if (state.menuOpen) root.insertAdjacentHTML('beforeend', menuSheet(c));
   if (state.warn) root.insertAdjacentHTML('beforeend', warnSheet(state.warn));
+  if (state.moment) root.insertAdjacentHTML('beforeend', momentSheet(state.moment.m));
   if (state.term) root.insertAdjacentHTML('beforeend', state.term === '*' ? glossarySheet() : termSheet(state.term));
   if (state.detail !== null) root.insertAdjacentHTML('beforeend', detailSheet(c, state.detail));
   initReplay(root, state.tab === 'game' ? state.last?.game ?? null : null);
@@ -272,7 +288,17 @@ function isImportant(c: Career, r: ReturnType<typeof playWeek>): boolean {
 
 /** 今週を進める */
 function doStart(c: Career): void {
-  const r = playWeek(c, state.menuTouched ? state.menu : chooseMenu(c, null, state.menu), { practice: state.practice });
+  const gen = weekGen(c, state.menuTouched ? state.menu : chooseMenu(c, null, state.menu), { practice: state.practice });
+  stepWeek(c, gen, gen.next('auto'));
+}
+
+/** 週を進める途中.勝負どころなら相談のシートを出して止まり,終わっていれば後始末をする. */
+function stepWeek(c: Career, gen: MomentGen<WeekResult>, r: IteratorResult<Moment, WeekResult>): void {
+  if (!r.done) { state.moment = { gen, m: r.value }; sfx.warn(); return; }
+  finishWeek(c, r.value);
+}
+
+function finishWeek(c: Career, r: WeekResult): void {
   state.last = { games: r.games, game: r.games[r.games.length - 1] ?? null, kind: r.kind, menu: r.menu, report: r.report };
   state.menuTouched = false; state.practice = false;
   if (r.games.length && (state.autoOpen === 'all' || (state.autoOpen === 'important' && isImportant(c, r)))) { state.tab = 'game'; top(); }
@@ -295,6 +321,8 @@ function onClick(e: MouseEvent): void {
   unlockAudio();
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-a]');
   if (state.busy && el?.dataset.a !== 'busy-cancel') return;
+  // 勝負どころの相談中は,答える以外はできない
+  if (state.moment && el?.dataset.a !== 'moment') return;
   if (!el || (el as HTMLButtonElement).disabled || el.tagName === 'SELECT') return;
   if (!['start', 'warn-go', 'warn-rest', 'se'].includes(el.dataset.a ?? '')) sfx.tap();
   const a = el.dataset.a, k = el.dataset.k ?? '', i = Number(el.dataset.i), id = Number(el.dataset.id);
@@ -336,6 +364,11 @@ function onClick(e: MouseEvent): void {
     }
     case 'warn-rest': if (c) { state.menu = 'rest'; state.menuTouched = true; state.practice = false; state.warn = null; doStart(c); } break;
     case 'warn-go': if (c) { state.warn = null; doStart(c); } break;
+    case 'moment': if (c && state.moment) {
+      const { gen } = state.moment;
+      state.moment = null;
+      stepWeek(c, gen, gen.next(k as MomentChoice));
+    } break;
     case 'warn-cancel': state.warn = null; break;
     case 'diff': if (c) c.diff = k as Difficulty; if (c) save(); break;
     case 'auto-lineup': if (c) { c.auto.lineup = !c.auto.lineup; save(); } break;

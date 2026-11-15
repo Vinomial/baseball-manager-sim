@@ -569,4 +569,8 @@ export interface Game {
   /** この試合で怪我をした選手 */
   injured: Player[];
   over: boolean;
+  /** 勝負どころの相談が済んだか(1 試合に 1 回) */
+  momentDone?: boolean;
+  /** 勝負どころの記録(結果の画面用) */
+  moment?: { kind: 'pinch' | 'relief'; text: string; choice: 'yes' | 'no' | 'auto'; went: boolean; inName: string; outName: string; runsBefore: number; logAt: number };
 }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BASE_GAIN, MENUS, doTraining, type MenuKey } from '../src/growth/training';
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, gamesPerSeason } from '../src/data/constants';
 import {
-  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam,
+  canStartSeason, newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam, weekGen,
 } from '../src/league/season';
 import { makeSchedule } from '../src/league/schedule';
 import { activePlayers, fielders, findPlayer, fromFarm, isFarm, isLineupValid, pitchersOf, teamAttrs, toFarm } from '../src/league/team';
@@ -60,7 +60,7 @@ import { detailSheet } from '../src/ui/detail';
 import { findCombos, sumFx } from '../src/league/combos';
 import { budgetFor, checkFired, forecast, payroll, trustAfterGame, winProb } from '../src/league/finance';
 import { playerValue, salaryOf } from '../src/growth/player';
-import { newGame, stepToEnd } from '../src/engine/game';
+import { applyMoment, findMoment, momentFollowUp, newGame, stepToEnd } from '../src/engine/game';
 import { migrate, pruneCareer, rawSave, saveCareer } from '../src/save';
 import { adviseTraining, leagueAvgAttrs, projectGains } from '../src/growth/advisor';
 import { ALL_KEYS } from '../src/data/constants';
@@ -2527,5 +2527,78 @@ describe('ファンと人気', () => {
     expect(fansOf(c)).toBeGreaterThan(f0);
     playSeason(c, 'mix');
     expect(fansOf(c)).not.toBe(f0);
+  });
+});
+
+describe('勝負どころ', () => {
+  beforeEach(() => setRandom(seeded(8080)));
+  afterEach(() => resetRandom());
+
+  /** プレイヤーが攻撃中の,8 回・同点・二塁に走者の場面を作る */
+  function chance() {
+    const c = newCareer('テスト');
+    const u = userTeam(c), opp = c.teams.find((t) => !t.user)!;
+    const g = newGame(opp, u, true);
+    g.inning = 8; g.half = 0; g.outs = 1;
+    const off = g.away;
+    g.bases = [null, off.lineup[0].p, null];
+    const b = off.lineup[off.bi].p;
+    for (const k of keysOf(b)) b[k] = 30;
+    const bench = fielders(u).find((p) => !off.lineup.some((e) => e.p.id === p.id))!;
+    for (const k of keysOf(bench)) bench[k] = 80;
+    return { c, g, b, bench };
+  }
+
+  it('終盤の接戦で得点圏に走者がいて,控えにずっといい打者がいると,代打の相談になる', () => {
+    const { g, b, bench } = chance();
+    const m = findMoment(g)!;
+    expect(m.kind).toBe('pinch');
+    expect(m.out).toBe(b);
+    expect(m.in).toBe(bench);
+    expect(m.managerSays).toBe(true);
+    expect(m.onBase).toBe('二塁');
+  });
+
+  it('GMが代打を選ぶと打者が代わり,続投を選ぶと代わらない.相談は 1 試合に 1 回', () => {
+    const a = chance();
+    applyMoment(a.g, findMoment(a.g)!, 'yes');
+    expect(a.g.away.lineup[a.g.away.bi].p).toBe(a.bench);
+    expect(findMoment(a.g)).toBeNull();
+    expect(a.g.moment!.went).toBe(true);
+    const b = chance();
+    applyMoment(b.g, findMoment(b.g)!, 'no');
+    expect(b.g.away.lineup[b.g.away.bi].p).toBe(b.b);
+    expect(b.g.moment!.choice).toBe('no');
+  });
+
+  it('勝負どころのあとの出来事は,その回の,相談より後のもの', () => {
+    const { g } = chance();
+    applyMoment(g, findMoment(g)!, 'yes');
+    stepToEnd(g);
+    const after = momentFollowUp(g);
+    expect(after.length).toBeGreaterThan(0);
+    for (const e of after) { expect(e.inning).toBe(8); expect(e.half).toBe(0); }
+  });
+
+  it('序盤や大差では相談しない', () => {
+    const a = chance();
+    a.g.inning = 3;
+    expect(findMoment(a.g)).toBeNull();
+    const b = chance();
+    b.g.home.runs = 6;
+    expect(findMoment(b.g)).toBeNull();
+  });
+
+  it('1 週の進行は勝負どころで止まり,答えると最後まで進む', () => {
+    const c = newCareer('テスト');
+    let moments = 0;
+    for (let w = 0; w < 30 && c.phase === 'season'; w++) {
+      const gen = weekGen(c, 'mix');
+      let r = gen.next('auto');
+      while (!r.done) { moments++; expect(['pinch', 'relief']).toContain(r.value.kind); r = gen.next(moments % 2 ? 'yes' : 'no'); }
+      expect(r.value.menu).toBeDefined();
+    }
+    expect(moments).toBeGreaterThan(0);
+    expect(isLineupValid(userTeam(c))).toBe(true);
   });
 });

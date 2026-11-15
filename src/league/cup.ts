@@ -2,7 +2,7 @@
 import type { Career, CupLive, CupMatch, Game, Team } from '../types';
 import { CUPS, roundName, type CupDef } from '../data/cups';
 import { leaguesInTier, standings, teamById } from './schedule';
-import { playSeries } from './world';
+import { playSeriesGen, runAuto, type MomentGen } from './world';
 
 /** 標準の対戦表の並び(シード 1 が最後に当たる位置に置く) */
 function bracketOrder(n: number): number[] {
@@ -41,7 +41,7 @@ export function startCup(c: Career): void {
 const levelOf = (c: Career, id: number): number => c.leagues.find((lg) => lg.teamIds.includes(id))!.level;
 
 /** 1 つの大会の 1 回戦を進める.ログ付きの試合(プレイヤーの試合)を返す. */
-function playRound(c: Career, cup: CupLive, bracket: CupMatch[]): Game[] {
+function* playRound(c: Career, cup: CupLive, bracket: CupMatch[]): MomentGen<Game[]> {
   if (cup.done) return [];
   const round = roundName(cup.slots.length, cup.round);
   const next: (number | null)[] = [];
@@ -50,7 +50,7 @@ function playRound(c: Career, cup: CupLive, bracket: CupMatch[]): Game[] {
     const a = cup.slots[i], b = cup.slots[i + 1];
     if (a === null || b === null) { next.push(a ?? b); continue; }
     const ta = teamById(c, a), tb = teamById(c, b);
-    const r = playSeries(c, ta, tb, 1);
+    const r = yield* playSeriesGen(c, ta, tb, 1);
     const g = r.last;
     const sa = g.home.team.id === a ? g.home.runs : g.away.runs, sb = g.home.team.id === b ? g.home.runs : g.away.runs;
     bracket.push({ round, a: ta.name, b: tb.name, aId: a, bId: b, sa, sb, winner: r.winner.id });
@@ -71,9 +71,12 @@ function playRound(c: Career, cup: CupLive, bracket: CupMatch[]): Game[] {
 }
 
 /** 今週の 1 回戦を,すべての大会で進める.プレイヤーの試合(実況付き)を返す. */
-export function playCupRound(c: Career): Game[] {
-  for (const s of c.sideCups ?? []) playRound(c, s.live, s.bracket);
-  return c.cup ? playRound(c, c.cup, c.cupBracket) : [];
+export const playCupRound = (c: Career): Game[] => runAuto(playCupRoundGen(c));
+
+/** playCupRound の,勝負どころで止まる版 */
+export function* playCupRoundGen(c: Career): MomentGen<Game[]> {
+  for (const s of c.sideCups ?? []) yield* playRound(c, s.live, s.bracket);
+  return c.cup ? yield* playRound(c, c.cup, c.cupBracket) : [];
 }
 
 export interface CupSummary { champion: boolean; wins: number; giantKills: number; text: string; }

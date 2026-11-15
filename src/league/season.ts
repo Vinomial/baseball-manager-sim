@@ -1,7 +1,7 @@
 /** シーズン進行(週の進行,結果の確定,オフシーズン).世界全体の進行は world.ts. */
 import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constants';
 import { applyGameResultToStanding } from './result';
-import { newGame, stepToEnd, userSide } from '../engine/game';
+import { newGame, stepToEnd, stepToEndGen, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
 import { emptyStats, gameExperience, genPlayer, keysOf } from '../growth/player';
 import { doTraining, type GrowthReport, type MenuKey } from '../growth/training';
@@ -22,7 +22,7 @@ import { confirmMessage } from './warnings';
 import { DIFFS, LABEL } from '../data/constants';
 import { maybeInjure, setInjuryScale } from './health';
 import { refillMissions, updateMissions, type GameCtx } from './missions';
-import { cupSummary, playCupRound, startCup } from './cup';
+import { cupSummary, playCupRoundGen, startCup } from './cup';
 import { CUP_START, PLAYOFF_START, TRAIN_PER_WEEK, WEEKS_PER_YEAR, weekInfo } from './calendar';
 import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
@@ -36,8 +36,8 @@ import { addFam, FAM_WEEK, tacticFx } from './tactics';
 import { fansAfterGame, fansBoost, market, weeklyFans } from './fans';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
-  arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
-  runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
+  arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeekGen, playoffText, pruneFreeAgents, resetLeague,
+  runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
 
 export const SAVE_VERSION = 29;
@@ -156,7 +156,11 @@ function playPractice(c: Career): Game {
 }
 
 /** 練習をして,この週を進める.試合の操作はなく,結果だけが返る. */
-export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } = {}): WeekResult {
+/** 1 週を進める.勝負どころは監督に任せる(まとめて進めるとき,テスト,ボット用). */
+export const playWeek = (c: Career, menu: MenuKey, opt: { practice?: boolean } = {}): WeekResult => runAuto(weekGen(c, menu, opt));
+
+/** 1 週を進める.プレイヤーの公式戦の勝負どころで止まり,GM の答えを待つ(ジェネレーター). */
+export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } = {}): MomentGen<WeekResult> {
   c.news = [];
   c.event = null;
   // 月のはじめに方針を決めずに進んだときは,練習だけおまかせにする
@@ -193,14 +197,16 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   let kind: GameKind | null = null;
   let userLeagueGame = false;
   if (c.cal === PLAYOFF_START || c.cal === PLAYOFF_START + 1) {
-    games = playPlayoffWeek(c, c.cal === PLAYOFF_START ? 'semi' : 'final');
+    games = yield* playPlayoffWeekGen(c, c.cal === PLAYOFF_START ? 'semi' : 'final');
     if (games.length) kind = 'playoff';
   } else if (info.kind === 'cup') {
-    games = playCupRound(c);
+    games = yield* playCupRoundGen(c);
     if (games.length) kind = 'cup';
   } else if (info.userGame === 'league') {
     const m = userMatch(c)!;
-    const g = simGame(c, teamById(c, m.pair[0]), teamById(c, m.pair[1]), true);
+    const g = newGame(teamById(c, m.pair[0]), teamById(c, m.pair[1]), true);
+    yield* stepToEndGen(g);
+    applyGameResultToStanding(c, g);
     games = [g];
     kind = 'league';
     userLeagueGame = true;

@@ -1,5 +1,5 @@
 import { LABEL } from '../../data/constants';
-import { userSide } from '../../engine/game';
+import { momentFollowUp, userSide } from '../../engine/game';
 import { boxScore, fmtIP, recap } from '../../engine/recap';
 import { focusKeys, MENUS } from '../../growth/training';
 import { POS_NAME } from '../../data/constants';
@@ -41,6 +41,7 @@ export function renderGame(c: Career): string {
     h += `<div class="card"><h3 style="margin-top:0">戦評</h3><ul class="recap">${rc.lines.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>${rc.mvp
       ? `<p class="mvp"><span class="focus">殊勲</span><b>${esc(rc.mvp.name)}</b> <span class="small muted">${esc(rc.mvp.text)}</span></p>` : ''}</div>`;
   }
+  h += momentHTML(g);
   h += replayHTML(g);
   h += train;
 
@@ -58,4 +59,16 @@ function boxHTML(g: Game, side: Side): string {
   return `<details class="card" ${side.team.user ? 'open' : ''}><summary><b>${esc(side.team.name)}</b> <span class="small muted">${side.runs}点 ${side.hits}安打</span></summary>
   <div class="scroll"><table class="std box"><thead><tr><th>順</th><th>選手</th><th>打</th><th>安</th><th>点</th><th>本</th><th>四</th><th>三</th><th>盗</th></tr></thead><tbody>${bat}</tbody></table>
   <table class="std box"><thead><tr><th>投手</th><th>回</th><th>安</th><th>四</th><th>三振</th><th>失点</th></tr></thead><tbody>${pit}</tbody></table></div></details>`;
+}
+
+/** 勝負どころの記録と,そのあと(同じイニングのうち)に起きたこと */
+function momentHTML(g: Game): string {
+  const m = g.moment;
+  if (!m) return '';
+  const who = m.choice === 'auto' ? '監督に任せた' : 'GMが決めた';
+  const did = m.kind === 'pinch' ? (m.went ? `代打 ${m.inName}` : `${m.outName}に任せる`) : (m.went ? `${m.inName}に継投` : `${m.outName}が続投`);
+  const after = momentFollowUp(g);
+  return `<div class="card moment-done"><h3 style="margin-top:0">📣 勝負どころ</h3><p class="small" style="margin:0">${esc(m.text)}</p>
+  <p style="margin:4px 0"><b>${esc(did)}</b> <span class="small muted">(${who})</span></p>
+  ${after.length ? `<ul class="log">${after.map((e) => `<li><span class="t">${e.tag}</span><span class="${e.hl ? 'hl' : ''}">${esc(e.t)}</span></li>`).join('')}</ul>` : ''}</div>`;
 }

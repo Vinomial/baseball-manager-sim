@@ -409,3 +409,8 @@ details>*,.fold-body,.fold-body *{box-sizing:border-box}
 .act b{font-size:14px}
 .plan-done{border-left:4px solid var(--btn)}
 select[data-c="ptarget"]{margin-left:6px;max-width:100%}
+
+/* 勝負どころ */
+.moment-board{display:flex;justify-content:space-between;gap:6px;background:var(--board);color:var(--board-num);border-radius:4px;padding:6px 10px;font-size:15px}
+.moment .btn{width:100%;margin-top:6px}
+.moment-done{border-left:4px solid var(--sel)}

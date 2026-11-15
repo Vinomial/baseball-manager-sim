@@ -3,7 +3,7 @@
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
 import { DIFFS, DRAFT_ROUNDS, LABEL, LEAGUES, LEGACY_TIER, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES, type League } from '../data/constants';
-import { newGame, stepToEnd } from '../engine/game';
+import { newGame, stepToEnd, stepToEndGen, type Moment, type MomentChoice } from '../engine/game';
 import { agePlayer, condDrift, driftPot, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
@@ -152,11 +152,21 @@ export function stepLeagues(c: Career, userPlayed: boolean): void {
 
 /* ===== プレーオフ(上位 4 チーム.準決勝は 3 戦先に 2 勝,決勝は 5 戦先に 3 勝) ===== */
 
-/** 公式戦の 1 試合を行う.引き分けならやり直し.成績には入るが順位には入らない. */
-function playOfficial(c: Career, home: Team, away: Team, log: boolean): Game {
+/** 勝負どころで止まる試合のジェネレーター.答え(MomentChoice)を受け取って続ける. */
+export type MomentGen<T> = Generator<Moment, T, MomentChoice>;
+
+/** ジェネレーターを,勝負どころはすべて監督に任せて最後まで進める */
+export function runAuto<T>(gen: MomentGen<T>): T {
+  let r = gen.next('auto');
+  while (!r.done) r = gen.next('auto');
+  return r.value;
+}
+
+/** 公式戦の 1 試合を行う.引き分けならやり直し.成績には入るが順位には入らない.プレイヤーの試合は勝負どころで止まる. */
+function* playOfficialGen(c: Career, home: Team, away: Team, log: boolean): MomentGen<Game> {
   let g = newGame(home, away, log);
   for (let i = 0; i < 3; i++) {
-    stepToEnd(g);
+    if (log) yield* stepToEndGen(g); else stepToEnd(g);
     if (g.home.runs !== g.away.runs) break;
     g = newGame(home, away, log);
   }
@@ -168,15 +178,15 @@ function playOfficial(c: Career, home: Team, away: Team, log: boolean): Game {
 
 export interface SeriesResult { winner: Team; /** プレイヤーが出た試合(実況付き) */ games: Game[]; /** 最後の試合 */ last: Game; }
 
-/** 先に wins 勝した方が勝つ.上位シードが先にホーム.プレイヤーが出る試合は実況付き. */
-export function playSeries(c: Career, hi: Team, lo: Team, wins: number): SeriesResult {
+/** 先に wins 勝した方が勝つ.上位シードが先にホーム.プレイヤーが出る試合は実況付きで,勝負どころで止まる. */
+export function* playSeriesGen(c: Career, hi: Team, lo: Team, wins: number): MomentGen<SeriesResult> {
   let a = 0, b = 0, i = 0;
   const games: Game[] = [];
   let last!: Game;
   const log = hi.user || lo.user;
   while (a < wins && b < wins) {
     const hiHome = i % 2 === 0 || i === wins * 2 - 2;
-    const g = hiHome ? playOfficial(c, hi, lo, log) : playOfficial(c, lo, hi, log);
+    const g = hiHome ? yield* playOfficialGen(c, hi, lo, log) : yield* playOfficialGen(c, lo, hi, log);
     const hiWon = hiHome ? g.home.runs > g.away.runs : g.away.runs > g.home.runs;
     if (log) games.push(g);
     last = g;
@@ -185,6 +195,9 @@ export function playSeries(c: Career, hi: Team, lo: Team, wins: number): SeriesR
   }
   return { winner: a > b ? hi : lo, games, last };
 }
+
+/** playSeriesGen を,勝負どころは監督に任せて進める */
+export const playSeries = (c: Career, hi: Team, lo: Team, wins: number): SeriesResult => runAuto(playSeriesGen(c, hi, lo, wins));
 
 /** プレーオフに進む 4 チーム.地区があれば,各地区の上位 2 チーム(地区優勝が上位シード). */
 export function playoffSeeds(c: Career, lg: LeagueState): number[] {
@@ -204,23 +217,28 @@ export function startPlayoffs(c: Career): void {
 }
 
 /** その週のプレーオフを,全リーグ分進める.プレイヤーが出る試合(実況付き)を返す. */
-export function playPlayoffWeek(c: Career, stage: 'semi' | 'final'): Game[] {
+export const playPlayoffWeek = (c: Career, stage: 'semi' | 'final'): Game[] => runAuto(playPlayoffWeekGen(c, stage));
+
+/** playPlayoffWeek の,勝負どころで止まる版 */
+export function* playPlayoffWeekGen(c: Career, stage: 'semi' | 'final'): MomentGen<Game[]> {
   const out: Game[] = [];
   for (const lg of c.leagues) {
     const po = lg.po;
     if (!po) continue;
     const T = (id: number) => teamById(c, id);
     if (stage === 'semi') {
-      po.semiWinners = [[0, 3], [1, 2]].map(([x, y]) => {
-        const r = playSeries(c, T(po.seeds[x]), T(po.seeds[y]), 2);
+      const ws: number[] = [];
+      for (const [x, y] of [[0, 3], [1, 2]]) {
+        const r = yield* playSeriesGen(c, T(po.seeds[x]), T(po.seeds[y]), 2);
         out.push(...r.games);
-        return r.winner.id;
-      });
+        ws.push(r.winner.id);
+      }
+      po.semiWinners = ws;
     } else {
       const [x, y] = po.semiWinners;
       const hiId = po.seeds.indexOf(x) < po.seeds.indexOf(y) ? x : y;
       const loId = hiId === x ? y : x;
-      const r = playSeries(c, T(hiId), T(loId), 3);
+      const r = yield* playSeriesGen(c, T(hiId), T(loId), 3);
       out.push(...r.games);
       po.champion = r.winner.id;
       po.runnerUp = r.winner.id === hiId ? loId : hiId;

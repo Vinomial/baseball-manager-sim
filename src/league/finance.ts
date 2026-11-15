@@ -82,7 +82,9 @@ export function forecast(c: Career, runs = 250): Forecast {
   const ov = new Map([...teams].map(([id, t]) => [id, ovr(t)]));
   const p = (a: number, b: number) => clamp(1 / (1 + Math.exp(-(ov.get(a)! - ov.get(b)!) / 4.4)), 0.03, 0.97);
   const rank = ids.map(() => 0);
-  let wins = 0;
+  // 地区があれば,自分の地区で上位 2 チームに入るとプレーオフ.なければ全体の上位 4 チーム.
+  const myDiv = lg.divs?.find((d) => d.includes(c.userId));
+  let wins = 0, po = 0;
   for (let r = 0; r < runs; r++) {
     const w = new Map(ids.map((id) => [id, lg.stand[id].w + 0.5 * lg.stand[id].d]));
     for (let k = lg.week; k < lg.schedule.length; k++) {
@@ -92,13 +94,14 @@ export function forecast(c: Career, runs = 250): Forecast {
     }
     const order = [...ids].sort((x, y) => w.get(y)! - w.get(x)! || rand() - 0.5);
     rank[order.indexOf(c.userId)]++;
+    if (myDiv ? order.filter((id) => myDiv.includes(id)).indexOf(c.userId) < 2 : order.indexOf(c.userId) < 4) po++;
     wins += w.get(c.userId)!;
   }
   const upN = c.level < MOVES.length ? MOVES[c.level] : 0, downN = c.level > 0 ? MOVES[c.level - 1] : 0;
   const pr = rank.map((n) => n / runs);
   const sum = (from: number, to: number) => pr.slice(from, to).reduce((s, v) => s + v, 0);
   return {
-    wins: wins / runs, rank: pr, up: sum(0, upN), playoff: sum(0, 4), down: downN ? sum(ids.length - downN, ids.length) : 0, upN, downN,
+    wins: wins / runs, rank: pr, up: sum(0, upN), playoff: po / runs, down: downN ? sum(ids.length - downN, ids.length) : 0, upN, downN,
     swapUp: upN ? sum(upN, upN + 1) : 0, swapDown: downN ? sum(ids.length - downN - 1, ids.length - downN) : 0,
   };
 }

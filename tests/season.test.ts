@@ -1218,6 +1218,23 @@ describe('入れ替え戦と拡張', () => {
   beforeEach(() => setRandom(seeded(321)));
   afterEach(() => resetRandom());
 
+  it('地区のあるリーグでは,プレーオフの見込みを自分の地区の上位2で出す', () => {
+    const c = newCareer('テスト');
+    const pro = c.leagues[3];
+    // プレイヤーをプロに移し,同じ地区の相手を極端に弱くする
+    c.leagues[0].teamIds = c.leagues[0].teamIds.filter((id) => id !== c.userId);
+    pro.teamIds = [...pro.teamIds.slice(1), c.userId];
+    pro.divs = [pro.teamIds.slice(0, 6), pro.teamIds.slice(6)];
+    c.level = 3;
+    const mine = pro.divs.find((d) => d.includes(c.userId))!;
+    for (const id of mine) if (id !== c.userId) for (const p of c.teams.find((t) => t.id === id)!.players) for (const k of keysOf(p)) p[k] = 10;
+    for (const id of pro.teamIds) pro.stand[id] ??= { w: 0, l: 0, d: 0, rf: 0, ra: 0 };
+    const f = forecast(c, 200);
+    // 全体の上位 4 より,地区の上位 2 のほうが入りやすい状況
+    expect(f.playoff).toBeGreaterThan(f.rank.slice(0, 4).reduce((a, b) => a + b, 0) - 0.01);
+    expect(f.playoff).toBeLessThanOrEqual(1);
+  });
+
   it('2位と下から2番目の入れ替え戦の結果が記録され,勝った方が上に残る', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');

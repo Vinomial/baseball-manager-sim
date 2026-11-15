@@ -385,6 +385,7 @@ function onClick(e: MouseEvent): void {
       }
       break;
     case 'open': state.open = state.open === id ? null : id; break;
+    case 'cards': state.cards = !state.cards; break;
     case 'selL': {
       if (!c) break;
       const u = userTeam(c), s = state.sel;

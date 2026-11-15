@@ -386,3 +386,15 @@ details>*,.fold-body,.fold-body *{box-sizing:border-box}
 .ph b{font-family:"DotGothic16",sans-serif;font-weight:400;font-size:18px;line-height:1.2}
 .ph small{font-size:10px}
 .ph.on{background:var(--board);color:var(--board-num);border-color:var(--board)}
+
+/* 選手カード・エンブレム・トーナメント表 */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:8px 0}
+.cardbtn{display:block;padding:0;border:0;background:none;border-radius:10px;transition:transform .12s}
+.cardbtn:active{transform:scale(.97)}
+.pcard{display:block;width:100%;height:auto;filter:drop-shadow(0 2px 3px #0003)}
+.card-hero{max-width:220px;margin:10px auto 4px}
+.emblem{vertical-align:-4px;flex:none}
+.bracket{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px 0 8px}
+.bracket svg{display:block;width:100%;height:auto}
+.path{margin:4px 0 8px;padding-left:1.4em;font-size:13px}
+.path .w{color:var(--good)}.path .l{color:var(--bad)}

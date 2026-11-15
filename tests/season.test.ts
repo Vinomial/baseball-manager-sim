@@ -13,6 +13,9 @@ import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgrad
 import { effectiveLineup, fit } from '../src/league/team';
 import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
+import { cardSVG, rarityOf } from '../src/ui/card';
+import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
+import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { driftPot, growAttr, keysOf } from '../src/growth/player';
@@ -2069,5 +2072,47 @@ describe('料理と成長上限とミッション', () => {
     }
     expect(wake).toBeGreaterThan(3);
     expect(wake).toBeLessThan(60);
+  });
+});
+
+describe('見た目(カード・エンブレム・トーナメント表)', () => {
+  beforeEach(() => setRandom(seeded(77)));
+  afterEach(() => resetRandom());
+
+  it('カードのレア度は総合値のランクで決まり,カードに名前と総合値が入る', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players[0];
+    for (const k of keysOf(p)) p[k] = 50;
+    expect(rarityOf(p)).toBe(1);
+    for (const k of keysOf(p)) p[k] = 85;
+    expect(rarityOf(p)).toBe(4);
+    const svg = cardSVG(p);
+    expect(svg).toContain(p.name);
+    expect(svg).toContain('LEGEND');
+    expect(svg).toContain('>85<');
+  });
+
+  it('エンブレムはチーム名からいつも同じ色と文字になる', () => {
+    expect(emblemChar('ニューヨーク・キングス')).toBe('キ');
+    expect(emblemChar('河川敷ドリームス')).toBe('河');
+    expect(teamColors({ name: 'A' })).toEqual(teamColors({ name: 'A' }));
+    expect(emblem({ name: '河川敷ドリームス' })).toContain('<svg');
+  });
+
+  it('全日本選手権が終わると,準々決勝から決勝までの表と優勝チームが描かれる', () => {
+    const c = newCareer('テスト');
+    while (c.phase === 'season') playWeek(c, 'mix');
+    const svg = cupBracketSVG(c);
+    expect(svg).toContain('準々決勝');
+    expect(svg).toContain('🏆');
+    expect(svg).not.toContain('未定');
+  });
+
+  it('プレーオフの表は,準決勝の前でも組み合わせを描き,決勝は未定にする', () => {
+    const c = newCareer('テスト');
+    while (c.cal < PLAYOFF_START) playWeek(c, 'mix');
+    const lg = c.leagues[c.level];
+    const svg = playoffBracketSVG(c, lg);
+    expect(svg).toContain('準決勝');
   });
 });

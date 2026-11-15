@@ -7,8 +7,8 @@ const JERSEY = ['#2B6A44', '#2C6EA3', '#B23A2E', '#7A5700', '#6A3FA0', '#2C8EA3'
 
 const hash = (n: number): number => { let x = (n ^ 0x9e3779b9) >>> 0; x = Math.imul(x ^ (x >>> 15), 0x85ebca6b) >>> 0; x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35) >>> 0; return (x ^ (x >>> 16)) >>> 0; };
 
-/** size は表示の大きさ(px).jersey を渡すとユニフォームの色になる. */
-export function avatar(p: Player, size = 34, jersey?: string): string {
+/** 顔のドット(12×12 の rect の並び).カードなどの大きな SVG に埋め込むときに使う. */
+export function avatarParts(p: Player, jersey?: string): string {
   const h = hash(p.id);
   const skin = SKIN[h % SKIN.length];
   const old = p.age >= 33;
@@ -27,5 +27,11 @@ export function avatar(p: Player, size = 34, jersey?: string): string {
     px(2, 9, 8, 3, cap), px(5, 8, 2, 1, skin),                       // ユニフォーム
     px(5, 9, 2, 1, '#ffffff'),
   ].join('');
+  return parts;
+}
+
+/** size は表示の大きさ(px).jersey を渡すとユニフォームの色になる. */
+export function avatar(p: Player, size = 34, jersey?: string): string {
+  const parts = avatarParts(p, jersey);
   return `<svg class="avatar" width="${size}" height="${size}" viewBox="0 0 12 12" shape-rendering="crispEdges" role="img" aria-label="${p.name}の顔">${parts}</svg>`;
 }

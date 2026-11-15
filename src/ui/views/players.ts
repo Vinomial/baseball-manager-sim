@@ -8,10 +8,11 @@ import { esc, fmtAvg, fmtEra } from '../../util/format';
 import { PERS } from '../../growth/personality';
 import { leavingRisk } from '../../league/contracts';
 import { avatar } from '../avatar';
-import { ovrStars } from '../../growth/stars';
 import { attrsHTML, condHTML, playerDetail, playerStars } from '../components';
 import { term } from '../glossary';
 import { state } from '../state';
+import { cardSVG, rarityOf } from '../card';
+import { teamColors } from '../emblem';
 
 /** 選手の 1 枚のカード.タップで通算成績が開く. */
 export function playerCard(c: Career, p: Player, canRelease: boolean): string {
@@ -19,7 +20,7 @@ export function playerCard(c: Career, p: Player, canRelease: boolean): string {
   const st = p.role === '野手'
     ? `${s.g}試合 打率${fmtAvg(s.h, s.ab)} ${s.hr}本 ${s.rbi}打点 ${s.sb}盗塁`
     : `${s.g}登板 ${s.w}勝${s.l}敗 防御率${fmtEra(s.r, s.outs)} ${s.k}奪三振`;
-  const rar = ovrStars(p) >= 4 ? 4 : ovrStars(p) >= 3 ? 3 : ovrStars(p) >= 2 ? 2 : 1;
+  const rar = rarityOf(p);
   return `<div class="pl rar-${rar}"><button class="pick plain" data-a="open" data-id="${p.id}" aria-expanded="${open}">
     <div class="top"><span class="nm">${avatar(p, 32)} ${esc(p.name)}${rar >= 2 ? `<span class="rarity r${rar}">${['', '', 'RARE', 'EPIC', 'LEGEND'][rar]}</span>` : ''}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.seasons.length === 0 && p.age <= 23 ? '<span class="tag newbie">新人</span>' : ''}<span class="tag">${PERS[p.pers].name}</span>${p.morale < 35 ? '<span class="tag" style="color:var(--bad)">不満</span>' : ''}${leavingRisk(p) ? '<span class="tag" style="color:var(--bad)">退団の恐れ</span>' : ''}${p.loan !== undefined ? '<span class="tag">助っ人</span>' : ''}${(p.years ?? 1) > 1 ? `<span class="tag">${p.years}年契約</span>` : ''}<span class="tag">${fmtYen(p.salary)}</span></span>${condHTML(p)}</div><div style="margin:2px 0">${playerStars(p)}</div>${attrsHTML(p)}
     <div class="small muted">${c.phase === 'season' ? `今季 ${st}` : '今季の成績は「通算成績」で見られます'}</div></button>
@@ -33,8 +34,17 @@ export function rosterHTML(c: Career, t: Team, canRelease: boolean): string {
   <h2>投手</h2><div class="plist">${ps.map((p) => playerCard(c, p, canRelease)).join('')}</div>`;
 }
 
+/** カードの一覧.タップで詳細が開く. */
+export function cardGridHTML(t: Team): string {
+  const [jersey] = teamColors(t);
+  const ps = [...fielders(t), ...t.pitchers.map((id) => findPlayer(t, id)).filter((p): p is Player => !!p)];
+  return `<div class="cards">${ps.map((p) => `<button class="cardbtn plain" data-a="detail" data-id="${p.id}" aria-label="${esc(p.name)}の詳細">${cardSVG(p, { jersey })}</button>`).join('')}</div>`;
+}
+
 export function renderPlayers(c: Career): string {
   const u = userTeam(c);
   const pay = payroll(u), bud = budgetFor(c);
-  return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div><p class="small muted" style="margin:4px 0 0">登録 ${u.players.length}/${userRosterMax(c)}人.${term('budget')}は同じリーグの他チームの平均と,GMの信頼度で決まります.</p></div><p class="small muted">選手をタップすると,成長タイプ,伸びしろ,通算成績が見られます.${c.phase === 'off' ? '放出した選手は自由契約になります.' : ''}</p>${rosterHTML(c, u, c.phase === 'off')}`;
+  return `<div class="card"><div class="chem"><span class="who">年俸総額 ${fmtYen(pay)}</span><span class="bar"><i style="width:${Math.min(100, (pay / bud) * 100)}%;${pay > bud ? 'background:var(--bad)' : ''}"></i></span><span class="small">予算 ${fmtYen(bud)}</span></div><p class="small muted" style="margin:4px 0 0">登録 ${u.players.length}/${userRosterMax(c)}人.${term('budget')}は同じリーグの他チームの平均と,GMの信頼度で決まります.</p></div><p class="small muted">選手をタップすると,成長タイプ,伸びしろ,通算成績が見られます.${c.phase === 'off' ? '放出した選手は自由契約になります.' : ''}</p>
+  <div class="row"><button class="btn ghost" data-a="cards" aria-pressed="${state.cards}">${state.cards ? '📋 リストで見る' : '🃏 カードで見る'}</button></div>
+  ${state.cards ? cardGridHTML(u) : rosterHTML(c, u, c.phase === 'off')}`;
 }

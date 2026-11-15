@@ -9,6 +9,8 @@ import { rankSVG } from '../charts';
 import { gradeHTML } from '../components';
 import { state } from '../state';
 import { rosterHTML } from './players';
+import { emblem } from '../emblem';
+import { cupBracketSVG, playoffBracketSVG } from '../bracket';
 
 /** 順位タブ.どのリーグの順位,個人成績,優勝の歴史も見られる. */
 export function renderTable(c: Career): string {
@@ -22,7 +24,7 @@ export function renderTable(c: Career): string {
   const tbl = standings(c, level);
   let h = `${tabs}<h2>${L.name} 順位表 <span class="small muted">(${lg.week}/${lg.schedule.length}試合)</span></h2><p class="small muted">${moveNote}</p>
   <div class="card scroll"><table class="std"><thead><tr><th>順位</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>得失点</th><th>戦力</th></tr></thead><tbody>
-  ${tbl.map((r, i) => `<tr class="${r.t.user ? 'me' : ''}"><td>${i + 1}</td><td><button class="linkish" data-a="vteam" data-id="${r.t.id}">${esc(r.t.name)}</button>${lg.divs ? `<span class="tag">${lg.divs[0].includes(r.t.id) ? 'A' : 'B'}</span>` : ''}</td><td>${r.w + r.l + r.d}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${r.w + r.l ? (r.w / (r.w + r.l)).toFixed(3) : '---'}</td><td>${r.rf - r.ra > 0 ? '+' : ''}${r.rf - r.ra}</td><td>${gradeHTML(ovr(r.t))}</td></tr>`).join('')}
+  ${tbl.map((r, i) => `<tr class="${r.t.user ? 'me' : ''}"><td>${i + 1}</td><td>${emblem(r.t, 18)} <button class="linkish" data-a="vteam" data-id="${r.t.id}">${esc(r.t.name)}</button>${lg.divs ? `<span class="tag">${lg.divs[0].includes(r.t.id) ? 'A' : 'B'}</span>` : ''}</td><td>${r.w + r.l + r.d}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${r.w + r.l ? (r.w / (r.w + r.l)).toFixed(3) : '---'}</td><td>${r.rf - r.ra > 0 ? '+' : ''}${r.rf - r.ra}</td><td>${gradeHTML(ovr(r.t))}</td></tr>`).join('')}
   </tbody></table></div>`;
 
   if (state.viewTeam !== null && lg.teamIds.includes(state.viewTeam)) {
@@ -42,14 +44,8 @@ export function renderTable(c: Career): string {
   const po = lg.po;
   if (po) {
     const odds = playoffOdds(c, lg);
-    const nm = (id: number) => teamById(c, id).name;
-    const row = (id: number) => `<span class="${id === c.userId ? 'w' : ''}">${esc(nm(id))}</span>`;
     const pc = (v: number) => `${Math.round(v * 100)}%`;
-    h += `<h2>プレーオフ <span class="small muted">(${L.name})</span></h2><div class="card"><table class="results"><tbody>
-    <tr><td class="muted small">準決勝</td><td>${row(po.seeds[0])} vs ${row(po.seeds[3])}</td></tr>
-    <tr><td class="muted small">準決勝</td><td>${row(po.seeds[1])} vs ${row(po.seeds[2])}</td></tr>
-    <tr><td class="muted small">決勝</td><td>${po.semiWinners.length ? po.semiWinners.map(row).join(' vs ') : '(準決勝のあと)'}</td></tr>
-    ${po.champion != null ? `<tr><td class="muted small">優勝</td><td><b>${row(po.champion)}</b></td></tr>` : ''}</tbody></table>
+    h += `<h2>プレーオフ <span class="small muted">(${L.name})</span></h2><div class="card">${playoffBracketSVG(c, lg)}
     <h3>優勝する確率</h3>${odds.map((o) => `<div class="chem"><span class="who ${o.team.id === c.userId ? 'me' : ''}">${esc(o.team.name)}</span><span class="bar"><i style="width:${o.champion * 100}%"></i></span><span class="small">${pc(o.champion)}</span></div>`).join('')}
     <p class="small muted" style="margin:4px 0 0">チームの総合力の差から計算した,目安の確率です.</p></div>`;
   }
@@ -69,7 +65,15 @@ export function cupHTML(c: Career): string {
   if (!c.cupBracket.length) {
     h += '<p class="small muted" style="margin:0">シーズンが終わると,全リーグの全チームが1つのトーナメントで戦います.上のリーグほどシードが上位で,下のリーグが勝ち上がれば大金星です.</p>';
   } else {
-    h += rounds.map((r) => `<details ${r === '決勝' || r === '準決勝' ? 'open' : ''}><summary><b>${r}</b></summary><table class="results"><tbody>${c.cupBracket.filter((m) => m.round === r).map((m) => {
+    const mine = c.cupBracket.filter((m) => m.aId === c.userId || m.bId === c.userId);
+    h += cupBracketSVG(c);
+    if (mine.length) {
+      h += `<h3>あなたの勝ち上がり</h3><ol class="path">${mine.map((m) => {
+        const us = m.aId === c.userId, opp = us ? m.b : m.a, my = us ? m.sa : m.sb, th = us ? m.sb : m.sa, win = m.winner === c.userId;
+        return `<li class="${win ? 'w' : 'l'}"><span class="muted small">${m.round}</span> ${win ? '○' : '●'} ${my}-${th} ${esc(opp)}</li>`;
+      }).join('')}</ol>`;
+    }
+    h += rounds.map((r) => `<details ${r === '決勝' ? 'open' : ''}><summary><b>${r}</b></summary><table class="results"><tbody>${c.cupBracket.filter((m) => m.round === r).map((m) => {
       const mine = m.aId === c.userId || m.bId === c.userId;
       const A = `<span class="${m.winner === m.aId ? 'w' : 'muted'}">${esc(m.a)}</span>`, B = `<span class="${m.winner === m.bId ? 'w' : 'muted'}">${esc(m.b)}</span>`;
       return `<tr class="${mine ? 'me' : ''}"><td>${A}</td><td class="num">${m.sa} - ${m.sb}</td><td>${B}</td></tr>`;

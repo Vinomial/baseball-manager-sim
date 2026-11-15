@@ -7,6 +7,8 @@ import { convertOptions } from '../league/convert';
 import { fmtYen } from '../league/finance';
 import type { AttrKey, Career, PitchKey, Player } from '../types';
 import { esc } from '../util/format';
+import { cardSVG } from './card';
+import { teamColors } from './emblem';
 import { legendHTML, lineSVG, radarSVG, type Series } from './charts';
 import { moraleLabel, PERS } from '../growth/personality';
 import { planDef, planOf, plansFor, suggestPlan } from '../growth/plans';
@@ -80,6 +82,7 @@ export function detailSheet(c: Career, id: number): string {
   <p style="margin:4px 0 0">${playerStars(p)}</p>
   <p class="small" style="margin:4px 0 0">性格: <b>${PERS[p.pers].name}</b> <span class="muted">${PERS[p.pers].desc}</span></p>
   <div class="chem"><span class="who">やる気 ${Math.round(p.morale)}</span><span class="bar"><i style="width:${p.morale}%;${p.morale < 35 ? 'background:var(--bad)' : ''}"></i></span><span class="small">${moraleLabel(p.morale)}</span></div>
+  <div class="card-hero">${cardSVG(p, { jersey: teamColors({ name: r.team })[0] })}</div>
   <h3>能力</h3>
   <div class="charts">${radarSVG(labels, radar)}<div>${legendHTML(radar)}${ks.map((k) => `<div class="drow"><span>${LABEL[k]}</span>${gradeHTML(p[k])}<span class="small muted">上限 ${cap(k)}前後</span></div>`).join('')}</div></div>
   <h3>能力の推移</h3>${growth}

@@ -3,6 +3,7 @@ import { ingName } from '../growth/meals';
 import type { Career, FacKey, Ingredient, LedgerRow } from '../types';
 import { clamp, rand } from '../util/random';
 import { budgetFor } from './finance';
+import { fanIncomeMult } from './fans';
 
 export const MAX_FAC = 5;
 
@@ -56,12 +57,12 @@ export const moneyScale = (c: Career): number => Math.max(500, budgetFor(c));
 /** 1 週の収入(万円) */
 export function weeklyIncome(c: Career): number {
   const win = c.rec.total.w + c.rec.total.l ? c.rec.total.w / (c.rec.total.w + c.rec.total.l) : 0.5;
-  return Math.round(moneyScale(c) * 0.011 * (1 + c.fac.stadium * 0.15) * (0.85 + 0.3 * win));
+  return Math.round(moneyScale(c) * 0.011 * (1 + c.fac.stadium * 0.15) * (0.85 + 0.3 * win) * fanIncomeMult(c));
 }
 
 /** 試合の入場収入(ホームゲームのみ).プレーオフと選手権は 2 倍. */
 export function gateIncome(c: Career, big: boolean): number {
-  return Math.round(moneyScale(c) * 0.006 * (1 + c.fac.stadium * 0.15) * (big ? 2 : 1));
+  return Math.round(moneyScale(c) * 0.006 * (1 + c.fac.stadium * 0.15) * (big ? 2 : 1) * fanIncomeMult(c));
 }
 
 /** 施設費の目安.収入ほどは増えないよう,リーグが上がるほど割安になる. */

@@ -33,13 +33,14 @@ import { activePlayers, autoLineup, autoPitchers, fielders, findPlayer, genTeam,
 import { userCupDef } from '../data/cups';
 import { ensurePlan } from './actions';
 import { addFam, FAM_WEEK, tacticFx } from './tactics';
+import { fansAfterGame, fansBoost, market, weeklyFans } from './fans';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
   arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 28;
+export const SAVE_VERSION = 29;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -69,6 +70,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Care
     goals: [], helpers: [], album: [], ledger: [], scout: null, watch: [], missions: [], cups: [], cupBracket: [], lastMenus: [], pantry: emptyPantry(), meal: null, mid: 1,
     rec: newRecords(),
   };
+  c.fans = Math.round(market(0) * 0.5);
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
   // プレイヤーのチームは伸びしろを多めにする
   for (const p of u.players) for (const k of keysOf(p)) p.pot[k] = clamp(p.pot[k] + ri(5, 15), p[k], 99);
@@ -221,6 +223,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
     c.last = `${kind === 'open' ? 'オープン戦' : '練習試合'} vs ${them.team.name}: ${us.runs} - ${them.runs}`;
   }
 
+  weeklyFans(c);
   // 戦術は,公式戦を重ねるほど浸透する
   addFam(c, ctx.length ? FAM_WEEK : 1);
 
@@ -280,6 +283,7 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
   for (const p of g.injured) if (t.players.includes(p)) c.news.push(`${p.name}が試合中に${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
   // 入場収入(ホームゲーム)
   if (us === g.home) earn(c, 'gate', gateIncome(c, kind !== 'league'));
+  if (us.runs !== them.runs) fansAfterGame(c, win, us === g.home, us.runs - them.runs, prob < 0.4);
   const box = boxScore(g, us);
   const head = recap(g).headline;
   const big = kind !== 'league' || opp.id === c.rival || isNotableHeadline(head);
@@ -304,7 +308,7 @@ export function finishSeason(c: Career): void {
     addTrust(c, cup.wins * 1.5 + cup.giantKills * 3 + (cup.champion ? 8 : 0));
     c.pantry.meat += cup.wins;
     c.pantry.rice += cup.wins;
-    if (cup.champion) c.revenue = Math.min(1.3, c.revenue + 0.1);
+    if (cup.champion) { c.revenue = Math.min(1.3, c.revenue + 0.1); fansBoost(c, 'cup'); }
   }
   // 表彰(成績を記録に回す前に行う)
   c.awards.push(...computeAwards(c));
@@ -367,7 +371,8 @@ export function finishSeason(c: Career): void {
   for (const t of judgeTrainGoals(c)) c.news.push(t);
   if (myChamp === c.userId) addAlbum(c, 'title', `${LEAGUES[from].name}で優勝!`);
   if (cup.champion) addAlbum(c, 'title', `${userCupDef(c).name}で優勝!`);
-  if (move > 0) addAlbum(c, 'promo', `${LEAGUES[to].name}へ昇格!`);
+  if (move > 0) { addAlbum(c, 'promo', `${LEAGUES[to].name}へ昇格!`); fansBoost(c, 'promo'); }
+  if (myChamp === c.userId) fansBoost(c, 'title');
   review.goals = judgeGoals(c, rank, rec.w, myChamp === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
   c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: swaps.map((x) => x.text), draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };

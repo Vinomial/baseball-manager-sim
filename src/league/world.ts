@@ -13,6 +13,7 @@ import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { foldHistory } from './leaders';
 import { emptyStanding, leagueOfTeam, leaguesInTier, makeSchedule, standings, teamById, type StandingRow } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
+import { fanAppeal } from './fans';
 
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
 export const AI_YEAR_GAIN = [2.7, 3.0, 3.4, 4.3, 5.6, 6.3];
@@ -541,7 +542,7 @@ export function faAppeal(c: Career): number {
   const o = c.off;
   const level = o ? o.to : c.level;
   const rank = o ? o.rank : 3;
-  return LEAGUES[level].base + (LEAGUES[level].teams + 1 - rank) * 1.2 + (c.trust - 50) * 0.08;
+  return LEAGUES[level].base + (LEAGUES[level].teams + 1 - rank) * 1.2 + (c.trust - 50) * 0.08 + fanAppeal(c);
 }
 
 export const faDemand = (p: Player): number => playerValue(p) - 10 - (p.age >= 33 ? 4 : 0);

@@ -492,6 +492,8 @@ export interface Career {
   tactic?: 'balance' | 'power' | 'speed' | 'contact' | 'defense';
   /** 戦術の浸透度(0〜100) */
   tacticFam?: number;
+  /** ファンの数(人) */
+  fans?: number;
   pantry: Record<Ingredient, number>;
   meal: Meal | null;
   /** 次のミッションの ID */

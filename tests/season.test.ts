@@ -26,6 +26,7 @@ import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
 import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
 import { chooseMenu } from '../src/league/autoplay';
+import { fansAfterGame, fansOf, market, popularity } from '../src/league/fans';
 import { FAM_START, setTactic, tacticBonus, tacticFx, tacticPower } from '../src/league/tactics';
 import { DIFFS, DRAFT_ROUNDS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
@@ -47,7 +48,7 @@ import { autoLineup } from '../src/league/team';
 import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
-import { arrangeLeagues, leagueName, playoffSeeds, weeklyUpkeep } from '../src/league/world';
+import { arrangeLeagues, faAppeal, leagueName, playoffSeeds, weeklyUpkeep } from '../src/league/world';
 import { leaguesInTier, userLeague } from '../src/league/schedule';
 import { CUPS } from '../src/data/cups';
 import { addTrust } from '../src/league/finance';
@@ -2482,5 +2483,49 @@ describe('ドラフトの人数', () => {
       expect(d.done).toBe(false);
       resetRandom();
     }
+  });
+});
+
+describe('ファンと人気', () => {
+  beforeEach(() => setRandom(seeded(6161)));
+  afterEach(() => resetRandom());
+
+  it('勝てばファンが増え,ホームの勝ちと番狂わせはより増え,負ければ少し減る', () => {
+    const c = newCareer('テスト');
+    const f0 = fansOf(c);
+    fansAfterGame(c, true, false, 1, false);
+    const away = fansOf(c) - f0;
+    const f1 = fansOf(c);
+    fansAfterGame(c, true, true, 1, true);
+    expect(fansOf(c) - f1).toBeGreaterThan(away);
+    const f2 = fansOf(c);
+    fansAfterGame(c, false, true, -3, false);
+    expect(fansOf(c)).toBeLessThan(f2);
+  });
+
+  it('人気が高いほど収入が増え,自由契約の選手から見た魅力も上がる', () => {
+    const c = newCareer('テスト');
+    c.fans = market(c.level) * 0.5;
+    const lowIncome = weeklyIncome(c), lowAppeal = faAppeal(c);
+    c.fans = market(c.level) * 2;
+    expect(weeklyIncome(c)).toBeGreaterThan(lowIncome * 1.3);
+    expect(faAppeal(c)).toBeGreaterThan(lowAppeal);
+  });
+
+  it('上の階層に上がると,同じファンの数でも人気は下がる(市場が大きくなる)', () => {
+    const c = newCareer('テスト');
+    c.fans = market(0) * 2;
+    const p0 = popularity(c);
+    c.level = 1;
+    expect(popularity(c)).toBeLessThan(p0);
+  });
+
+  it('1シーズン戦うと,ファンの数が動き,ファン行事で増える', () => {
+    const c = newCareer('テスト');
+    const f0 = fansOf(c);
+    setMonthPlan(c, null, ['fan']);
+    expect(fansOf(c)).toBeGreaterThan(f0);
+    playSeason(c, 'mix');
+    expect(fansOf(c)).not.toBe(f0);
   });
 });

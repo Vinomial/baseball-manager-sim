@@ -18,6 +18,7 @@ import { PERS_KEYS } from './growth/personality';
 import { playerValue, salaryOf } from './growth/player';
 import type { Career } from './types';
 import { idbDel, idbGet, idbReady, idbSet } from './storage';
+import { market } from './league/fans';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
 
@@ -284,6 +285,12 @@ export function migrate(raw: unknown): Career | null {
     (c as unknown as Career).tactic ??= 'balance';
     (c as unknown as Career).tacticFam ??= 100;
     c.version = 28;
+  }
+  if (c.version === 28) {
+    // v29: ファンの数を追加.いまの階層の市場の大きさと,これまでの人気(収入の倍率)から始める
+    const cc = c as unknown as Career;
+    cc.fans ??= Math.round(market(cc.level) * 0.6 * (cc.revenue ?? 1));
+    c.version = 29;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

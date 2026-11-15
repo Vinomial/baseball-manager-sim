@@ -14,6 +14,7 @@ import { earn, moneyScale, spend, weeklyIncome } from './economy';
 import { addTrust } from './finance';
 import { findPlayer } from './team';
 import { addFam } from './tactics';
+import { fansBoost } from './fans';
 
 export type ActionKey = 'scout' | 'sponsor' | 'talk' | 'special' | 'rest' | 'fan' | 'study';
 
@@ -164,6 +165,7 @@ function runAction(c: Career, k: ActionKey, target: number | null): string {
     case 'fan': {
       earn(c, 'event', weeklyIncome(c));
       c.revenue = Math.min(1.3, c.revenue + 0.01);
+      fansBoost(c, 'event');
       addTrust(c, 1);
       return 'ファン行事は大盛況でした.収入と人気が上がりました.';
     }

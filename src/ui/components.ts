@@ -60,7 +60,7 @@ const avgOf = (s: Stats): string => (s.ab ? fmt3(s.h / s.ab) : '---');
 /** 通算成績の表.過去のシーズンごとの成績と,通算の行. */
 export function careerTable(p: Player, current: boolean): string {
   const bat = p.role === '野手';
-  const lines = p.seasons.map((x) => ({ label: `${x.season}年`, team: `${LEAGUES[x.level].name.replace('リーグ', '')} ${x.team}`, s: x.stats }));
+  const lines = p.seasons.map((x) => ({ label: x.rolled ? `${x.season}〜${x.season + x.rolled - 1}年` : `${x.season}年`, team: `${LEAGUES[x.level].name.replace('リーグ', '')} ${x.team}`, s: x.stats }));
   if (current && p.stats.g > 0) lines.push({ label: '今季', team: '', s: p.stats });
   if (!lines.length) return '<p class="small muted">まだ成績がありません.</p>';
   const tot = careerStats(p, current);

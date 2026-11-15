@@ -123,3 +123,29 @@ test('ドラフトで指名すると,育成方針を決めるシートが出る'
   await expect(page.locator('.sheet[aria-label="育成方針を決める"]')).toHaveCount(0);
   expect(errs).toEqual([]);
 });
+
+test('localStorage にある古いセーブは IndexedDB に移り,読み込み直しても続きから遊べる', async ({ page }) => {
+  const errs = watchErrors(page);
+  await newGame(page);
+  await page.click('[data-a="start"]');
+  // いまのセーブを取り出して,古い形(localStorage)に置き直す
+  const raw = await page.evaluate(async () => {
+    const db: IDBDatabase = await new Promise((r) => { const q = indexedDB.open('baseball-manager-sim', 1); q.onsuccess = () => r(q.result); });
+    const v: string = await new Promise((r) => { const q = db.transaction('kv').objectStore('kv').get('baseball-manager-sim/save'); q.onsuccess = () => r(q.result); });
+    const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete('baseball-manager-sim/save');
+    await new Promise((r) => { tx.oncomplete = r; });
+    db.close();
+    localStorage.setItem('baseball-manager-sim/save', v);
+    return v;
+  });
+  expect(raw.length).toBeGreaterThan(1000);
+  await page.reload();
+  await page.click('[data-a="screen"][data-k="play"]');
+  await expect(page.locator('header')).toContainText('ダイヤモンド監督');
+  // 移したあとは localStorage から消えている
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('baseball-manager-sim/save'))).toBeNull();
+  await page.reload();
+  await page.click('[data-a="screen"][data-k="play"]');
+  await expect(page.locator('main')).toContainText('2週');
+  expect(errs).toEqual([]);
+});

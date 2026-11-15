@@ -6,7 +6,7 @@
 import { recommendedMenu } from '../src/league/autoplay';
 import { advise } from '../src/league/advice';
 import { canCook, cook, RECIPES } from '../src/growth/meals';
-import { FACILITIES, MAX_FAC, upgrade, upgradeCost } from '../src/league/economy';
+import { MAX_FAC, upgrade, upgradeCost } from '../src/league/economy';
 import { resolveEvent } from '../src/league/events';
 import { budgetFor, payroll } from '../src/league/finance';
 import { newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam } from '../src/league/season';

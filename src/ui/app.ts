@@ -15,7 +15,7 @@ import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userTeam,
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
-import { clearSave, loadCareer, migrate, rawSave, saveCareer, SIZE_WARN } from '../save';
+import { clearSave, initStorage, migrate, rawSave, saveCareer, sizeWarn } from '../save';
 import type { AttrKey, Career, Difficulty, FacKey, PlanKey, Player, StaffRole, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { extendContract, negotiate } from '../league/contracts';
@@ -114,7 +114,7 @@ function planSheet(p: Player): string {
 /** セーブの問題を知らせる */
 function saveBanner(): string {
   if (state.saveFail) return '<div class="warnbox bad">⚠ セーブできませんでした(保存容量がいっぱいです).メニューの「バックアップを保存」で,いまのデータを残してください.</div>';
-  if (state.saveSize > SIZE_WARN) return '<div class="warnbox warn">⚠ セーブが大きくなっています.メニューの「バックアップを保存」をおすすめします.</div>';
+  if (state.saveSize > sizeWarn()) return '<div class="warnbox warn">⚠ セーブが大きくなっています.メニューの「バックアップを保存」をおすすめします.</div>';
   return '';
 }
 
@@ -483,8 +483,10 @@ function onChange(e: Event): void {
 export function mount(el: HTMLElement): void {
   root = el;
   applyPrefs();
-  state.career = loadCareer();
+  state.career = null;
   state.screen = 'title';
+  // セーブの読み込みは非同期(IndexedDB).読み込めたらタイトルを描き直す
+  void initStorage().then((c) => { if (c && !state.career) { state.career = c; render(); } }).catch(() => undefined);
   document.addEventListener('click', (e) => { try { onClick(e); } catch (err) { showCrash(err); } });
   window.addEventListener('error', (e) => { if (e.error) showCrash(e.error); });
   window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof Error) showCrash(e.reason); });

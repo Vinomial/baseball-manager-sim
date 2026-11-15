@@ -1,7 +1,7 @@
 /** 表彰,名選手(引退後の殿堂),ライバルと対戦成績.DOM に依存しない. */
 import { LEAGUES } from '../data/constants';
 import type { AwardRow, Career, LegendRow, Player, Record3, Stats, Team } from '../types';
-import { careerStats, fmt3, leaders } from './leaders';
+import { careerStats, fmt3, leaders, seasonCount } from './leaders';
 import { addStory } from './story';
 import { leagueTeams } from './schedule';
 import { ovr } from './team';
@@ -57,14 +57,14 @@ export function legendOf(c: Career, p: Player, team: Team): LegendRow {
     ? `通算${s.g}試合 打率${s.ab ? fmt3(s.h / s.ab) : '---'} ${s.hr}本塁打 ${s.rbi}打点 ${s.sb}盗塁`
     : `通算${s.g}登板 ${s.w}勝${s.l}敗 防御率${s.outs ? ((s.r * 27) / s.outs).toFixed(2) : '-.--'} ${s.k}奪三振`;
   return {
-    name: p.name, pos: p.pos, team: team.name, lastSeason: c.season, years: p.seasons.length,
+    name: p.name, pos: p.pos, team: team.name, lastSeason: c.season, years: seasonCount(p),
     level: Math.max(0, ...p.seasons.map((x) => x.level)), line, score, mine: team.user,
   };
 }
 
 /** 引退した選手のうち,名選手として残すもの.最大 60 人,点数の高い順. */
 export function addLegend(c: Career, p: Player, team: Team): void {
-  if (p.seasons.length < 3) return;
+  if (seasonCount(p) < 3) return;
   const row = legendOf(c, p, team);
   const min = 60 * (1 + row.level * 0.3);
   if (row.score < min && !row.mine) return;

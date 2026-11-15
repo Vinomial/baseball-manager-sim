@@ -36,6 +36,8 @@ export interface SeasonLine {
   stats: Stats;
   /** その年の終わりの能力(成長のグラフ用) */
   attrs?: Partial<Record<AttrKey, number>>;
+  /** 古いシーズンをまとめた行なら,まとめたシーズン数(season はその最初の年) */
+  rolled?: number;
 }
 
 export interface Injury { name: string; weeks: number; /** 大怪我(能力が下がる)か */ major: boolean; }

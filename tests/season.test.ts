@@ -20,7 +20,7 @@ import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
 import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
-import { driftPot, growAttr, keysOf } from '../src/growth/player';
+import { driftPot, emptyStats, growAttr, keysOf } from '../src/growth/player';
 import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
 import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
@@ -28,7 +28,7 @@ import { DIFFS, FOREIGN_FIRST, MOVES } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
-import { opsOf } from '../src/league/leaders';
+import { careerStats, foldHistory, opsOf, seasonCount } from '../src/league/leaders';
 import { advise } from '../src/league/advice';
 import { convertAdvice } from '../src/league/convert';
 import { playoffOdds, seriesWinProb, userSeries } from '../src/league/playoffs';
@@ -2171,5 +2171,39 @@ describe('BGM の楽譜', () => {
     expect(notesAt(s, 1).lead).toBeNull();
     expect(notesAt(s, songSteps(s))).toEqual(notesAt(s, 0));
     expect(notesAt(SONGS.game, 0).drum).toBe('k');
+  });
+});
+
+describe('セーブを軽くする', () => {
+  beforeEach(() => setRandom(seeded(4242)));
+  afterEach(() => resetRandom());
+
+  it('古いシーズンを1行にまとめても,通算成績とシーズン数は変わらない', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players[0];
+    for (let s = 1; s <= 9; s++) {
+      p.seasons.push({ season: s, level: s >= 5 ? 1 : 0, team: 'X', age: 20 + s, stats: { ...emptyStats(), g: 10, h: s, hr: 1, ab: 30 } });
+    }
+    const before = careerStats(p, false), n = seasonCount(p);
+    foldHistory(p, 4);
+    expect(p.seasons).toHaveLength(5);
+    expect(p.seasons[0].rolled).toBe(5);
+    expect(p.seasons[0].level).toBe(1);
+    expect(careerStats(p, false)).toEqual(before);
+    expect(seasonCount(p)).toBe(n);
+    foldHistory(p, 4);
+    expect(p.seasons).toHaveLength(5);
+  });
+
+  it('AI チームの選手は,何年たっても最近のシーズンだけを持ち,セーブが軽い', () => {
+    const c = newCareer('テスト');
+    for (let s = 0; s < 6; s++) {
+      while (c.phase === 'season') playWeek(c, 'mix');
+      while (!c.off!.draft.done) pickDraft(c, -1);
+      newSeason(c);
+    }
+    const ai = c.teams.filter((t) => !t.user).flatMap((t) => t.players);
+    expect(Math.max(...ai.map((p) => p.seasons.filter((x) => !x.rolled).length))).toBeLessThanOrEqual(4);
+    expect(ai.some((p) => p.seasons.some((x) => x.rolled))).toBe(true);
   });
 });

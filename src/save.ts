@@ -13,13 +13,54 @@ import { genAbilities } from './growth/abilities';
 import { PERS_KEYS } from './growth/personality';
 import { playerValue, salaryOf } from './growth/player';
 import type { Career } from './types';
+import { idbDel, idbGet, idbReady, idbSet } from './storage';
 
 const SAVE_KEY = 'baseball-manager-sim/save';
 
-/** この文字数を超えたら,古い記録を整理する(ブラウザの保存容量はおよそ 500 万文字) */
+/** この文字数を超えたら,古い記録を整理する(localStorage の容量はおよそ 500 万文字) */
 export const SIZE_PRUNE = 2_400_000;
 /** これを超えたら,バックアップをすすめる */
 export const SIZE_WARN = 3_500_000;
+/** IndexedDB に保存できるときの目安(ずっと大きく保存できる) */
+const IDB_PRUNE = 20_000_000, IDB_WARN = 30_000_000;
+
+/** IndexedDB に保存しているか(initStorage のあとで決まる) */
+let useIdb = false;
+/** 最後に保存・読み込みしたセーブ(バックアップ用にすぐ取り出せるように) */
+let cache: string | null = null;
+/** IndexedDB への最後の書き込みが成功したか */
+let lastOk = true;
+
+export const sizeWarn = (): number => (useIdb ? IDB_WARN : SIZE_WARN);
+const sizePrune = (): number => (useIdb ? IDB_PRUNE : SIZE_PRUNE);
+
+function lsGet(): string | null {
+  try { return localStorage.getItem(SAVE_KEY); } catch { return null; }
+}
+function lsDel(): void {
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* 無視 */ }
+}
+
+/**
+ * 起動時に呼ぶ.IndexedDB が使えればそこから読み込む.
+ * まだ localStorage にだけセーブがあるときは IndexedDB へ写し,書き込みが確かめられてから localStorage の分を消す.
+ */
+export async function initStorage(): Promise<Career | null> {
+  useIdb = await idbReady();
+  if (!useIdb) return loadCareer();
+  let raw = await idbGet(SAVE_KEY);
+  const old = lsGet();
+  if (!raw && old) {
+    raw = old;
+    if (await idbSet(SAVE_KEY, old)) lsDel();
+  } else if (raw && old) {
+    // 両方あるとき(ほかの方法で localStorage に入れられたなど)は,localStorage を新しいものとして扱う
+    raw = old;
+    if (await idbSet(SAVE_KEY, old)) lsDel();
+  }
+  cache = raw;
+  try { return raw ? migrate(JSON.parse(raw)) : null; } catch { return null; }
+}
 
 export interface SaveStatus { ok: boolean; size: number; }
 
@@ -37,7 +78,17 @@ export function pruneCareer(c: Career): void {
 
 export function saveCareer(c: Career): SaveStatus {
   let json = JSON.stringify(c);
-  if (json.length > SIZE_PRUNE) { pruneCareer(c); json = JSON.stringify(c); }
+  if (json.length > sizePrune()) { pruneCareer(c); json = JSON.stringify(c); }
+  cache = json;
+  if (useIdb) {
+    // 書き込みは裏で行う.失敗したら localStorage に入れてみて,結果を次の保存のときに知らせる
+    const snap = json;
+    void idbSet(SAVE_KEY, snap).then((ok) => {
+      if (ok) { lastOk = true; return; }
+      try { localStorage.setItem(SAVE_KEY, snap); lastOk = true; } catch { lastOk = false; }
+    });
+    return { ok: lastOk, size: json.length };
+  }
   try {
     localStorage.setItem(SAVE_KEY, json);
     return { ok: true, size: json.length };
@@ -49,7 +100,7 @@ export function saveCareer(c: Career): SaveStatus {
 
 /** 保存されているセーブ(文字列のまま).バックアップ用. */
 export function rawSave(): string | null {
-  try { return localStorage.getItem(SAVE_KEY); } catch { return null; }
+  return cache ?? lsGet();
 }
 
 /** 古いバージョンのセーブデータを最新の形に直す.直せないときは null. */
@@ -246,7 +297,8 @@ function migrateV3(c: Record<string, unknown>): void {
 
 export function loadCareer(): Career | null {
   try {
-    const s = localStorage.getItem(SAVE_KEY);
+    const s = lsGet();
+    cache = s;
     return s ? migrate(JSON.parse(s)) : null;
   } catch {
     return null;
@@ -254,5 +306,7 @@ export function loadCareer(): Career | null {
 }
 
 export function clearSave(): void {
-  try { localStorage.removeItem(SAVE_KEY); } catch { /* 無視 */ }
+  cache = null;
+  lsDel();
+  void idbDel(SAVE_KEY);
 }

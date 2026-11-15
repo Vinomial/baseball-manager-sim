@@ -10,6 +10,7 @@ import { clamp, pick, randn, ri, shuffle } from '../util/random';
 import { heal, isHurt, maybeInjure } from './health';
 import { applyGameEffects, applyGameResultToStanding } from './result';
 import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
+import { foldHistory } from './leaders';
 import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 
@@ -272,6 +273,9 @@ export function expandLeagues(c: Career, next: Record<number, number>): void {
 
 /* ===== 加齢,引退,ドラフト,自由契約 ===== */
 
+/** AI チームの選手が,シーズンごとに持っておく年数.それより古い年は 1 行にまとめる(セーブを軽くするため). */
+export const AI_HISTORY = 4;
+
 export function archiveSeason(c: Career, t: Team, level: number): void {
   for (const p of t.players) {
     if (p.stats.g > 0) {
@@ -279,8 +283,10 @@ export function archiveSeason(c: Career, t: Team, level: number): void {
       for (const k of keysOf(p)) attrs[k] = Math.round(p[k]);
       p.seasons.push({ season: c.season, level, team: t.name, age: p.age, stats: { ...p.stats }, attrs });
     }
+    if (!t.user) foldHistory(p, AI_HISTORY);
   }
 }
+
 
 /** 1年分の加齢.引退した選手の名前を返す. */
 export function ageTeam(t: Team, awakened?: string[]): Player[] {

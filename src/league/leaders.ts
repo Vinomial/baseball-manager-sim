@@ -53,6 +53,23 @@ export function sumStats(list: Stats[]): Stats {
   return t;
 }
 
+/** 古いシーズンを 1 行にまとめ,最近の keep 年だけを残す.通算成績とシーズン数は変わらない. */
+export function foldHistory(p: Player, keep: number): void {
+  const plain = p.seasons.filter((x) => !x.rolled);
+  if (plain.length <= keep) return;
+  const old = p.seasons.slice(0, p.seasons.length - keep);
+  const recent = p.seasons.slice(p.seasons.length - keep);
+  const first = old[0];
+  const rolled = {
+    season: first.season, level: Math.max(...old.map((x) => x.level)), team: old[old.length - 1].team, age: first.age,
+    stats: sumStats(old.map((x) => x.stats)), rolled: old.reduce((n, x) => n + (x.rolled ?? 1), 0),
+  };
+  p.seasons = [rolled, ...recent];
+}
+
+/** 何シーズン戦ったか(まとめた行も数える) */
+export const seasonCount = (p: Player): number => p.seasons.reduce((n, x) => n + (x.rolled ?? 1), 0);
+
 /** 通算成績(過去のシーズン+今シーズン). */
 export function careerStats(p: Player, includeCurrent: boolean): Stats {
   return sumStats([...p.seasons.map((x) => x.stats), ...(includeCurrent ? [p.stats] : [])]);

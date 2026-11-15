@@ -26,7 +26,7 @@ export function makeGoals(c: Career): Goal[] {
   const w = Math.max(1, Math.round(f.wins) + 1);
   const others: Goal[] = [
     { kind: 'wins', target: w, text: `${w}勝以上する`, reward: big(4, 0.25) },
-    { kind: 'cup', target: 2, text: '全日本選手権で2勝する', reward: big(5, 0.3) },
+    { kind: 'cup', target: 2, text: '年末の選手権で2勝する', reward: big(5, 0.3) },
     { kind: 'grow', target: 25, text: '1人の選手の能力を合計+25以上伸ばす', reward: big(4, 0.25) },
   ];
   goals.push(pick(others));
@@ -42,7 +42,7 @@ export function goalProgress(c: Career, g: Goal): string {
     case 'rank': return `いま${rank}位(目標${g.target}位以内)`;
     case 'title': return `いま${rank}位`;
     case 'wins': return `いま${st.w}勝(目標${g.target}勝)`;
-    case 'cup': return '年末の全日本選手権で判定';
+    case 'cup': return '年末の選手権で判定';
     default: return '年末に判定';
   }
 }

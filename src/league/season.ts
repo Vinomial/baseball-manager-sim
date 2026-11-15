@@ -30,13 +30,14 @@ import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
+import { userCupDef } from '../data/cups';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
-  computeNextLevels, draftOrder, expandLeagues, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
+  arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -238,7 +239,7 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   return { games, report, kind, menu };
 }
 
-/** 新しい週に入るとき,プレーオフや全日本選手権の準備をする */
+/** 新しい週に入るとき,プレーオフや選手権の準備をする */
 function enterWeek(c: Career): void {
   if (c.cal === PLAYOFF_START) { stepLeagues(c, false); startPlayoffs(c); }
   if (c.cal === CUP_START) startCup(c);
@@ -258,7 +259,7 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
   }
   const win = us.runs > them.runs;
   const res = win ? '勝ち' : us.runs < them.runs ? '負け' : '引き分け';
-  const tag = kind === 'league' ? `第${c.week + 1}戦` : kind === 'playoff' ? 'プレーオフ' : '全日本選手権';
+  const tag = kind === 'league' ? `第${c.week + 1}戦` : kind === 'playoff' ? 'プレーオフ' : userCupDef(c).short;
   c.last = `${tag} vs ${opp.name}: ${us.runs} - ${them.runs} で${res}`;
   c.results.push({ season: c.season, week: c.week, opp: opp.name, us: us.runs, them: them.runs, home: us === g.home, prob, kind });
   addTrust(c, trustAfterGame(prob, us.runs, them.runs));
@@ -288,9 +289,8 @@ export function finishSeason(c: Career): void {
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
   const rec = { ...userLeague(c).stand[c.userId] };
 
-  // プレーオフと全日本選手権の結果
-  const champIds: Record<number, number> = {};
-  for (const lg of c.leagues) if (lg.po?.champion != null) champIds[lg.level] = lg.po.champion;
+  // プレーオフと選手権の結果
+  const myChamp = userLeague(c).po?.champion ?? undefined;
   const playoff = playoffText(c, userLeague(c));
   const cup = cupSummary(c);
   if (cup.wins > 0) {
@@ -300,7 +300,7 @@ export function finishSeason(c: Career): void {
     if (cup.champion) c.revenue = Math.min(1.3, c.revenue + 0.1);
   }
   // 表彰(成績を記録に回す前に行う)
-  c.awards.push(...computeAwards(c, champIds));
+  c.awards.push(...computeAwards(c));
   if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
 
   const swaps = playSwaps(c);
@@ -343,11 +343,11 @@ export function finishSeason(c: Career): void {
   }
   // GMの信頼度.順位,昇降格,優勝で変わる
   const expRank = [...leagueTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
-  addTrust(c, (expRank - rank) * 1.5 + (champIds[from] === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
+  addTrust(c, (expRank - rank) * 1.5 + (myChamp === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
   checkFired(c, `${c.season}年目の成績不振が続き,球団から解任されました.`);
-  c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= 4, champIds[from] === c.userId, c.revenue);
+  c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= 4, myChamp === c.userId, c.revenue);
   // チームの記録と実績
-  const userTitle = champIds[from] === c.userId;
+  const userTitle = myChamp === c.userId;
   if (userTitle) c.rec.titles[from]++;
   if (from === LEAGUES.length - 1) c.rec.proStreak = userTitle ? c.rec.proStreak + 1 : 0;
   if (rec.w > c.rec.bestWins) { c.rec.bestWins = rec.w; c.rec.bestSeason = c.season; }
@@ -356,12 +356,12 @@ export function finishSeason(c: Career): void {
     c.ended = true;
     c.news.push('メジャーリーグで5回優勝!あなたは殿堂入りしました.ゲームはこのまま続けられます.');
   }
-  const review = makeReview(c, champIds[from], cup.champion);
+  const review = makeReview(c, myChamp, cup.champion);
   for (const t of judgeTrainGoals(c)) c.news.push(t);
-  if (champIds[from] === c.userId) addAlbum(c, 'title', `${LEAGUES[from].name}で優勝!`);
-  if (cup.champion) addAlbum(c, 'title', '全日本選手権で優勝!');
+  if (myChamp === c.userId) addAlbum(c, 'title', `${LEAGUES[from].name}で優勝!`);
+  if (cup.champion) addAlbum(c, 'title', `${userCupDef(c).name}で優勝!`);
   if (move > 0) addAlbum(c, 'promo', `${LEAGUES[to].name}へ昇格!`);
-  review.goals = judgeGoals(c, rank, rec.w, champIds[from] === c.userId, cup.wins, review);
+  review.goals = judgeGoals(c, rank, rec.w, myChamp === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
   c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: swaps.map((x) => x.text), draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
   c.phase = 'off';
@@ -440,9 +440,8 @@ export function newSeason(c: Career): void {
   const u = userTeam(c);
   // 交渉が済んでいない契約は,要求どおりに結ぶ
   settleAll(c);
-  // 全チームの移動(足りないリーグには新しいチームが加わる)
-  expandLeagues(c, o.next);
-  for (const lg of c.leagues) lg.teamIds = c.teams.filter((t) => o.next[t.id] === lg.level).map((t) => t.id);
+  // 全チームの移動(足りない階層には新しいチームとリーグが加わる)
+  arrangeLeagues(c, o.next);
   c.level = o.to;
   // 自由契約の市場と AI の補強
   aiSignFreeAgents(c, o.next);

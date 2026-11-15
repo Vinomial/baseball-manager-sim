@@ -167,7 +167,12 @@ export interface PlayoffState {
 }
 
 /** 年末の全日本選手権の進行 */
+/** 年末の選手権の種類(アマチュア,日本,世界) */
+export type CupKind = 'ama' | 'jp' | 'world';
+
 export interface CupLive {
+  /** どの大会か(古いセーブにはない) */
+  kind?: CupKind;
   /** いま残っているチーム(対戦表の並び.不戦勝の空きは null) */
   slots: (number | null)[];
   /** 次に行う回戦(0 から) */
@@ -176,7 +181,10 @@ export interface CupLive {
 }
 
 export interface LeagueState {
+  /** 階層(0 が草野球) */
   level: number;
+  /** 同じ階層に並ぶリーグのうち,何番目か(地域) */
+  sub?: number;
   teamIds: number[];
   schedule: [number, number][][];
   stand: Record<number, Standing>;
@@ -191,7 +199,7 @@ export interface LeagueState {
   po: PlayoffState | null;
 }
 
-export interface ChampRow { season: number; level: number; team: string; teamId: number; runnerUp: string; }
+export interface ChampRow { season: number; level: number; /** リーグの名前(地域つき) */ league?: string; team: string; teamId: number; runnerUp: string; }
 
 export interface OffSeason {
   rank: number;
@@ -318,7 +326,7 @@ export interface CupMatch {
   winner: number;
 }
 
-export interface CupRow { season: number; champion: string; championId: number; championLevel: number; runnerUp: string; }
+export interface CupRow { season: number; kind?: CupKind; champion: string; championId: number; championLevel: number; runnerUp: string; }
 
 export type FacKey = 'stadium' | 'ground' | 'clinic' | 'canteen' | 'scout';
 
@@ -457,6 +465,8 @@ export interface Career {
   cups: CupRow[];
   /** 直近の全日本選手権の対戦表 */
   cupBracket: CupMatch[];
+  /** プレイヤーが出ない選手権(同時に進む) */
+  sideCups?: { live: CupLive; bracket: CupMatch[] }[];
   /** 直近の練習メニュー(新しいものが後ろ) */
   lastMenus: string[];
   pantry: Record<Ingredient, number>;

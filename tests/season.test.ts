@@ -24,7 +24,7 @@ import { driftPot, emptyStats, growAttr, keysOf } from '../src/growth/player';
 import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
 import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
-import { DIFFS, FOREIGN_FIRST, MOVES } from '../src/data/constants';
+import { DIFFS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
@@ -44,7 +44,9 @@ import { autoLineup } from '../src/league/team';
 import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
-import { expandLeagues, playoffSeeds, weeklyUpkeep } from '../src/league/world';
+import { arrangeLeagues, leagueName, playoffSeeds, weeklyUpkeep } from '../src/league/world';
+import { leaguesInTier, userLeague } from '../src/league/schedule';
+import { CUPS } from '../src/data/cups';
 import { addTrust } from '../src/league/finance';
 import { confirmMessage, warnings } from '../src/league/warnings';
 import { resultSound, setScene, setVolume, sfx, sound, startBgm, stopBgm, vibrate } from '../src/ui/sound';
@@ -131,8 +133,8 @@ describe('シーズン進行', () => {
       prepareNextSeason(c);
       expect(isLineupValid(userTeam(c))).toBe(true);
       expect(c.season).toBe(s + 2);
-      expect(c.leagues[c.level].schedule.length).toBe(gamesPerSeason(c.level));
-      c.leagues.forEach((lg, i) => expect(lg.teamIds.length).toBe(LEAGUES[i].teams));
+      expect(userLeague(c).schedule.length).toBe(gamesPerSeason(c.level));
+      c.leagues.forEach((lg) => expect(lg.teamIds.length).toBe(LEAGUES[lg.level].teams));
     }
   });
 
@@ -163,12 +165,12 @@ describe('世界の進行', () => {
       playSeason(c, 'mix');
       // どのリーグも全試合を消化し,優勝が記録される
       for (const lg of c.leagues) expect(lg.week).toBe(lg.schedule.length);
-      expect(c.champs.length).toBe((s + 1) * LEAGUES.length);
+      expect(c.champs.length).toBe((s + 1) * c.leagues.length);
       prepareNextSeason(c);
       const seen = new Set<number>();
       for (const t of c.teams) {
         // 最低人数の補充(入団テスト)は上限より優先されるので,プレイヤーのチームは除く
-        if (!t.user) expect(t.players.length).toBeLessThanOrEqual(rosterMax(c.leagues.findIndex((lg) => lg.teamIds.includes(t.id))));
+        if (!t.user) expect(t.players.length).toBeLessThanOrEqual(rosterMax(c.leagues.find((lg) => lg.teamIds.includes(t.id))!.level));
         expect(isLineupValid(t)).toBe(true);
         for (const p of t.players) { expect(seen.has(p.id)).toBe(false); seen.add(p.id); }
       }
@@ -262,17 +264,20 @@ describe('セーブデータの移行', () => {
   it('v3 のデータから全リーグの世界を作って続きを遊べる', () => {
     const c = newCareer('テスト');
     // v3 の形(リーグ 1 つ分の日程と順位をトップに持つ)に戻す
-    const lg = c.leagues[0];
+    const lg = userLeague(c);
     const old = JSON.parse(JSON.stringify({ ...c, schedule: lg.schedule, stand: lg.stand, teams: c.teams.filter((t) => lg.teamIds.includes(t.id)) })) as Record<string, unknown>;
     old.version = 3;
     delete old.leagues; delete old.fa; delete old.champs;
     for (const t of old.teams as { players: Record<string, unknown>[] }[]) for (const p of t.players) delete p.seasons;
     const m = migrate(old);
     expect(m).not.toBeNull();
-    expect(m!.leagues.length).toBe(LEAGUES.length);
-    m!.leagues.forEach((l, i) => expect(l.teamIds.length).toBe(LEAGUES[i].teams));
+    // 昔の 5 階層に,市民リーグを足した 6 階層(地域のリーグは次のシーズンから)
+    expect(m!.leagues.map((l) => l.level)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(m!.leagues.map((l) => l.teamIds.length)).toEqual([6, 6, 6, 8, 12, 12]);
     playSeason(m!);
     expect(m!.phase).toBe('off');
+    prepareNextSeason(m!);
+    LEAGUES.forEach((L, l) => expect(leaguesInTier(m!, l)).toHaveLength(L.count));
   });
 
   it('知らないバージョンは読み込まない', () => {
@@ -677,17 +682,25 @@ describe('全日本選手権', () => {
   beforeEach(() => setRandom(seeded(111)));
   afterEach(() => resetRandom());
 
-  it('全チームが出場する1つのトーナメントで,優勝は1チームだけ', () => {
+  it('3 つの選手権に,それぞれの階層の全チームが出て,どれも優勝は 1 チームだけ', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
-    const total = LEAGUES.reduce((n, l) => n + l.teams, 0);
+    const teamsIn = (tiers: number[]) => tiers.reduce((n, l) => n + LEAGUES[l].teams * LEAGUES[l].count, 0);
+    // プレイヤーはいちばん下の階層なので,アマチュアの大会に出る
+    const total = teamsIn(CUPS[0].tiers);
     expect(c.cupBracket.length).toBe(total - 1);
     const ids = new Set(c.cupBracket.flatMap((m) => [m.aId, m.bId]));
     expect(ids.size).toBe(total);
-    expect(c.cups.length).toBe(1);
+    expect(c.sideCups).toHaveLength(CUPS.length - 1);
+    for (const [i, side] of c.sideCups!.entries()) {
+      expect(side.live.done).toBe(true);
+      expect(side.bracket.length).toBe(teamsIn(CUPS[i + 1].tiers) - 1);
+    }
+    expect(c.cups.length).toBe(CUPS.length);
+    expect(new Set(c.cups.map((x) => x.kind)).size).toBe(CUPS.length);
     const final = c.cupBracket[c.cupBracket.length - 1];
     expect(final.round).toBe('決勝');
-    expect(c.cups[0].championId).toBe(final.winner);
+    expect(c.cups.find((x) => x.kind === 'ama')!.championId).toBe(final.winner);
     // 決勝以外は,負けたチームは二度と出てこない
     const lost = new Set<number>();
     for (const m of c.cupBracket) {
@@ -702,7 +715,7 @@ describe('全日本選手権', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
     // シーズンの試合数以上の登板・出場は記録されていない
-    for (const t of c.teams) for (const p of t.players) expect(p.stats.g).toBeLessThanOrEqual(gamesPerSeason(c.leagues.findIndex((l) => l.teamIds.includes(t.id))) + 8 + 5);
+    for (const t of c.teams) for (const p of t.players) expect(p.stats.g).toBeLessThanOrEqual(gamesPerSeason(c.leagues.find((l) => l.teamIds.includes(t.id))!.level) + 8 + 6);
   });
 
   it('v10 のデータに選手権の欄を足す', () => {
@@ -1192,30 +1205,40 @@ describe('昇格・降格の枠', () => {
     const f0 = forecast(c, 60);
     expect(f0.downN).toBe(0);
     expect(f0.down).toBe(0);
-    expect(f0.upN).toBe(MOVES[0]);
+    expect(f0.upN).toBe(1);
     c.level = LEAGUES.length - 1;
     const f1 = forecast(c, 60);
     expect(f1.upN).toBe(0);
     expect(f1.up).toBe(0);
-    expect(f1.downN).toBe(MOVES[LEAGUES.length - 2]);
+    expect(f1.downN).toBe(relegPerLeague(LEAGUES.length - 1));
   });
 
-  it('境目ごとに決まった数のチームだけが入れ替わり,各リーグのチーム数は変わらない', () => {
+  it('境目ごとに上がる数と下がる数が等しく,開幕後も各リーグのチーム数は変わらない', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
     const o = c.off!;
     for (let l = 0; l < LEAGUES.length - 1; l++) {
-      const up = c.leagues[l].teamIds.filter((id) => o.next[id] === l + 1).length;
-      const down = c.leagues[l + 1].teamIds.filter((id) => o.next[id] === l).length;
-      // 自動の入れ替えに,入れ替え戦で下が勝てばもう 1 チーム
-      const swap = o.swaps?.length ? up - MOVES[l] : 0;
-      expect(swap === 0 || swap === 1).toBe(true);
-      expect(up).toBe(MOVES[l] + swap);
+      const up = leaguesInTier(c, l).flatMap((lg) => lg.teamIds).filter((id) => o.next[id] === l + 1).length;
+      const down = leaguesInTier(c, l + 1).flatMap((lg) => lg.teamIds).filter((id) => o.next[id] === l).length;
+      // 各リーグの優勝チームが自動で上がり,入れ替え戦で下が勝てばさらに上がる
+      const auto = LEAGUES[l].count;
+      const swaps = Math.min(LEAGUES[l].count, LEAGUES[l + 1].count);
+      expect(up).toBeGreaterThanOrEqual(auto);
+      expect(up).toBeLessThanOrEqual(auto + swaps);
       expect(down).toBe(up);
+      // 各リーグの優勝チームは必ず上がる
+      for (const lg of leaguesInTier(c, l)) expect(o.next[standings(c, lg)[0].t.id]).toBe(l + 1);
     }
     // 最下位リーグの最下位は降格しない
-    const last = standings(c, c.leagues[0]).slice(-1)[0].t.id;
-    expect(o.next[last]).toBe(0);
+    for (const lg of leaguesInTier(c, 0)) expect(o.next[standings(c, lg).slice(-1)[0].t.id]).toBe(0);
+    while (!c.off!.draft.done) pickDraft(c, -1);
+    newSeason(c);
+    LEAGUES.forEach((L, l) => {
+      const lgs = leaguesInTier(c, l);
+      expect(lgs).toHaveLength(L.count);
+      for (const lg of lgs) expect(lg.teamIds, leagueName(lg)).toHaveLength(L.teams);
+    });
+    expect(new Set(c.leagues.flatMap((lg) => lg.teamIds)).size).toBe(c.teams.length);
   });
 });
 
@@ -1244,25 +1267,36 @@ describe('入れ替え戦と拡張', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
     const o = c.off!;
-    expect(o.swaps).toHaveLength(LEAGUES.length - 1);
+    const pairs = LEAGUES.slice(0, -1).reduce((n, L, l) => n + Math.min(L.count, LEAGUES[l + 1].count), 0);
+    expect(o.swaps).toHaveLength(pairs);
+    // 入れ替え戦に出た 2 チームは,片方が上,片方が下に分かれる
+    const seconds = c.leagues.map((lg) => standings(c, lg)[1].t.id);
     for (let l = 0; l < LEAGUES.length - 1; l++) {
-      const lo = standings(c, c.leagues[l])[MOVES[l]].t.id, up = standings(c, c.leagues[l + 1]).slice().reverse()[MOVES[l]].t.id;
-      expect([o.next[lo], o.next[up]].sort()).toEqual([l, l + 1]);
+      const lows = seconds.filter((id) => leaguesInTier(c, l).some((lg) => lg.teamIds.includes(id)) && o.next[id] === l + 1);
+      for (const id of lows) expect(leaguesInTier(c, l).some((lg) => standings(c, lg)[1].t.id === id)).toBe(true);
     }
   });
 
   it('足りないチームは,次のシーズンの開幕で AI チームとして加わる', () => {
     const c = newCareer('テスト');
     playSeason(c, 'mix');
-    // 古いセーブのように,プロから 2 チームが少ない状態にする
-    const pro = c.leagues[3];
+    // 古いセーブのように,プロから 2 チームが少なく,草野球のリーグが 1 つしかない状態にする
+    const pro = leaguesInTier(c, 4)[0];
     for (const id of pro.teamIds.slice(-2)) {
       c.teams = c.teams.filter((t) => t.id !== id);
       delete c.off!.next[id];
     }
     pro.teamIds = pro.teamIds.slice(0, -2);
-    expandLeagues(c, c.off!.next);
-    expect(c.teams.filter((t) => c.off!.next[t.id] === 3)).toHaveLength(LEAGUES[3].teams);
+    const grass = leaguesInTier(c, 0);
+    for (const lg of grass.slice(1)) {
+      for (const id of lg.teamIds) { if (id === c.userId) continue; c.teams = c.teams.filter((t) => t.id !== id); delete c.off!.next[id]; }
+      c.leagues = c.leagues.filter((x) => x !== lg);
+    }
+    if (!grass[0].teamIds.includes(c.userId)) grass[0].teamIds.push(c.userId);
+    arrangeLeagues(c, c.off!.next);
+    expect(c.teams.filter((t) => c.off!.next[t.id] === 4)).toHaveLength(LEAGUES[4].teams);
+    expect(leaguesInTier(c, 0)).toHaveLength(LEAGUES[0].count);
+    for (const lg of leaguesInTier(c, 0)) expect(lg.teamIds).toHaveLength(LEAGUES[0].teams);
   });
 });
 
@@ -1278,7 +1312,7 @@ describe('セーブの安全', () => {
     expect(c.hist.length).toBeLessThanOrEqual(240);
     expect(c.awards.length).toBeLessThanOrEqual(200);
     expect(userTeam(c).players.length).toBeGreaterThan(10);
-    expect(c.leagues.length).toBe(LEAGUES.length);
+    expect(c.leagues.length).toBe(LEAGUES.reduce((n, L) => n + L.count, 0));
   });
 
   it('保存の結果(成功か,大きさ)が返る.保存先がない環境でも落ちない', () => {
@@ -1442,8 +1476,8 @@ describe('2周目の引き継ぎと地区', () => {
 
   it('プロとメジャーだけが,2 つの地区(A・B リーグ)に分かれる', () => {
     const c = newCareer('テスト');
-    c.leagues.forEach((lg, i) => {
-      if (LEAGUES[i].divs) {
+    c.leagues.forEach((lg) => {
+      if (LEAGUES[lg.level].divs) {
         expect(lg.divs).toBeDefined();
         expect(lg.divs!.flat().sort()).toEqual([...lg.teamIds].sort());
         expect(lg.divs![0].length + lg.divs![1].length).toBe(lg.teamIds.length);
@@ -1453,7 +1487,7 @@ describe('2周目の引き継ぎと地区', () => {
 
   it('地区のあるリーグのプレーオフは,各地区の上位 2 チーム', () => {
     const c = newCareer('テスト');
-    const lg = c.leagues[LEAGUES.length - 1];
+    const lg = leaguesInTier(c, LEAGUES.length - 1)[0];
     // 片方の地区に強いチームが集まっていても,各地区から 2 チームが出る
     const seeds = playoffSeeds(c, lg);
     expect(seeds.length).toBe(4);
@@ -1471,7 +1505,7 @@ describe('2周目の引き継ぎと地区', () => {
     const m = migrate(old);
     expect(m).not.toBeNull();
     expect(m!.gen).toBe(1);
-    expect(m!.leagues[LEAGUES.length - 1].divs).toBeDefined();
+    expect(leaguesInTier(m!, LEAGUES.length - 1)[0].divs).toBeDefined();
   });
 });
 
@@ -1849,12 +1883,12 @@ describe('外国人選手・総合値・盗塁', () => {
   it('上のリーグほど外国人選手が多い', () => {
     const c = newCareer('テスト');
     const share = (lv: number) => {
-      const ps = c.leagues[lv].teamIds.flatMap((id) => c.teams.find((t) => t.id === id)!.players);
+      const ps = leaguesInTier(c, lv).flatMap((lg) => lg.teamIds).flatMap((id) => c.teams.find((t) => t.id === id)!.players);
       return ps.filter((p) => FOREIGN_FIRST.includes(p.name.split(' ')[0])).length / ps.length;
     };
     expect(share(0)).toBeLessThan(0.05);
     expect(share(LEAGUES.length - 1)).toBeGreaterThan(share(0) + 0.2);
-    expect(share(LEAGUES.length - 1)).toBeGreaterThan(share(2));
+    expect(share(LEAGUES.length - 1)).toBeGreaterThan(share(3));
   });
 
   it('選手の総合値と将来が 0〜100 の数字で出る', () => {
@@ -2205,5 +2239,40 @@ describe('セーブを軽くする', () => {
     const ai = c.teams.filter((t) => !t.user).flatMap((t) => t.players);
     expect(Math.max(...ai.map((p) => p.seasons.filter((x) => !x.rolled).length))).toBeLessThanOrEqual(4);
     expect(ai.some((p) => p.seasons.some((x) => x.rolled))).toBe(true);
+  });
+});
+
+describe('6 階層への移行(v25 → v26)', () => {
+  beforeEach(() => setRandom(seeded(2626)));
+  afterEach(() => resetRandom());
+
+  it('昔の 5 階層のセーブは,番号を付け直し,市民リーグを足し,次の開幕で地域のリーグに分かれる', () => {
+    const c = newCareer('テスト');
+    // 昔の形に戻す: 1 階層に 1 リーグ(プレイヤーのいる草野球,社会人,独立,プロ,メジャー)
+    const pick = [userLeague(c), ...[2, 3, 4, 5].map((t) => leaguesInTier(c, t)[0])];
+    const keep = new Set(pick.flatMap((lg) => lg.teamIds));
+    const old = JSON.parse(JSON.stringify({ ...c, teams: c.teams.filter((t) => keep.has(t.id)) })) as Career;
+    old.leagues = JSON.parse(JSON.stringify(pick));
+    old.leagues.forEach((lg, i) => { lg.level = i; delete lg.sub; });
+    old.level = 0;
+    old.rec.titles = [2, 1, 0, 0, 0];
+    old.ach = { up1: 1, title0: 1, title1: 1 };
+    old.champs = [{ season: 1, level: 1, team: 'x', teamId: 1, runnerUp: 'y' }];
+    old.cups = [{ season: 1, champion: 'x', championId: 1, championLevel: 2, runnerUp: 'y' }];
+    (old as unknown as { version: number }).version = 25;
+    const m = migrate(old)!;
+    expect(m).not.toBeNull();
+    expect(m.leagues.map((l) => l.level)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(m.rec.titles).toEqual([2, 0, 1, 0, 0, 0]);
+    expect(m.ach).toEqual({ up2: 1, title0: 1, title2: 1 });
+    expect(m.champs[0].level).toBe(2);
+    expect(m.cups[0].championLevel).toBe(3);
+    expect(m.cups[0].kind).toBe('ama');
+    playSeason(m);
+    prepareNextSeason(m);
+    LEAGUES.forEach((L, l) => {
+      expect(leaguesInTier(m, l), L.name).toHaveLength(L.count);
+      for (const lg of leaguesInTier(m, l)) expect(lg.teamIds).toHaveLength(L.teams);
+    });
   });
 });

@@ -2,7 +2,7 @@
  * 世界の進行.プレイヤーのいるリーグ以外も,毎シーズン同じチーム・選手が続く.
  * 週ごとの試合,プレーオフ,昇格・降格,加齢,ドラフト,自由契約を扱う.
  */
-import { DIFFS, DRAFT_ROUNDS, LABEL, MOVES, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES } from '../data/constants';
+import { DIFFS, DRAFT_ROUNDS, LABEL, LEAGUES, LEGACY_TIER, MIN_FIELDERS, MIN_PITCHERS, rosterMax, TEAM_NAMES, type League } from '../data/constants';
 import { newGame, stepToEnd } from '../engine/game';
 import { agePlayer, condDrift, driftPot, futureValue, genPlayer, growAttr, keysOf, playerValue } from '../growth/player';
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
@@ -11,19 +11,34 @@ import { heal, isHurt, maybeInjure } from './health';
 import { applyGameEffects, applyGameResultToStanding } from './result';
 import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { foldHistory } from './leaders';
-import { emptyStanding, leagueOfTeam, makeSchedule, standings, teamById } from './schedule';
+import { emptyStanding, leagueOfTeam, leaguesInTier, makeSchedule, standings, teamById, type StandingRow } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 
 /** AI チームが1シーズンで練習から得る成長(週数で割って使う) */
-export const AI_YEAR_GAIN = [2.7, 3.3, 4.3, 5.6, 6.3];
+export const AI_YEAR_GAIN = [2.7, 3.0, 3.4, 4.3, 5.6, 6.3];
 
 /** AI チームの連携の初期値はリーグが上がるほど高い */
 export const aiChem = (level: number): number => 20 + level * 12;
 
 /* ===== 世界の作成 ===== */
 
-export function resetLeague(lg: LeagueState): void {
+/** 古いセーブ(v25 まで)の 5 階層.古いセーブを直す途中で,足りないリーグを作るときに使う. */
+export const LEGACY_LEAGUES: League[] = [
+  { name: '草野球リーグ', base: 32, teams: 6, rounds: 2, roster: 22, count: 1 },
+  { name: '社会人リーグ', base: 44, teams: 6, rounds: 3, roster: 24, count: 1 },
+  { name: '独立リーグ', base: 56, teams: 8, rounds: 3, roster: 26, count: 1 },
+  { name: 'プロリーグ', base: 68, teams: 12, rounds: 2, roster: 28, divs: true, count: 1 },
+  { name: 'メジャーリーグ', base: 78, teams: 12, rounds: 2, roster: 30, divs: true, count: 1 },
+];
+const legacyNames = (level: number): string[] => TEAM_NAMES[LEGACY_TIER[level]];
+
+/** リーグの名前.並んでいるリーグがあれば「草野球リーグ 東」のように地域をつける. */
+export function leagueName(lg: LeagueState): string {
   const L = LEAGUES[lg.level];
+  return L.count > 1 && L.subs ? `${L.name} ${L.subs[lg.sub ?? 0]}` : L.name;
+}
+
+export function resetLeague(lg: LeagueState, L: League = LEAGUES[lg.level]): void {
   lg.schedule = makeSchedule(shuffle(lg.teamIds), L.rounds);
   lg.weeks = scheduleWeeks(lg.schedule.length);
   lg.po = null;
@@ -39,18 +54,24 @@ export function resetLeague(lg: LeagueState): void {
   lg.week = 0;
 }
 
-/** 4つのリーグを作る.プレイヤーのチームは最下位リーグに入る. */
+const emptyLeague = (level: number, sub: number): LeagueState =>
+  ({ level, sub, teamIds: [], schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} });
+
+/** すべての階層のリーグを作る.プレイヤーのチームは最下位の階層のどこかのリーグに入る. */
 export function buildWorld(c: Career, user: Team): void {
   c.teams = [user];
   c.leagues = [];
+  const userSub = ri(0, LEAGUES[0].count - 1);
   LEAGUES.forEach((L, level) => {
-    const n = L.teams - (level === 0 ? 1 : 0);
-    const names = shuffle(TEAM_NAMES[level]).filter((x) => x !== user.name).slice(0, n);
-    const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
-    c.teams.push(...ts);
-    c.leagues.push({
-      level, teamIds: [...(level === 0 ? [user.id] : []), ...ts.map((t) => t.id)], schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {},
-    });
+    const names = shuffle(TEAM_NAMES[level]).filter((x) => x !== user.name);
+    for (let sub = 0; sub < L.count; sub++) {
+      const mine = level === 0 && sub === userSub;
+      const ts = names.splice(0, L.teams - (mine ? 1 : 0)).map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
+      c.teams.push(...ts);
+      const lg = emptyLeague(level, sub);
+      lg.teamIds = [...(mine ? [user.id] : []), ...ts.map((t) => t.id)];
+      c.leagues.push(lg);
+    }
   });
   for (const lg of c.leagues) resetLeague(lg);
 }
@@ -62,15 +83,15 @@ export function buildWorld(c: Career, user: Team): void {
 export function fillOtherLeagues(c: Career, userLeague: LeagueState, fresh = false): void {
   const user = c.teams.find((t) => t.user);
   c.leagues = [];
-  LEAGUES.forEach((L, level) => {
+  LEGACY_LEAGUES.forEach((L, level) => {
     if (level === c.level && !fresh) { c.leagues.push(userLeague); return; }
     const isUser = level === c.level;
-    const names = shuffle(TEAM_NAMES[level]).filter((x) => x !== user?.name).slice(0, L.teams - (isUser ? 1 : 0));
+    const names = shuffle(legacyNames(level)).filter((x) => x !== user?.name).slice(0, L.teams - (isUser ? 1 : 0));
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     const ids = [...(isUser && user ? [user.id] : []), ...ts.map((t) => t.id)];
     const lg: LeagueState = { level, teamIds: ids, schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} };
-    resetLeague(lg);
+    resetLeague(lg, L);
     c.leagues.push(lg);
   });
 }
@@ -202,7 +223,7 @@ export function playPlayoffWeek(c: Career, stage: 'semi' | 'final'): Game[] {
       out.push(...r.games);
       po.champion = r.winner.id;
       po.runnerUp = r.winner.id === hiId ? loId : hiId;
-      c.champs.push({ season: c.season, level: lg.level, team: T(po.champion).name, teamId: po.champion, runnerUp: T(po.runnerUp).name });
+      c.champs.push({ season: c.season, level: lg.level, league: leagueName(lg), team: T(po.champion).name, teamId: po.champion, runnerUp: T(po.runnerUp).name });
     }
   }
   return out;
@@ -219,36 +240,59 @@ export function playoffText(c: Career, lg: LeagueState): string {
 
 /* ===== 昇格・降格 ===== */
 
-/** 入れ替え戦の結果(l は下のリーグ) */
+/** 入れ替え戦の結果(l は下の階層) */
 export interface Swap { l: number; lower: number; upper: number; winner: number; text: string; }
 
+const pctOf = (r: StandingRow): number => (r.w + r.l ? r.w / (r.w + r.l) : 0);
+
+/** 各リーグの優勝チーム(階層 tier の,自動で上がるチーム) */
+function tierWinners(c: Career, tier: number): StandingRow[] {
+  return leaguesInTier(c, tier).map((lg) => standings(c, lg)[0]).filter(Boolean);
+}
+
 /**
- * 入れ替え戦.下のリーグの2位と,上のリーグの下から2番目が 3 戦先に 2 勝で争う.
- * 勝った方が来シーズン上のリーグにいる.順位が確定してから呼ぶ.
+ * 階層 tier の下の方のチームを,落ちる順に並べる.
+ * 各リーグの最下位が先(勝率の低い順),次に各リーグの下から 2 番目…と,リーグをまたいで交互に並ぶ.
+ */
+function bottomOrder(c: Career, tier: number): StandingRow[] {
+  const rows = leaguesInTier(c, tier).flatMap((lg) => standings(c, lg).slice().reverse().map((r, i) => ({ r, i })));
+  return rows.sort((a, b) => a.i - b.i || pctOf(a.r) - pctOf(b.r)).map((x) => x.r);
+}
+
+/**
+ * 入れ替え戦.下の階層の各リーグの 2 位(勝率の高い順)と,上の階層で自動降格のすぐ上にいるチームが,3 戦先に 2 勝で争う.
+ * 組の数は,上と下のリーグ数の少ない方.勝った方が来シーズン上の階層にいる.順位が確定してから呼ぶ.
  */
 export function playSwaps(c: Career): Swap[] {
   const out: Swap[] = [];
   for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const lower = standings(c, c.leagues[l]), upper = standings(c, c.leagues[l + 1]);
-    const k = MOVES[l];
-    const lo = lower[k]?.t, up = upper[upper.length - 1 - k]?.t;
-    if (!lo || !up) continue;
-    const r = playSeries(c, up, lo, 2);
-    const text = `${LEAGUES[l].name}${k + 1}位の${lo.name}と${LEAGUES[l + 1].name}の${up.name}の入れ替え戦は,${r.winner.name}が勝ちました.`;
-    out.push({ l, lower: lo.id, upper: up.id, winner: r.winner.id, text });
+    const lows = leaguesInTier(c, l), ups = leaguesInTier(c, l + 1);
+    if (!lows.length || !ups.length) continue;
+    const n = Math.min(lows.length, ups.length);
+    const seconds = lows.map((lg) => standings(c, lg)[1]).filter(Boolean).sort((a, b) => pctOf(b) - pctOf(a)).slice(0, n);
+    const danger = bottomOrder(c, l + 1).slice(lows.length, lows.length + n);
+    for (let i = 0; i < Math.min(seconds.length, danger.length); i++) {
+      const lo = seconds[i].t, up = danger[i].t;
+      const r = playSeries(c, up, lo, 2);
+      const text = `入れ替え戦: ${LEAGUES[l].name}の${lo.name}と${LEAGUES[l + 1].name}の${up.name}は,${r.winner.name}が勝ちました.`;
+      out.push({ l, lower: lo.id, upper: up.id, winner: r.winner.id, text });
+    }
   }
   return out;
 }
 
-/** 全チームの来シーズンのリーグ.境目ごとに,上位 MOVES[l] チームが上がり,上のリーグの下位 MOVES[l] チームが下がる.入れ替え戦に勝った方が上に残る. */
+/**
+ * 全チームの来シーズンの階層.境目ごとに,下の階層の各リーグの優勝チームが上がり,同じ数だけ上の階層から下がる.
+ * 入れ替え戦に勝った方が上に残る.
+ */
 export function computeNextLevels(c: Career, swaps: Swap[] = []): Record<number, number> {
   const next: Record<number, number> = {};
   for (const lg of c.leagues) for (const id of lg.teamIds) next[id] = lg.level;
   for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const lower = standings(c, c.leagues[l]), upper = standings(c, c.leagues[l + 1]);
-    const k = MOVES[l];
-    for (const r of lower.slice(0, k)) next[r.t.id] = l + 1;
-    for (const r of upper.slice(-k)) next[r.t.id] = l;
+    const up = tierWinners(c, l);
+    if (!leaguesInTier(c, l + 1).length) continue;
+    for (const r of up) next[r.t.id] = l + 1;
+    for (const r of bottomOrder(c, l + 1).slice(0, up.length)) next[r.t.id] = l;
   }
   for (const s of swaps) {
     if (s.winner === s.lower) { next[s.lower] = s.l + 1; next[s.upper] = s.l; }
@@ -256,19 +300,43 @@ export function computeNextLevels(c: Career, swaps: Swap[] = []): Record<number,
   return next;
 }
 
-/** 古いセーブのリーグに足りないチームを,新しい AI チームで増やす.次のシーズンのリーグ(next)に加える. */
-export function expandLeagues(c: Career, next: Record<number, number>): void {
-  for (const L of LEAGUES.map((x, level) => ({ ...x, level }))) {
-    const have = c.teams.filter((t) => next[t.id] === L.level).length;
-    if (have >= L.teams) continue;
-    const used = new Set(c.teams.map((t) => t.name));
-    const names = shuffle(TEAM_NAMES[L.level]).filter((n) => !used.has(n)).slice(0, L.teams - have);
-    for (const nm of names) {
-      const t = genTeam(c, nm, L.base + ri(-4, 4), aiChem(L.level));
-      c.teams.push(t);
-      next[t.id] = L.level;
+/**
+ * 来シーズンのリーグ分け.階層ごとにチーム数が足りなければ AI チームを足し,並ぶリーグの数もそろえる.
+ * 残るチームは同じリーグにとどまり,上がってきた・下がってきたチームは空いているリーグに入る.
+ */
+export function arrangeLeagues(c: Career, next: Record<number, number>): void {
+  LEAGUES.forEach((L, tier) => {
+    // チームを足す(古いセーブや,リーグが増えたとき)
+    const have = c.teams.filter((t) => next[t.id] === tier).length;
+    const want = L.teams * L.count;
+    if (have < want) {
+      const used = new Set(c.teams.map((t) => t.name));
+      const names = shuffle(TEAM_NAMES[tier]).filter((n) => !used.has(n));
+      for (let i = 0; i < want - have; i++) {
+        const t = genTeam(c, names[i] ?? `${L.name.replace('リーグ', '')}クラブ${i + 1}`, L.base + ri(-4, 4), aiChem(tier));
+        c.teams.push(t);
+        next[t.id] = tier;
+      }
     }
-  }
+    // リーグの数をそろえる
+    const lgs = leaguesInTier(c, tier);
+    lgs.forEach((lg, i) => { lg.sub ??= i; });
+    for (let sub = lgs.length; sub < L.count; sub++) c.leagues.push(emptyLeague(tier, sub));
+    const all = leaguesInTier(c, tier);
+    // 残るチーム
+    const placed = new Set<number>();
+    for (const lg of all) {
+      lg.teamIds = lg.teamIds.filter((id) => next[id] === tier);
+      for (const id of lg.teamIds) placed.add(id);
+    }
+    // 動くチームを,空きの多いリーグから入れる
+    const movers = shuffle(c.teams.filter((t) => next[t.id] === tier && !placed.has(t.id)).map((t) => t.id));
+    for (const id of movers) {
+      const lg = all.reduce((a, b) => (b.teamIds.length < a.teamIds.length ? b : a));
+      lg.teamIds.push(id);
+    }
+  });
+  c.leagues.sort((a, b) => a.level - b.level || (a.sub ?? 0) - (b.sub ?? 0));
 }
 
 /* ===== 加齢,引退,ドラフト,自由契約 ===== */
@@ -485,10 +553,15 @@ export function teamLevel(c: Career, t: Team): number {
   return leagueOfTeam(c, t.id).level;
 }
 
-/** 古いセーブの最上位リーグに,地区を足す */
+/** 昔の 5 階層の形(1 階層に 1 リーグ,番号は 0〜4)のセーブか */
+export const isLegacyShape = (c: Career): boolean =>
+  c.leagues.length <= LEGACY_LEAGUES.length && c.leagues.every((lg, i) => lg.level === i && lg.sub === undefined);
+
+/** 古いセーブのリーグに,地区を足す.昔の形なら昔の 5 階層の決まりで見る. */
 export function addDivisions(c: Career): void {
+  const defs = isLegacyShape(c) ? LEGACY_LEAGUES : LEAGUES;
   for (const lg of c.leagues) {
-    if (LEAGUES[lg.level].divs && !lg.divs && lg.teamIds.length >= 6) {
+    if (defs[lg.level]?.divs && !lg.divs && lg.teamIds.length >= 6) {
       const ids = shuffle(lg.teamIds);
       const half = Math.ceil(ids.length / 2);
       lg.divs = [ids.slice(0, half), ids.slice(half)];
@@ -496,17 +569,17 @@ export function addDivisions(c: Career): void {
   }
 }
 
-/** 古いセーブに,あとから増えた上位のリーグを足す(AI チームだけで作る). */
+/** 古いセーブ(v25 まで)に,あとから増えた上位のリーグを足す(AI チームだけで作る).昔の 5 階層の番号で作る. */
 export function addMissingLeagues(c: Career): void {
-  for (let level = c.leagues.length; level < LEAGUES.length; level++) {
-    const L = LEAGUES[level];
-    const names = shuffle(TEAM_NAMES[level]).slice(0, L.teams);
+  for (let level = c.leagues.length; level < LEGACY_LEAGUES.length; level++) {
+    const L = LEGACY_LEAGUES[level];
+    const names = shuffle(legacyNames(level)).slice(0, L.teams);
     const ts = names.map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(level)));
     c.teams.push(...ts);
     const lg: LeagueState = { level, teamIds: ts.map((t) => t.id), schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} };
-    resetLeague(lg);
+    resetLeague(lg, L);
     c.leagues.push(lg);
     if (c.off) for (const t of ts) c.off.next[t.id] = level;
   }
-  while (c.rec.titles.length < LEAGUES.length) c.rec.titles.push(0);
+  while (c.rec.titles.length < LEGACY_LEAGUES.length) c.rec.titles.push(0);
 }

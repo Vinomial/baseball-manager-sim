@@ -58,6 +58,8 @@ export interface AppState {
   open: number | null;
   /** 順位タブで見ているリーグ.null ならプレイヤーのリーグ */
   viewLevel: number | null;
+  /** 順位タブで見ている,同じ階層のリーグの番号(地域).null ならプレイヤーのリーグ */
+  viewSub: number | null;
   /** 順位タブで選手一覧を開いているチーム */
   viewTeam: number | null;
   /** 自由契約の表示 */
@@ -83,7 +85,7 @@ export function writeAutoOpen(v: AutoOpen): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewTeam: null, faRole: '野手', cards: false,
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewSub: null, viewTeam: null, faRole: '野手', cards: false,
   autoOpen: readAutoOpen(),
   practice: false,
 };

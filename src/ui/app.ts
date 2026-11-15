@@ -437,7 +437,8 @@ function onClick(e: MouseEvent): void {
       break;
     }
     case 'faRole': state.faRole = k as '野手' | '投手'; break;
-    case 'lv': state.viewLevel = i; state.viewTeam = null; break;
+    case 'lv': state.viewLevel = i; state.viewSub = null; state.viewTeam = null; break;
+    case 'lvs': state.viewSub = i; state.viewTeam = null; break;
     case 'vteam': state.viewTeam = id < 0 ? null : id; state.open = null; break;
     case 'release': {
       if (!c) break;

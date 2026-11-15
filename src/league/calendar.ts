@@ -1,6 +1,7 @@
 /** 1 年 = 12 か月 × 4 週 = 48 週.週ごとに何が行われるか. */
 import type { Career, GameKind } from '../types';
 import { userLeague } from './schedule';
+import { roundName, userCupDef } from '../data/cups';
 
 export const WEEKS_PER_YEAR = 48;
 /** リーグ戦は 4 月(12 週目)から 10 月までの 28 週 */
@@ -45,8 +46,11 @@ export function weekKind(cal: number): WeekKind {
   return 'end';
 }
 
-const CUP_NAMES = ['1回戦', '2回戦', '3回戦', '準々決勝', '準決勝', '決勝'];
-export const cupRoundName = (round: number): string => CUP_NAMES[round] ?? `${round + 1}回戦`;
+/** プレイヤーの選手権の,今週の回戦の名前 */
+export function cupRoundName(c: Career, round: number): string {
+  const n = c.cup ? c.cup.slots.length / 2 ** Math.max(0, round - c.cup.round) : 2 ** (CUP_ROUNDS - round);
+  return roundName(Math.max(2, n), round);
+}
 
 /** プレイヤーがこの週に出る公式戦 */
 export function userGameKind(c: Career): Exclude<GameKind, 'practice'> | null {
@@ -78,8 +82,8 @@ export function weekInfo(c: Career): WeekInfo {
       note: userGame ? '勝てば次へ進めます.' : 'プレーオフに出ない週です.練習や休養にあてましょう.',
     };
     case 'cup': return {
-      ...base, kind, title: `全日本選手権 ${cupRoundName(cal - CUP_START)}`,
-      note: userGame ? '全リーグが一堂に会する大会です.勝ち上がれば大金星です.' : '全日本選手権は敗退しました.練習や休養にあてましょう.',
+      ...base, kind, title: `${userCupDef(c).name} ${cupRoundName(c, cal - CUP_START)}`,
+      note: userGame ? '近い階層のチームが一堂に会する大会です.格上を倒せば大金星です.' : `${userCupDef(c).short}は終わりました.練習や休養にあてましょう.`,
     };
     default: return { ...base, kind: 'end', title: '年末', note: '1年の締めくくりです.来年に向けて,体を休めましょう.' };
   }

@@ -1,7 +1,6 @@
-/** 年末の全日本選手権.全リーグの全チームが 1 つのトーナメントで,週ごとに 1 回戦ずつ戦う. */
-import { LEAGUES } from '../data/constants';
-import type { Career, CupMatch, Game, Team } from '../types';
-import { cupRoundName } from './calendar';
+/** 年末の選手権.アマチュア・日本・世界の 3 つの大会を,週ごとに 1 回戦ずつ進める. */
+import type { Career, CupLive, CupMatch, Game, Team } from '../types';
+import { CUPS, roundName, type CupDef } from '../data/cups';
 import { leaguesInTier, standings, teamById } from './schedule';
 import { playSeries } from './world';
 
@@ -12,21 +11,39 @@ function bracketOrder(n: number): number[] {
   return o;
 }
 
-/** シードは上のリーグ,そのリーグの順位の順.上位のシードは 1 回戦が免除される. */
-export function startCup(c: Career): void {
+/** シードは上の階層,そのリーグの順位の順.上位のシードは 1 回戦が免除される. */
+function newCup(c: Career, d: CupDef): CupLive {
   const seeds: Team[] = [];
-  for (let l = LEAGUES.length - 1; l >= 0; l--) for (const lg of leaguesInTier(c, l)) seeds.push(...standings(c, lg).map((r) => r.t));
-  c.cup = { slots: bracketOrder(64).map((s) => seeds[s - 1]?.id ?? null), round: 0, done: false };
+  for (const l of [...d.tiers].sort((a, b) => b - a)) {
+    // 同じ階層のリーグは,順位ごとに交互に並べる(東の 1 位,西の 1 位,東の 2 位…)
+    const tables = leaguesInTier(c, l).map((lg) => standings(c, lg).map((r) => r.t));
+    const n = Math.max(0, ...tables.map((t) => t.length));
+    for (let i = 0; i < n; i++) for (const t of tables) if (t[i]) seeds.push(t[i]);
+  }
+  let size = 2;
+  while (size < seeds.length) size *= 2;
+  return { kind: d.kind, slots: bracketOrder(size).map((s) => seeds[s - 1]?.id ?? null), round: 0, done: false };
+}
+
+/** 選手権を始める.プレイヤーの出る大会は c.cup,ほかは c.sideCups. */
+export function startCup(c: Career): void {
+  c.cup = null;
   c.cupBracket = [];
+  c.sideCups = [];
+  for (const d of CUPS) {
+    if (!d.tiers.some((t) => leaguesInTier(c, t).length)) continue;
+    const live = newCup(c, d);
+    if (d.tiers.includes(c.level)) c.cup = live;
+    else c.sideCups.push({ live, bracket: [] });
+  }
 }
 
 const levelOf = (c: Career, id: number): number => c.leagues.find((lg) => lg.teamIds.includes(id))!.level;
 
-/** 今週の 1 回戦を全試合進める.プレイヤーの試合(実況付き)を返す. */
-export function playCupRound(c: Career): Game[] {
-  const cup = c.cup;
-  if (!cup || cup.done) return [];
-  const round = cupRoundName(cup.round);
+/** 1 つの大会の 1 回戦を進める.ログ付きの試合(プレイヤーの試合)を返す. */
+function playRound(c: Career, cup: CupLive, bracket: CupMatch[]): Game[] {
+  if (cup.done) return [];
+  const round = roundName(cup.slots.length, cup.round);
   const next: (number | null)[] = [];
   const mine: Game[] = [];
   for (let i = 0; i < cup.slots.length; i += 2) {
@@ -36,7 +53,7 @@ export function playCupRound(c: Career): Game[] {
     const r = playSeries(c, ta, tb, 1);
     const g = r.last;
     const sa = g.home.team.id === a ? g.home.runs : g.away.runs, sb = g.home.team.id === b ? g.home.runs : g.away.runs;
-    c.cupBracket.push({ round, a: ta.name, b: tb.name, aId: a, bId: b, sa, sb, winner: r.winner.id });
+    bracket.push({ round, a: ta.name, b: tb.name, aId: a, bId: b, sa, sb, winner: r.winner.id });
     next.push(r.winner.id);
     mine.push(...r.games);
   }
@@ -44,13 +61,19 @@ export function playCupRound(c: Career): Game[] {
   cup.round++;
   if (next.length === 1) {
     cup.done = true;
-    const final = c.cupBracket[c.cupBracket.length - 1];
+    const final = bracket[bracket.length - 1];
     const champ = teamById(c, next[0]!);
-    const ru = final.aId === champ.id ? final.bId : final.aId;
-    c.cups.push({ season: c.season, champion: champ.name, championId: champ.id, championLevel: levelOf(c, champ.id), runnerUp: teamById(c, ru).name });
-    if (c.cups.length > 60) c.cups.shift();
+    const ru = final ? (final.aId === champ.id ? final.bId : final.aId) : champ.id;
+    c.cups.push({ season: c.season, kind: cup.kind, champion: champ.name, championId: champ.id, championLevel: levelOf(c, champ.id), runnerUp: teamById(c, ru).name });
+    if (c.cups.length > 90) c.cups.shift();
   }
   return mine;
+}
+
+/** 今週の 1 回戦を,すべての大会で進める.プレイヤーの試合(実況付き)を返す. */
+export function playCupRound(c: Career): Game[] {
+  for (const s of c.sideCups ?? []) playRound(c, s.live, s.bracket);
+  return c.cup ? playRound(c, c.cup, c.cupBracket) : [];
 }
 
 export interface CupSummary { champion: boolean; wins: number; giantKills: number; text: string; }

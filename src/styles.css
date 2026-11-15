@@ -160,8 +160,9 @@ table.box:nth-of-type(2) th:first-child,table.box:nth-of-type(2) td:first-child{
 
 .pick.plain{background:none;border:0;padding:0;width:100%;text-align:left}
 table.career td:nth-child(2),table.career th:nth-child(2){text-align:left;white-space:nowrap}
-.lgtabs{display:flex;gap:4px;overflow-x:auto;margin:10px 0}
-.lgtabs button{flex:1 0 auto;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px;font-weight:500}
+.lgtabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:10px 0}
+.lgtabs.sub{grid-template-columns:repeat(auto-fit,minmax(60px,1fr));margin-top:-4px}
+.lgtabs button{min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 10px;font-weight:500}
 .lgtabs button[aria-pressed="true"]{background:var(--board);color:var(--board-num);border-color:var(--board)}
 .boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .board2{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:var(--panel2)}

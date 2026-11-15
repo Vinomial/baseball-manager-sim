@@ -13,7 +13,7 @@ export function seasonText(c: Career): string {
     `${o.rank}位 ${o.rec.w}勝${o.rec.l}敗${o.rec.d}分 / ${o.playoff}`,
     r?.ownTitle ? `🏆 ${lg}で優勝!` : '',
     o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格!` : o.move < 0 ? `⬇ ${LEAGUES[o.to].name}へ降格` : '',
-    `全日本選手権: ${o.cup}`,
+    `選手権: ${o.cup}`,
     r?.mvp ? `MVP: ${r.mvp.name}(${r.mvp.team})` : '',
     `実績 ${Object.keys(c.ach).length}個 / 通算${c.rec.total.w}勝`,
   ];
@@ -48,7 +48,7 @@ export function seasonImage(c: Career): Promise<Blob | null> {
   g.fillStyle = '#F5C84C'; g.font = f(22); g.fillText(`第${c.season}シーズン ${LEAGUES[o.from].name}`, 32, 100);
   g.fillStyle = '#EDEBE0'; g.font = f(48); g.fillText(`${o.rank}位  ${o.rec.w}勝${o.rec.l}敗${o.rec.d}分`, 32, 170);
   g.font = f(24);
-  const out = [o.review?.ownTitle ? `🏆 ${LEAGUES[o.from].name} 優勝!` : o.playoff, o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格` : '', `全日本選手権: ${o.cup}`].filter(Boolean);
+  const out = [o.review?.ownTitle ? `🏆 ${LEAGUES[o.from].name} 優勝!` : o.playoff, o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格` : '', `選手権: ${o.cup}`].filter(Boolean);
   out.forEach((t, i) => g.fillText(t, 32, 215 + i * 36));
   g.fillStyle = '#9fb3a5'; g.font = f(16); g.fillText(`${c.teams.find((t) => t.user)?.name ?? ''} / 実績 ${Object.keys(c.ach).length}個`, 32, 335);
   return new Promise((res) => cv.toBlob((b) => res(b), 'image/png'));

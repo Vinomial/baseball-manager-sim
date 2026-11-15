@@ -1,5 +1,5 @@
 /** 年俸,予算,GMの信頼度,予想勝率.DOM に依存しない. */
-import { DIFFS, MOVES } from '../data/constants';
+import { DIFFS, promoCount, relegPerLeague } from '../data/constants';
 import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
 import { clamp, seeded } from '../util/random';
@@ -59,7 +59,7 @@ export interface Forecast {
   wins: number;
   /** 予想の順位ごとの確率(添え字 0 が 1 位) */
   rank: number[];
-  /** 上位 MOVES チーム(昇格圏)の確率 */
+  /** 優勝(自動で昇格)の確率 */
   up: number;
   /** プレーオフ(上位4)の確率 */
   playoff: number;
@@ -98,7 +98,7 @@ export function forecast(c: Career, runs = 250): Forecast {
     if (myDiv ? order.filter((id) => myDiv.includes(id)).indexOf(c.userId) < 2 : order.indexOf(c.userId) < 4) po++;
     wins += w.get(c.userId)!;
   }
-  const upN = c.level < MOVES.length ? MOVES[c.level] : 0, downN = c.level > 0 ? MOVES[c.level - 1] : 0;
+  const upN = upCount(c.level), downN = downCount(c.level);
   const pr = rank.map((n) => n / runs);
   const sum = (from: number, to: number) => pr.slice(from, to).reduce((s, v) => s + v, 0);
   return {
@@ -128,7 +128,7 @@ export function checkFired(c: Career, text: string): void {
 }
 
 
-/** そのリーグで昇格するチーム数 */
-export const upCount = (level: number): number => (level < MOVES.length ? MOVES[level] : 0);
-/** そのリーグで降格するチーム数 */
-export const downCount = (level: number): number => (level > 0 ? MOVES[level - 1] : 0);
+/** そのリーグから自動で昇格するチーム数(優勝チームの 1) */
+export const upCount = (level: number): number => (promoCount(level) ? 1 : 0);
+/** そのリーグから自動で降格するチーム数 */
+export const downCount = (level: number): number => relegPerLeague(level);

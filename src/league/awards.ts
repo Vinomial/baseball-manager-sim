@@ -13,7 +13,7 @@ export function seasonScore(p: Player, s: Stats = p.stats): number {
 }
 
 /** シーズン終了時の表彰.全リーグ分を返す. */
-export function computeAwards(c: Career, champIds: Record<number, number>): AwardRow[] {
+export function computeAwards(c: Career): AwardRow[] {
   const out: AwardRow[] = [];
   const mineIds = new Set(c.teams.find((t) => t.user)!.players.map((p) => p.id));
   const kinds: Record<string, string> = { avg: '首位打者', hr: '本塁打王', rbi: '打点王', sb: '盗塁王', w: '最多勝', era: '最優秀防御率', k: '最多奪三振' };
@@ -37,7 +37,7 @@ export function computeAwards(c: Career, champIds: Record<number, number>): Awar
     let best: { p: Player; t: Team; v: number } | null = null;
     for (const t of leagueTeams(c, lg)) {
       for (const p of t.players) {
-        const v = seasonScore(p) * (t.id === champIds[lg.level] ? 1.15 : 1);
+        const v = seasonScore(p) * (t.id === lg.po?.champion ? 1.15 : 1);
         if (!best || v > best.v) best = { p, t, v };
       }
     }

@@ -3,6 +3,7 @@ import type { Career, LeagueState, Team } from '../types';
 import { CUP_START } from './calendar';
 import { winProb } from './finance';
 import { teamById, userLeague } from './schedule';
+import { userCupDef } from '../data/cups';
 
 /** 1 試合の勝率が p のとき,先に wins 勝するシリーズに勝つ確率 */
 export function seriesWinProb(p: number, wins: number): number {
@@ -50,7 +51,7 @@ export function userSeries(c: Career): SeriesInfo | null {
     const i = cup.slots.indexOf(u.id);
     if (i >= 0) {
       const other = cup.slots[i % 2 === 0 ? i + 1 : i - 1];
-      return mk('cup', '全日本選手権(1試合勝負)', other === null ? null : teamById(c, other), 1);
+      return mk('cup', `${userCupDef(c).name}(1試合勝負)`, other === null ? null : teamById(c, other), 1);
     }
   }
   return null;

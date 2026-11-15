@@ -8,7 +8,11 @@ import { makeGoals } from './league/goals';
 import { emptyFac, emptyMarket } from './league/economy';
 import { scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
-import { addDivisions, addMissingLeagues, fillOtherLeagues } from './league/world';
+import { addDivisions, addMissingLeagues, aiChem, fillOtherLeagues, isLegacyShape, resetLeague } from './league/world';
+import { LEAGUES, LEGACY_TIER, TEAM_NAMES } from './data/constants';
+import { cupOfTier } from './data/cups';
+import { genTeam } from './league/team';
+import { ri } from './util/random';
 import { genAbilities } from './growth/abilities';
 import { PERS_KEYS } from './growth/personality';
 import { playerValue, salaryOf } from './growth/player';
@@ -265,8 +269,61 @@ export function migrate(raw: unknown): Career | null {
     addDivisions(c as unknown as Career);
     c.version = 25;
   }
+  if (c.version === 25) {
+    // v26: 階層が 6 つに(市民リーグを追加).下の階層は地域ごとのリーグに分かれ,年末の選手権は 3 つに
+    migrateV25(c as unknown as Career);
+    c.version = 26;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
+}
+
+/**
+ * v26: 昔の 5 階層の番号を,6 階層の番号に直す(社会人から上が 1 つずつ上がる).
+ * 空いた市民リーグは 1 リーグ 6 チームで作る.地域ごとのリーグとチームの追加は,次のシーズンの開幕で行う.
+ */
+export function migrateV25(c: Career): void {
+  // すでに新しい形なら(テストなどで作ったデータ),何もしない
+  if (!isLegacyShape(c)) return;
+  const tier = (l: number): number => LEGACY_TIER[l] ?? l;
+  c.level = tier(c.level);
+  for (const lg of c.leagues) { lg.level = tier(lg.level); lg.sub = 0; }
+  const players = [...c.teams.flatMap((t) => t.players), ...c.fa, ...c.watch];
+  for (const p of players) for (const x of p.seasons) x.level = tier(x.level);
+  for (const h of c.hist) h.level = tier(h.level);
+  for (const x of c.champs) x.level = tier(x.level);
+  for (const x of c.awards) x.level = tier(x.level);
+  for (const x of c.legends) x.level = tier(x.level);
+  for (const x of c.cups) { x.championLevel = tier(x.championLevel); x.kind ??= 'ama'; }
+  const titles = LEAGUES.map(() => 0);
+  c.rec.titles.forEach((n, i) => { titles[tier(i)] += n; });
+  c.rec.titles = titles;
+  if (c.off) {
+    c.off.from = tier(c.off.from);
+    c.off.to = tier(c.off.to);
+    for (const id of Object.keys(c.off.next)) c.off.next[Number(id)] = tier(c.off.next[Number(id)]);
+  }
+  // 実績の名前も,階層の番号で付いているので付け直す(上の階層から順に)
+  for (let l = LEGACY_TIER.length - 1; l >= 0; l--) {
+    for (const k of [`up${l}`, `title${l}`]) {
+      if (!(k in c.ach)) continue;
+      const v = c.ach[k];
+      delete c.ach[k];
+      c.ach[k.replace(String(l), String(tier(l)))] = v;
+    }
+  }
+  if (c.cup) c.cup.kind = cupOfTier(c.level).kind;
+  c.sideCups = [];
+  // 市民リーグ(新しい階層 1)
+  const L = LEAGUES[1];
+  const used = new Set(c.teams.map((t) => t.name));
+  const ts = TEAM_NAMES[1].filter((n) => !used.has(n)).slice(0, L.teams).map((nm) => genTeam(c, nm, L.base + ri(-4, 4), aiChem(1)));
+  c.teams.push(...ts);
+  const lg: Career['leagues'][0] = { level: 1, sub: 0, teamIds: ts.map((t) => t.id), schedule: [], stand: {}, week: 0, weeks: [], po: null, rankHist: {} };
+  resetLeague(lg);
+  c.leagues.push(lg);
+  c.leagues.sort((a, b) => a.level - b.level);
+  if (c.off) for (const t of ts) c.off.next[t.id] = 1;
 }
 
 /** v4: 全リーグの世界,選手の通算成績,自由契約,優勝の記録を追加 */

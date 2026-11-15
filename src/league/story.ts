@@ -42,7 +42,7 @@ export function storyBeat(c: Career): string {
     return `${rank}位で終盤戦.残り${left}試合,意地を見せよう.`;
   }
   if (c.cal < 42) return 'プレーオフの季節.頂点まで,あと少し.';
-  if (c.cal < 48) return '全リーグが集まる全日本選手権.下剋上を狙おう!';
+  if (c.cal < 48) return '年末の選手権.近い階層のチームが集まる大会で,下剋上を狙おう!';
   return '1年の締めくくり.';
 }
 

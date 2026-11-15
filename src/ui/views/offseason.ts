@@ -16,6 +16,7 @@ import { avatar } from '../avatar';
 import { prefs } from '../prefs';
 import { term } from '../glossary';
 import { state } from '../state';
+import { userCupDef } from '../../data/cups';
 
 /** ドラフト候補の総合値.能力は見積もりなので,幅(最低〜最高)で示す. */
 function draftStars(p: Player): string {
@@ -37,7 +38,7 @@ function reviewHTML(c: Career): string {
   const o = c.off!, r = o.review;
   if (!r) return '';
   const party = r.ownTitle || r.cupChampion || o.move > 0;
-  const head = r.cupChampion ? '🏆 全日本選手権 優勝!' : r.ownTitle ? `🏆 ${LEAGUES[o.from].name} 優勝!` : o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格!` : '';
+  const head = r.cupChampion ? `🏆 ${userCupDef(c).name} 優勝!` : r.ownTitle ? `🏆 ${LEAGUES[o.from].name} 優勝!` : o.move > 0 ? `⬆ ${LEAGUES[o.to].name}へ昇格!` : '';
   return `${party ? confettiHTML() : ''}${head ? `<div class="card celebrate"><p class="result px" style="margin:0">${head}</p></div>` : ''}
   <div class="card"><h3 style="margin-top:0">1年の振り返り</h3>
   <table class="results"><tbody>
@@ -63,7 +64,7 @@ function resultHTML(c: Career): string {
   <div class="card"><div class="result px">${o.rank}位 ${o.rec.w}勝${o.rec.l}敗${o.rec.d}分</div>
   <p style="text-align:center;margin:0"><b>${mv}</b></p><p class="small" style="text-align:center;margin:4px 0">${esc(o.playoff)}</p>
   ${o.swaps?.length ? `<p class="small" style="text-align:center;margin:4px 0">${o.swaps.map(esc).join('<br>')}</p>` : ''}
-  <p class="small" style="text-align:center;margin:4px 0">全日本選手権: ${esc(o.cup || '出場')}(詳しくは「順位」タブ)</p>
+  <p class="small" style="text-align:center;margin:4px 0">${esc(userCupDef(c).name)}: ${esc(o.cup || '出場')}(詳しくは「順位」タブ)</p>
   ${o.retired.length ? `<p class="small">引退: ${o.retired.map(esc).join(',')}</p>` : '<p class="small muted">今オフの引退選手はいません.</p>'}
   <p class="small muted">全選手が1歳年をとりました.ピークを過ぎた選手は能力が少し落ちています.他のリーグの結果は「順位」タブで見られます.</p></div>${reviewHTML(c)}`;
 }

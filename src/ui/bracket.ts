@@ -1,5 +1,4 @@
 /** トーナメント表(SVG).全日本選手権の準々決勝から決勝,リーグのプレーオフを描く. */
-import { cupRoundName } from '../league/calendar';
 import { teamById } from '../league/schedule';
 import type { Career, LeagueState } from '../types';
 import { esc } from '../util/format';
@@ -72,7 +71,7 @@ export function cupBracketSVG(c: Career): string {
   })));
   // 準々決勝がまだなら,8 チームが決まったところで組み合わせを出す
   const cup = c.cup;
-  if (!cols[0].length && cup && cup.slots.length === 8 && cupRoundName(cup.round) === '準々決勝') {
+  if (!cols[0].length && cup && cup.slots.length === 8) {
     cols[0] = Array.from({ length: 4 }, (_, i) => ({ a: name(cup.slots[i * 2]), b: name(cup.slots[i * 2 + 1]) }));
   }
   if (!cols[0].length) return '';

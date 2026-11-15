@@ -275,6 +275,26 @@ const makers: Maker[] = [
       ],
     };
   },
+  // 年俸を減らしたい球団からの,こちらに有利なトレードの申し出
+  (c, t) => {
+    const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
+    const bench = t.players.filter((p) => !core.has(p.id) && !t.farm?.includes(p.id));
+    if (!bench.length) return null;
+    const p = bench.reduce((a, b) => (futureValue(b) < futureValue(a) ? b : a));
+    const worst = (role: string) => Math.min(...t.players.filter((x) => x.role === role && core.has(x.id)).map(playerValue));
+    const others = leagueTeams(c).filter((x) => !x.user);
+    const cand = shuffle(others).flatMap((o) => o.players.filter((q) => q.age >= 27 && q.age <= 32 && playerValue(q) >= worst(q.role) + 4 && playerValue(q) >= playerValue(p) + 8).map((q) => ({ o, q })));
+    if (!cand.length) return null;
+    const { o, q } = cand[0];
+    return {
+      kind: 'trade', pid: p.id, pid2: q.id, teamId: o.id, title: `${o.name}から有利な申し出`,
+      body: `${o.name}が年俸を減らしたいと,主力の${q.name}(${q.age}歳,今の力${Math.round(playerValue(q))})を,控えの${p.name}(今の力${Math.round(playerValue(p))})との交換で出したいと言っています.`,
+      choices: [
+        { key: 'accept', label: '応じる', hint: `${q.name}を得て,${p.name}を出す.こちらに有利な取引です.` },
+        { key: 'refuse', label: '断る', hint: '今のまま.' },
+      ],
+    };
+  },
   // 他球団からのトレード打診
   (c, t) => {
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);

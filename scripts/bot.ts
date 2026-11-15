@@ -20,6 +20,12 @@ import type { Career, Player } from '../src/types';
 /** 戦術(新しいコミットだけにある) */
 const TACTICS_MOD = await import('../src/league/tactics').catch(() => null) as null | { tacticBonus: (c: Career, p: Player) => number; bestTactic: (c: Career) => string; setTactic: (c: Career, k: never) => void };
 
+/** 大物の争奪(新しいコミットだけにある) */
+const FA_MOD = await import('../src/league/fa').catch(() => null) as null | {
+  isStarFA: (c: Career, p: Player) => boolean;
+  offerFA: (c: Career, id: number, mult: number, sign: (c: Career, id: number) => string | null) => unknown;
+};
+
 /** 月の方針(新しいコミットだけにある) */
 const ACTIONS_MOD = await import('../src/league/actions').catch(() => null) as null | {
   needsPlan: (c: Career) => boolean;
@@ -81,7 +87,11 @@ export function botOffseason(c: Career): void {
   }
   const cands = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok' && p.salary <= budgetFor(c) - payroll(u)));
   for (const id of [...cands.entries()].filter(([, a]) => a.star).map(([id]) => id)) {
-    if (u.players.length < userRosterMax(c)) signFreeAgent(c, id);
+    if (u.players.length >= userRosterMax(c)) continue;
+    const p = c.fa.find((x) => x.id === id);
+    // 大物は争奪戦(年俸を少し上乗せしてオファーする)
+    if (p && FA_MOD?.isStarFA(c, p)) FA_MOD.offerFA(c, id, 1.25, signFreeAgent);
+    else signFreeAgent(c, id);
   }
   const core = new Set<number>([...u.lineup.map((e) => e.pid), ...u.pitchers.slice(0, 5)]);
   while (u.players.length > userRosterMax(c)) {

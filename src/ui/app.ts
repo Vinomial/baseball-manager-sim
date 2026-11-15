@@ -48,6 +48,7 @@ import { fromFarm, toFarm } from '../league/team';
 import { setTactic, type TacticKey } from '../league/tactics';
 import type { Moment, MomentChoice } from '../engine/game';
 import type { MomentGen } from '../league/world';
+import { offerFA, OFFERS } from '../league/fa';
 
 let root: HTMLElement;
 
@@ -486,6 +487,14 @@ function onClick(e: MouseEvent): void {
       break;
     }
     case 'ostep': if (c?.off) { c.off.step = Math.max(0, Math.min(3, c.off.step + Number(k))); save(); top(); } break;
+    case 'offer': if (c) {
+      const r = offerFA(c, id, OFFERS[i] ?? 1, signFreeAgent);
+      if (r.error) { alert(r.error); break; }
+      if (r.won) { state.planQueue.push(id); sfx.coin(); } else sfx.lose();
+      c.news.unshift(r.text);
+      toast(r.text);
+      save();
+    } break;
     case 'sign': {
       if (!c) break;
       const err = signFreeAgent(c, id);

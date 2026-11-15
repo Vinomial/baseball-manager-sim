@@ -124,7 +124,11 @@ test('ドラフトで指名すると,育成方針を決めるシートが出る'
   await expect(page.locator('[data-a="ostep"]').first()).toBeVisible({ timeout: 90_000 });
   await page.click('[data-a="ostep"][data-k="1"]');
   await page.click('[data-a="ostep"][data-k="1"]');
-  await page.locator('[data-a="draft"]').first().click();
+  // 1巡目は入札.抽選に外れたら,もう一度入札する
+  for (let i = 0; i < 6; i++) {
+    await page.locator('[data-a="draft"]').first().click();
+    if (await page.locator('.sheet[aria-label="育成方針を決める"]').count()) break;
+  }
   await expect(page.locator('.sheet[aria-label="育成方針を決める"]')).toBeVisible();
   await page.locator('[data-a="plan-set"]').first().click();
   await expect(page.locator('.sheet[aria-label="育成方針を決める"]')).toHaveCount(0);

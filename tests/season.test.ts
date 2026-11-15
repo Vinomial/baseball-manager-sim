@@ -26,6 +26,8 @@ import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
 import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
 import { chooseMenu } from '../src/league/autoplay';
+import { lotteryOpen } from '../src/league/lottery';
+import { faChance, isStarFA, offerFA } from '../src/league/fa';
 import { awardPerks, franchiseOf, induct, obCandidates, titlePerks, updateFranchise } from '../src/league/history';
 import { fansAfterGame, fansOf, market, popularity } from '../src/league/fans';
 import { FAM_START, setTactic, tacticBonus, tacticFx, tacticPower } from '../src/league/tactics';
@@ -2593,7 +2595,7 @@ describe('勝負どころ', () => {
   it('1 週の進行は勝負どころで止まり,答えると最後まで進む', () => {
     const c = newCareer('テスト');
     let moments = 0;
-    for (let w = 0; w < 30 && c.phase === 'season'; w++) {
+    for (let w = 0; w < 48 && c.phase === 'season'; w++) {
       const gen = weekGen(c, 'mix');
       let r = gen.next('auto');
       while (!r.done) { moments++; expect(['pinch', 'relief']).toContain(r.value.kind); r = gen.next(moments % 2 ? 'yes' : 'no'); }
@@ -2669,5 +2671,78 @@ describe('球団の歴史と,タイトルの恩恵', () => {
     c.awards.push({ season: c.season, level: 0, kind: 'MVP', pid: p.id, name: p.name, team: 'x', text: '', mine: true });
     expect(awardPerks(c).length).toBe(1);
     expect(p.pot[k]).toBeGreaterThan(pot0);
+  });
+});
+
+describe('ドラフトの入札・大物の争奪・有利なトレード', () => {
+  beforeEach(() => setRandom(seeded(7373)));
+  afterEach(() => resetRandom());
+
+  it('1巡目は入札で,目玉選手が 3 人いて,全球団が 1 人ずつ交渉権を得てから 2 巡目に進む', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const d = c.off!.draft;
+    expect(d.stars).toHaveLength(3);
+    expect(lotteryOpen(d)).toBe(true);
+    const teams = d.order.length / DRAFT_ROUNDS;
+    // 目玉に入札する(外れたら,次の候補でもう一度)
+    for (let i = 0; i < 10 && lotteryOpen(d); i++) {
+      const target = d.pool.findIndex((p) => d.stars!.includes(p.id) && !Object.values(d.lottery!.won).includes(p.id));
+      pickDraft(c, target >= 0 ? target : 0);
+    }
+    expect(lotteryOpen(d)).toBe(false);
+    const first = d.picks.filter((x) => x.round === 1);
+    expect(first.length).toBe(teams);
+    expect(new Set(first.map((x) => x.pid)).size).toBe(teams);
+    expect(first.filter((x) => x.user)).toHaveLength(1);
+    // 目玉は,たいてい競合する
+    expect(d.lottery!.log.some((x) => x.includes('競合'))).toBe(true);
+  });
+
+  it('1位を見送ると,プレイヤーは 1 巡目の指名なしで 2 巡目へ進む', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const d = c.off!.draft;
+    pickDraft(c, -1);
+    expect(lotteryOpen(d)).toBe(false);
+    expect(d.picks.filter((x) => x.round === 1 && x.user)).toHaveLength(0);
+    expect(d.picks.filter((x) => x.round === 1).length).toBe(d.order.length / DRAFT_ROUNDS - 1);
+  });
+
+  it('大物の自由契約選手は,上乗せするほど獲得しやすく,負けると他球団と契約する', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    while (!c.off!.draft.done) pickDraft(c, -1);
+    const p = genPlayer(c, '野手', LEAGUES[c.off!.to].base + 15, { age: 27 });
+    c.fa.push(p);
+    expect(isStarFA(c, p)).toBe(true);
+    expect(faChance(c, p, 1.5)).toBeGreaterThan(faChance(c, p, 1));
+    c.funds = 1e6;
+    let won = 0, lost = 0;
+    for (let i = 0; i < 30; i++) {
+      const q = genPlayer(c, '野手', LEAGUES[c.off!.to].base + 15, { age: 27 });
+      c.fa.push(q);
+      // 予算に余裕を持たせる
+      for (const x of userTeam(c).players) x.salary = 50;
+      const r = offerFA(c, q.id, 1.5, signFreeAgent);
+      if (r.error) { c.fa = c.fa.filter((x) => x !== q); continue; }
+      if (r.won) { won++; expect(userTeam(c).players.includes(q)).toBe(true); releasePlayer(c, q.id); }
+      else { lost++; expect(c.fa.includes(q)).toBe(false); expect(c.teams.some((t) => !t.user && t.players.includes(q))).toBe(true); }
+    }
+    expect(won + lost).toBeGreaterThan(10);
+  });
+
+  it('有利なトレードの申し出は,こちらの控えと,相手の主力の交換になる', () => {
+    const c = newCareer('テスト');
+    let found: GameEvent | null = null;
+    for (let i = 0; i < 400 && !found; i++) { rollEvent(c); if (c.event?.title.includes('有利な申し出')) found = c.event; }
+    expect(found).not.toBeNull();
+    const mine = findPlayer(userTeam(c), found!.pid!)!;
+    const o = c.teams.find((t) => t.id === found!.teamId)!;
+    const theirs = findPlayer(o, found!.pid2!)!;
+    expect(playerValue(theirs)).toBeGreaterThan(playerValue(mine) + 7);
+    resolveEvent(c, 'accept');
+    expect(userTeam(c).players.includes(theirs)).toBe(true);
+    expect(o.players.includes(mine)).toBe(true);
   });
 });

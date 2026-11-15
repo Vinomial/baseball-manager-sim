@@ -35,8 +35,9 @@ import { ensurePlan } from './actions';
 import { addFam, FAM_WEEK, tacticFx } from './tactics';
 import { fansAfterGame, fansBoost, market, weeklyFans } from './fans';
 import { awardPerks, induct, titlePerks, updateFranchise } from './history';
+import { lotteryBid, lotteryOpen, startLottery } from './lottery';
 import {
-  advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
+  ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
   arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeekGen, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
@@ -359,7 +360,7 @@ export function finishSeason(c: Career): void {
       draft = { pool: [...genDraftClass(c, level, c.fac.scout), ...c.watch], order: draftOrder(c, ids), idx: 0, picks: [], done: false };
       c.watch = [];
       c.scout = null;
-      advanceDraft(c, draft);
+      startLottery(c, draft);
     } else {
       runAiDraft(c, level, ids);
     }
@@ -414,7 +415,11 @@ function makeReview(c: Career, champId: number | undefined, cupChampion: boolean
 
 /** プレイヤーがドラフトで指名する.i が -1 なら見送り. */
 export function pickDraft(c: Career, i: number): void {
-  if (c.off) userDraftPick(c, c.off.draft, i);
+  if (!c.off) return;
+  const d = c.off.draft;
+  // 1 巡目は入札(重なったら抽選)
+  if (lotteryOpen(d)) { lotteryBid(c, d, i >= 0 ? d.pool[i] ?? null : null); return; }
+  userDraftPick(c, d, i);
 }
 
 /** 自由契約の選手を獲得する.できないときは理由を返す. */

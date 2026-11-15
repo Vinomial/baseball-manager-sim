@@ -18,6 +18,8 @@ import { term } from '../glossary';
 import { state } from '../state';
 import { userCupDef } from '../../data/cups';
 import { tacticBonus } from '../../league/tactics';
+import { expectedBids, lotteryOpen } from '../../league/lottery';
+import { faChance, isStarFA, OFFERS, rivalsFor } from '../../league/fa';
 
 /** ドラフト候補の総合値.能力は見積もりなので,幅(最低〜最高)で示す. */
 function draftStars(p: Player): string {
@@ -81,14 +83,23 @@ function draftHTML(c: Career): string {
   const perRound = d.order.length / DRAFT_ROUNDS;
   const round = Math.floor(d.idx / perRound) + 1, nth = (d.idx % perRound) + 1;
   const adv = advise(u, d.pool, (p) => tacticBonus(c, p));
-  const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
-  return `<h2>ドラフト会議</h2><p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>
-  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.watched ? '<span class="tag newbie">スカウト済み</span>' : ''}</span>
-    <button class="btn" data-a="draft" data-i="${i}">指名する</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
+  const bid = lotteryOpen(d);
+  const L = d.lottery;
+  const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).filter(({ p }) => !bid || !Object.values(L!.won).includes(p.id)).sort((x, y) => y.a.score - x.a.score);
+  const head = bid
+    ? `<p class="small muted">1巡目は<b>入札</b>です.全球団が同時に 1 人を指名し,重なったら<b>抽選</b>で交渉権が決まります.外れたら,残りの選手でもう一度入札します(外れ1位).「★目玉」は今年の注目株で,競合しやすい選手です.</p>
+    ${L!.userLost ? '<p class="warnbox bad small" style="margin:4px 0">抽選に外れました.外れ1位を指名してください.</p>' : ''}
+    ${L!.log.length ? `<div class="card"><ul class="recap" style="margin:0">${L!.log.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}`
+    : `<p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>`;
+  const starTag = (p: Player) => (d.stars?.includes(p.id) ? '<span class="rarity r4">★目玉</span>' : '');
+  const rivals = (p: Player) => { if (!bid) return ''; const n = expectedBids(c, d, p); return n ? `<span class="tag" style="color:var(--bad)">競合予想 ${n}球団</span>` : ''; };
+  return `<h2>ドラフト会議${bid ? ' 1巡目入札' : ''}</h2>${head}
+  <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}${starTag(p)}<span class="tag">${POS_NAME[p.pos]}</span>${rivals(p)}<span class="tag">${p.age}歳</span>${p.watched ? '<span class="tag newbie">スカウト済み</span>' : ''}</span>
+    <button class="btn" data-a="draft" data-i="${i}">${bid ? '1位で入札' : '指名する'}</button></div>${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>
     <div style="margin:2px 0">${draftStars(p)}</div>
     <div class="attrs">${keysOf(p).map((k) => { const r = p.scout?.[k] ?? [p[k], p[k]]; return `<label>${LABEL[k]}</label><span class="g g${grade(r[0])}">${grade(r[0])}</span>〜<span class="g g${grade(r[1])}">${grade(r[1])}</span><span class="gv"></span>`; }).join('')}
     ${p.scoutPot ? `<label>${term('pot')}</label><span class="g g${grade(p.scoutPot[0])}">${grade(p.scoutPot[0])}</span>〜<span class="g g${grade(p.scoutPot[1])}">${grade(p.scoutPot[1])}</span>` : ''}</div>${abilitiesHTML(p)}</div>`).join('')}</div>
-  <div class="row" style="margin-top:8px"><button class="btn ghost" data-a="draft" data-i="-1">この順番は見送る</button></div>${log}`;
+  <div class="row" style="margin-top:8px"><button class="btn ghost" data-a="draft" data-i="-1">${bid ? '1位の指名を見送る' : 'この順番は見送る'}</button></div>${log}`;
 }
 
 function faHTML(c: Career): string {
@@ -101,7 +112,9 @@ function faHTML(c: Career): string {
   const card = (p: Player) => {
     const ok = faVerdict(c, p) === 'ok', a = adv.get(p.id);
     return `<div class="pl ${a?.star ? 'star' : ''}"><div class="top"><span class="nm">${a?.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span><span class="tag">${fmtYen(p.salary)}</span>${p.prev ? `<span class="tag">${esc(p.prev)}</span>` : ''}</span>
-    <button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full && !over(p) ? '' : 'disabled'}>${!ok ? '来てくれない' : over(p) ? '予算オーバー' : '獲得する'}</button></div>
+    ${isStarFA(c, p) ? '' : `<button class="btn" data-a="sign" data-id="${p.id}" ${ok && !full && !over(p) ? '' : 'disabled'}>${!ok ? '来てくれない' : over(p) ? '予算オーバー' : '獲得する'}</button>`}</div>
+    ${isStarFA(c, p) ? `<p class="small" style="margin:4px 0"><span class="rarity r4">大物</span> 他に<b>${rivalsFor(c, p)}球団</b>が狙っています.年俸を上乗せするほど獲得しやすくなりますが,負けると他球団へ行ってしまいます.</p>
+    <div class="row">${OFFERS.map((m, i) => { const sal = Math.round((p.salary * m) / 10) * 10; return `<button class="btn ${i ? 'ghost' : ''}" data-a="offer" data-id="${p.id}" data-i="${i}" ${full || sal > room ? 'disabled' : ''}>年俸${fmtYen(sal)}で<br><span class="small">獲得率 ${Math.round(faChance(c, p, m) * 100)}%</span></button>`; }).join('')}</div>` : ''}
     <div style="margin:2px 0">${playerStars(p)}</div>
     ${a ? `${tagHTML(a.tags)} <span class="small muted">${esc(a.reason)}</span>` : '<span class="small muted">今のチームでは入団を断られそうです(より強いチーム,上のリーグなら来てくれます)</span>'}${attrsHTML(p)}</div>`;
   };

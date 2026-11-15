@@ -467,7 +467,7 @@ export function advanceDraft(c: Career, d: DraftState): void {
   finishDraft(c, d);
 }
 
-function takePick(c: Career, d: DraftState, t: Team, p: Player): void {
+export function takePick(c: Career, d: DraftState, t: Team, p: Player): void {
   const round = Math.floor(d.idx / (d.order.length / DRAFT_ROUNDS)) + 1;
   d.pool = d.pool.filter((x) => x !== p);
   d.picks.push({ round, teamId: t.id, team: t.name, pid: p.id, name: p.name, user: t.id === c.userId });

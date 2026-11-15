@@ -157,6 +157,10 @@ export interface DraftState {
   idx: number;
   picks: DraftPick[];
   done: boolean;
+  /** 目玉選手(ID) */
+  stars?: number[];
+  /** 1 巡目の入札と抽選(プレイヤーの階層だけ) */
+  lottery?: { teams: number[]; won: Record<number, number>; log: string[]; wave: number; done: boolean; userLost: boolean };
 }
 
 export type GameKind = 'league' | 'playoff' | 'cup' | 'practice' | 'open';

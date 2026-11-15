@@ -3,6 +3,7 @@ import { GIVEN_NAMES, SURNAMES } from '../data/constants';
 import type { AttrKey, Career, ManagerStyle, Player, Staff, StaffRole } from '../types';
 import { clamp, pick, randn, ri } from '../util/random';
 import { moneyScale, spend } from './economy';
+import { franchiseOf, obCandidates, obStaff } from './history';
 
 export const ROLES: StaffRole[] = ['manager', 'batting', 'pitching', 'defense', 'trainer', 'mental'];
 
@@ -46,6 +47,9 @@ export function genStaff(c: Career, role: StaffRole): Staff {
 /** 雇える候補を作り直す(各役割 3 人) */
 export function refreshPool(c: Career): void {
   c.staffPool = ROLES.flatMap((r) => Array.from({ length: 3 }, () => genStaff(c, r)));
+  // 殿堂入りした OB が,コーチとして戻ってきてくれることがある(1 年に 1 人まで)
+  const ob = obCandidates(c)[0];
+  if (ob) c.staffPool.unshift(obStaff(c, ob, (skill) => staffSalary(c, skill)));
 }
 
 export const staffCost = (c: Career): number => ROLES.reduce((s, r) => s + (c.staff[r]?.salary ?? 0), 0);
@@ -59,6 +63,7 @@ export function hireStaff(c: Career, id: number): string | null {
   if (c.funds < need) return '資金が足りません(契約金と退職金が必要です).';
   spend(c, 'hire', need);
   c.staff[s.role] = { ...s, years: 0 };
+  if (s.ob) franchiseOf(c).hired.push(s.name);
   c.staffPool = c.staffPool.filter((x) => x.id !== id);
   return null;
 }

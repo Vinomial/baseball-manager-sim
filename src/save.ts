@@ -292,6 +292,11 @@ export function migrate(raw: unknown): Career | null {
     cc.fans ??= Math.round(market(cc.level) * 0.6 * (cc.revenue ?? 1));
     c.version = 29;
   }
+  if (c.version === 29) {
+    // v30: 球団の歴史(シーズン記録,球団殿堂)を追加.これからの記録を残す
+    (c as unknown as Career).franchise ??= { best: {}, hall: [], hired: [] };
+    c.version = 30;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

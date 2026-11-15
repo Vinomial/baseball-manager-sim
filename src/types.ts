@@ -379,6 +379,8 @@ export interface Staff {
   salary: number;
   /** 在任年数 */
   years: number;
+  /** 球団の OB(殿堂入りした元選手) */
+  ob?: boolean;
 }
 
 /** 球団オーナーの目標(毎年) */
@@ -494,6 +496,8 @@ export interface Career {
   tacticFam?: number;
   /** ファンの数(人) */
   fans?: number;
+  /** 球団の歴史(シーズン記録,球団殿堂,呼んだ OB) */
+  franchise?: { best: Record<string, { v: number; name: string; season: number; text: string }>; hall: { name: string; pos: string; season: number; years: number; line: string; level: number }[]; hired: string[] };
   pantry: Record<Ingredient, number>;
   meal: Meal | null;
   /** 次のミッションの ID */

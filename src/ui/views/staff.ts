@@ -27,7 +27,7 @@ function preview(s: Staff, cur: Staff | null): string {
 }
 
 function staffRow(s: Staff, extra: string): string {
-  return `<div class="top"><span class="nm">${esc(s.name)}<span class="tag">${s.age}歳</span>${s.style ? `<span class="tag">${STYLE_INFO[s.style].name}</span>` : ''}</span><span class="small">能力 ${gradeHTML(s.skill)}</span></div>
+  return `<div class="top"><span class="nm">${esc(s.name)}${s.ob ? '<span class="tag newbie">球団OB</span>' : ''}<span class="tag">${s.age}歳</span>${s.style ? `<span class="tag">${STYLE_INFO[s.style].name}</span>` : ''}</span><span class="small">能力 ${gradeHTML(s.skill)}</span></div>
   <span class="small">${esc(effectText(s))}</span><br><span class="small muted">年俸 ${fmtYen(s.salary)}${extra}</span>`;
 }
 

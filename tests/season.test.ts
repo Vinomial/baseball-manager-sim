@@ -26,6 +26,7 @@ import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
 import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
 import { chooseMenu } from '../src/league/autoplay';
+import { awardPerks, franchiseOf, induct, obCandidates, titlePerks, updateFranchise } from '../src/league/history';
 import { fansAfterGame, fansOf, market, popularity } from '../src/league/fans';
 import { FAM_START, setTactic, tacticBonus, tacticFx, tacticPower } from '../src/league/tactics';
 import { DIFFS, DRAFT_ROUNDS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
@@ -45,7 +46,7 @@ import { earn, ledgerRow, spend } from '../src/league/economy';
 import { toStars, ovrStars, potStars } from '../src/growth/stars';
 import { playerStars, starsHTML } from '../src/ui/components';
 import { autoLineup } from '../src/league/team';
-import { ROLES, fireStaff, hireStaff, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
+import { ROLES, fireStaff, hireStaff, refreshPool, managerFx, mentalBoost, severance, signingBonus, staffCost, staffTrainMult, trainerInjuryScale } from '../src/league/staff';
 import { dispatchScout, scoutCost, tickScout } from '../src/league/scouting';
 import { moraleGrowth, moraleLabel, PERS, updateMorale } from '../src/growth/personality';
 import { arrangeLeagues, faAppeal, leagueName, playoffSeeds, weeklyUpkeep } from '../src/league/world';
@@ -2600,5 +2601,73 @@ describe('勝負どころ', () => {
     }
     expect(moments).toBeGreaterThan(0);
     expect(isLineupValid(userTeam(c))).toBe(true);
+  });
+});
+
+describe('球団の歴史と,タイトルの恩恵', () => {
+  beforeEach(() => setRandom(seeded(9090)));
+  afterEach(() => resetRandom());
+
+  it('シーズン記録は,より良い成績が出たときだけ塗り替わり,知らせが出る', () => {
+    const c = newCareer('テスト');
+    const p = fielders(userTeam(c))[0];
+    p.stats.hr = 10;
+    expect(updateFranchise(c)).toEqual([]);
+    expect(franchiseOf(c).best.hr.v).toBe(10);
+    p.stats.hr = 8;
+    expect(updateFranchise(c)).toEqual([]);
+    p.stats.hr = 15;
+    const news = updateFranchise(c);
+    expect(news.some((n) => n.includes('球団新記録') && n.includes('本塁打'))).toBe(true);
+    expect(franchiseOf(c).best.hr.v).toBe(15);
+  });
+
+  it('防御率は低いほど記録で,投球回が足りないと数えない', () => {
+    const c = newCareer('テスト');
+    const p = pitchersOf(userTeam(c))[0];
+    Object.assign(p.stats, { outs: 30, r: 1 });
+    updateFranchise(c);
+    expect(franchiseOf(c).best.era).toBeUndefined();
+    Object.assign(p.stats, { outs: 90, r: 20 });
+    updateFranchise(c);
+    const first = franchiseOf(c).best.era.v;
+    Object.assign(p.stats, { outs: 90, r: 10 });
+    updateFranchise(c);
+    expect(franchiseOf(c).best.era.v).toBeLessThan(first);
+  });
+
+  it('5 シーズン以上いた選手は,引退で球団殿堂に入り,翌年から OB コーチの候補になる', () => {
+    const c = newCareer('テスト');
+    const p = fielders(userTeam(c))[0];
+    p.seasons = Array.from({ length: 6 }, (_, i) => ({ season: i + 1, level: 2, team: 'X', age: 25 + i, stats: { ...emptyStats(), g: 20, h: 20, ab: 70 } }));
+    expect(induct(c, p)).toContain('球団殿堂');
+    const short = fielders(userTeam(c))[1];
+    short.seasons = [];
+    expect(induct(c, short)).toBeNull();
+    expect(obCandidates(c)).toHaveLength(0);
+    c.season++;
+    refreshPool(c);
+    const ob = c.staffPool.find((s) => s.ob)!;
+    expect(ob.name).toBe(p.name);
+    c.funds = 1e6;
+    expect(hireStaff(c, ob.id)).toBeNull();
+    refreshPool(c);
+    expect(c.staffPool.some((s) => s.ob)).toBe(false);
+  });
+
+  it('優勝の賞金は上の大会ほど大きく,個人タイトルの選手は限界が広がる', () => {
+    const c = newCareer('テスト');
+    const f0 = c.funds;
+    titlePerks(c, 'ama');
+    const ama = c.funds - f0;
+    const f1 = c.funds;
+    titlePerks(c, 'world');
+    expect(c.funds - f1).toBeGreaterThan(ama);
+    const p = fielders(userTeam(c))[0];
+    const k = keysOf(p).reduce((a, b) => (p[b] > p[a] ? b : a));
+    const pot0 = p.pot[k];
+    c.awards.push({ season: c.season, level: 0, kind: 'MVP', pid: p.id, name: p.name, team: 'x', text: '', mine: true });
+    expect(awardPerks(c).length).toBe(1);
+    expect(p.pot[k]).toBeGreaterThan(pot0);
   });
 });

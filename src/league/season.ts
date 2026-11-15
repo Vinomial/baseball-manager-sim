@@ -34,13 +34,14 @@ import { userCupDef } from '../data/cups';
 import { ensurePlan } from './actions';
 import { addFam, FAM_WEEK, tacticFx } from './tactics';
 import { fansAfterGame, fansBoost, market, weeklyFans } from './fans';
+import { awardPerks, induct, titlePerks, updateFranchise } from './history';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
   arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeekGen, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
 
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -314,10 +315,12 @@ export function finishSeason(c: Career): void {
     addTrust(c, cup.wins * 1.5 + cup.giantKills * 3 + (cup.champion ? 8 : 0));
     c.pantry.meat += cup.wins;
     c.pantry.rice += cup.wins;
-    if (cup.champion) { c.revenue = Math.min(1.3, c.revenue + 0.1); fansBoost(c, 'cup'); }
+    if (cup.champion) { c.revenue = Math.min(1.3, c.revenue + 0.1); fansBoost(c, 'cup'); c.news.push(titlePerks(c, userCupDef(c).kind)); }
   }
   // 表彰(成績を記録に回す前に行う)
   c.awards.push(...computeAwards(c));
+  // 球団記録と,個人タイトルの恩恵(成績を記録に回す前に)
+  c.news.push(...updateFranchise(c), ...awardPerks(c));
   if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
 
   const swaps = playSwaps(c);
@@ -334,7 +337,10 @@ export function finishSeason(c: Career): void {
       const out = ageTeam(t, awakened);
       if (t.user) c.news.push(...awakened);
       for (const p of out) addLegend(c, p, t);
-      if (t.user) retired.push(...out.map((p) => p.name));
+      if (t.user) {
+        retired.push(...out.map((p) => p.name));
+        for (const p of out) { const h = induct(c, p); if (h) c.news.push(h); }
+      }
     }
   }
   for (const p of c.fa) p.age++;
@@ -378,7 +384,7 @@ export function finishSeason(c: Career): void {
   if (myChamp === c.userId) addAlbum(c, 'title', `${LEAGUES[from].name}で優勝!`);
   if (cup.champion) addAlbum(c, 'title', `${userCupDef(c).name}で優勝!`);
   if (move > 0) { addAlbum(c, 'promo', `${LEAGUES[to].name}へ昇格!`); fansBoost(c, 'promo'); }
-  if (myChamp === c.userId) fansBoost(c, 'title');
+  if (myChamp === c.userId) { fansBoost(c, 'title'); c.news.push(titlePerks(c, 'league')); }
   review.goals = judgeGoals(c, rank, rec.w, myChamp === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
   c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: swaps.map((x) => x.text), draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };

@@ -3,6 +3,7 @@ import { ACHIEVEMENTS, goals } from '../../league/achievements';
 import { findPlayer } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { franchiseOf, RECORDS } from '../../league/history';
 
 const lgShort = (l: number): string => LEAGUES[l].name.replace('リーグ', '');
 
@@ -44,6 +45,22 @@ function starsHTML(c: Career): string {
   return h;
 }
 
+/** シーズン記録と球団殿堂 */
+function franchiseHTML(c: Career): string {
+  const f = franchiseOf(c);
+  const rows = RECORDS.filter((r) => f.best[r.key]).map((r) => {
+    const b = f.best[r.key];
+    return `<tr><td>${r.name}</td><td class="num"><b>${esc(b.text)}</b></td><td>${esc(b.name)}</td><td class="muted small">第${b.season}季</td></tr>`;
+  }).join('');
+  let h = rows ? `<div class="card scroll"><table class="results"><tbody>${rows}</tbody></table><p class="small muted" style="margin:4px 0 0">自チームの選手の,1 シーズンの記録です.打率と防御率は,試合数に見合う打席・投球回のときだけ数えます.</p></div>`
+    : '<p class="small muted">1 シーズン目が終わると,球団の記録が残ります.</p>';
+  h += `<h3>球団殿堂 <span class="small muted">${f.hall.length}人</span></h3>${f.hall.length
+    ? `<div class="plist">${[...f.hall].reverse().slice(0, 20).map((x) => `<div class="pl"><div class="top"><span class="nm">🏅 ${esc(x.name)}<span class="tag">${esc(x.pos)}</span><span class="tag">${x.years}シーズン</span>${f.hired.includes(x.name) ? '<span class="tag newbie">コーチ</span>' : ''}</span><span class="small muted">第${x.season}季に引退</span></div><span class="small">${esc(x.line)}(最高 ${lgShort(x.level)})</span></div>`).join('')}</div>
+    <p class="small muted">殿堂入りした OB は,翌年からコーチの候補として戻ってくることがあります(年俸は格安です).</p>`
+    : '<p class="small muted">自チームで 5 シーズン以上プレーした選手が引退すると,球団殿堂に入ります.</p>'}`;
+  return h;
+}
+
 function albumHTML(c: Career): string {
   if (!c.album.length) return '<p class="small muted">名場面はまだありません.サヨナラ勝ち,逆転勝ち,完封,優勝,昇格などが,ここに残ります.</p>';
   const icon = { game: '⚾', title: '🏆', promo: '⬆', milestone: '⭐' } as const;
@@ -62,6 +79,7 @@ export function renderRecords(c: Career): string {
   <tr><td>シーズン最多勝</td><td class="num">${r.bestWins}勝${r.bestSeason ? `(第${r.bestSeason}季)` : ''}</td></tr>
   <tr><td>優勝回数</td><td class="num">${LEAGUES.map((_, i) => `${lgShort(i)} ${r.titles[i]}`).join(' / ')}</td></tr>
   <tr><td>メジャーの連覇</td><td class="num">${r.proStreak}</td></tr></tbody></table></div>
+  <h2>球団の歴代記録</h2>${franchiseHTML(c)}
   <h2>ライバル</h2>${rivalHTML(c)}
   <h2>名場面アルバム</h2>${albumHTML(c)}
   <h2>名選手</h2>${starsHTML(c)}

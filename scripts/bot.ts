@@ -15,7 +15,10 @@ import { autoLineup, autoPitchers } from '../src/league/team';
 import { confirmMessage } from '../src/league/warnings';
 import { faVerdict } from '../src/league/world';
 import { futureValue } from '../src/growth/player';
-import type { Career } from '../src/types';
+import type { Career, Player } from '../src/types';
+
+/** 戦術(新しいコミットだけにある) */
+const TACTICS_MOD = await import('../src/league/tactics').catch(() => null) as null | { tacticBonus: (c: Career, p: Player) => number; bestTactic: (c: Career) => string; setTactic: (c: Career, k: never) => void };
 
 /** 月の方針(新しいコミットだけにある) */
 const ACTIONS_MOD = await import('../src/league/actions').catch(() => null) as null | {
@@ -72,7 +75,7 @@ export function botOffseason(c: Career): void {
   const u = userTeam(c);
   while (!c.off!.draft.done) {
     const d = c.off!.draft;
-    const adv = advise(u, d.pool);
+    const adv = advise(u, d.pool, TACTICS_MOD ? (p) => TACTICS_MOD.tacticBonus(c, p) : undefined);
     const i = d.pool.findIndex((p) => adv.get(p.id)?.star);
     pickDraft(c, i >= 0 ? i : 0);
   }
@@ -96,6 +99,8 @@ export function botOffseason(c: Career): void {
   }
   autoLineup(u);
   autoPitchers(u);
+  // 顔ぶれに合う戦術を選ぶ
+  if (TACTICS_MOD) TACTICS_MOD.setTactic(c, TACTICS_MOD.bestTactic(c) as never);
   if (c.fired) return;
   newSeason(c);
 }

@@ -15,6 +15,7 @@ import { forecastHTML, forecastSummary, trustHTML, trustSummary } from './status
 import { goalsHTML } from './todo';
 import { ledgerHTML, ledgerSummary } from './ledger';
 import { activePlayers } from '../../league/team';
+import { tacticHTML, tacticSummary } from './tactics';
 
 /** GM画面.お金,スタッフ,施設,スカウト,目標など,チームの運営をまとめる. */
 export function renderGm(c: Career): string {
@@ -31,6 +32,7 @@ export function renderGm(c: Career): string {
   h += fold('ledger', '収支', ledgerSummary(c), ledgerHTML(c));
   h += fold('goals', 'オーナーの目標', `${c.goals.length}件`, goalsHTML(c), true);
   h += fold('staffs', 'スタッフ(監督・コーチ)', `${Object.values(c.staff).filter(Boolean).length}/6人`, renderStaff(c));
+  h += fold('tactic', 'チームの戦術', tacticSummary(c), tacticHTML(c));
   h += fold('facilities', '施設と資金', facilitiesSummary(c), facilitiesHTML(c));
   h += fold('trade', 'トレード', tradeSummary(c), tradeHTML(c));
   h += fold('helpers', '助っ人', `候補${c.helpers.length}人`, helpersHTML(c));

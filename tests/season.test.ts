@@ -26,7 +26,8 @@ import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
 import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
 import { chooseMenu } from '../src/league/autoplay';
-import { DIFFS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
+import { FAM_START, setTactic, tacticBonus, tacticFx, tacticPower } from '../src/league/tactics';
+import { DIFFS, DRAFT_ROUNDS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
 import { bargainChance, negotiate, projectedPayroll } from '../src/league/contracts';
@@ -2405,5 +2406,81 @@ describe('出場で伸びる育成と二軍', () => {
     const s0 = keysOf(p).reduce((a, k) => a + p[k], 0);
     for (let i = 0; i < 8; i++) playWeek(c, 'rest');
     expect(keysOf(p).reduce((a, k) => a + p[k], 0)).toBeGreaterThan(s0 + 1);
+  });
+});
+
+describe('チームの戦術', () => {
+  beforeEach(() => setRandom(seeded(4747)));
+  afterEach(() => resetRandom());
+
+  it('戦術を変えると浸透度が下がり,公式戦の週ごとに上がる', () => {
+    const c = newCareer('テスト');
+    expect(tacticPower(c)).toBeCloseTo(1, 5);
+    setTactic(c, 'power');
+    expect(c.tacticFam).toBe(FAM_START);
+    const p0 = tacticPower(c);
+    while (c.cal < 20) playWeek(c, 'mix');
+    expect(c.tacticFam!).toBeGreaterThan(FAM_START);
+    expect(tacticPower(c)).toBeGreaterThan(p0 * 0.9);
+    setTactic(c, 'power');
+    expect(c.tacticFam!).toBeGreaterThan(FAM_START);
+  });
+
+  it('戦術研究で浸透度が大きく上がる', () => {
+    const c = newCareer('テスト');
+    setTactic(c, 'speed');
+    setMonthPlan(c, null, ['study']);
+    expect(c.tacticFam).toBe(FAM_START + 25);
+  });
+
+  it('強打は本塁打を,機動力は盗塁を増やす(同じチームどうしで多くの試合)', () => {
+    const run = (tactic: 'balance' | 'power' | 'speed') => {
+      setRandom(seeded(99));
+      const c = newCareer('テスト');
+      c.tactic = tactic; c.tacticFam = 100;
+      const u = userTeam(c);
+      const fx = tacticFx(c);
+      u.staffFx = fx.fx; u.runMult = fx.run;
+      const opp = c.teams.find((t) => !t.user && t.players.length)!;
+      let hr = 0, sb = 0;
+      for (let i = 0; i < 200; i++) {
+        const before = u.players.reduce((s, p) => [s[0] + p.stats.hr, s[1] + p.stats.sb], [0, 0]);
+        const g = newGame(u, opp, false);
+        stepToEnd(g);
+        const after = u.players.reduce((s, p) => [s[0] + p.stats.hr, s[1] + p.stats.sb], [0, 0]);
+        hr += after[0] - before[0]; sb += after[1] - before[1];
+        for (const p of [...u.players, ...opp.players]) p.fatigue = 0;
+      }
+      return { hr, sb };
+    };
+    const base = run('balance'), power = run('power'), speed = run('speed');
+    expect(power.hr).toBeGreaterThan(base.hr * 1.1);
+    expect(speed.sb).toBeGreaterThan(base.sb * 1.3);
+  });
+
+  it('戦術に合う選手は,ドラフトのおすすめで点が上がる', () => {
+    const c = newCareer('テスト');
+    const fast = genPlayer(c, '野手', 50, { age: 20 }), slow = genPlayer(c, '野手', 50, { age: 20 });
+    fast.speed = 85; slow.speed = 30;
+    setTactic(c, 'speed');
+    expect(tacticBonus(c, fast)).toBeGreaterThan(tacticBonus(c, slow));
+    setTactic(c, 'balance');
+    expect(tacticBonus(c, fast)).toBe(0);
+  });
+});
+
+describe('ドラフトの人数', () => {
+  it('どの階層でも,候補はその階層の全チームが指名できるだけいて,プレイヤーの番が来る', () => {
+    for (const seed of [1, 2, 3]) {
+      setRandom(seeded(500 + seed));
+      const c = newCareer('テスト');
+      playSeason(c, 'mix');
+      const d = c.off!.draft;
+      const teams = LEAGUES[c.off!.to].teams * LEAGUES[c.off!.to].count;
+      expect(d.order.length).toBe(teams * DRAFT_ROUNDS);
+      expect(d.pool.length + d.picks.length).toBeGreaterThanOrEqual(d.order.length);
+      expect(d.done).toBe(false);
+      resetRandom();
+    }
   });
 });

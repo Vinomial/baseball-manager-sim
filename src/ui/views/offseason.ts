@@ -17,6 +17,7 @@ import { prefs } from '../prefs';
 import { term } from '../glossary';
 import { state } from '../state';
 import { userCupDef } from '../../data/cups';
+import { tacticBonus } from '../../league/tactics';
 
 /** ドラフト候補の総合値.能力は見積もりなので,幅(最低〜最高)で示す. */
 function draftStars(p: Player): string {
@@ -79,7 +80,7 @@ function draftHTML(c: Career): string {
   }
   const perRound = d.order.length / DRAFT_ROUNDS;
   const round = Math.floor(d.idx / perRound) + 1, nth = (d.idx % perRound) + 1;
-  const adv = advise(u, d.pool);
+  const adv = advise(u, d.pool, (p) => tacticBonus(c, p));
   const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
   return `<h2>ドラフト会議</h2><p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>
   <div class="plist">${list.map(({ p, i, a }) => `<div class="pl ${a.star ? 'star' : ''}"><div class="top"><span class="nm">${avatar(p, 32)} ${a.star ? '<span class="rec star">★おすすめ</span>' : ''}${esc(p.name)}<span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span>${p.watched ? '<span class="tag newbie">スカウト済み</span>' : ''}</span>
@@ -93,7 +94,7 @@ function draftHTML(c: Career): string {
 function faHTML(c: Career): string {
   const u = userTeam(c);
   const pool = c.fa.filter((p) => p.role === state.faRole);
-  const adv = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'));
+  const adv = advise(u, c.fa.filter((p) => faVerdict(c, p) === 'ok'), (p) => tacticBonus(c, p));
   const rows = [...pool].sort((a, b) => ((adv.get(b.id)?.score ?? -1) - (adv.get(a.id)?.score ?? -1)) || (b.meet + b.velo) - (a.meet + a.velo));
   const max = userRosterMax(c), full = activePlayers(u).length >= max;
   const room = budgetFor(c) - payroll(u), over = (p: Player) => p.salary > room;

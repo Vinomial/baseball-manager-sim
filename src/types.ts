@@ -117,6 +117,8 @@ export interface Team {
   med?: number;
   /** 監督の作戦による試合の補正.プレイヤーのチームだけ. */
   staffFx?: { hit: number; hr: number; k: number; dp: number; def: number; cmd: number };
+  /** 盗塁を試みる多さの倍率(戦術による).プレイヤーのチームだけ. */
+  runMult?: number;
   /** 二軍の選手(ID).一軍の登録人数に数えず,公式戦には出ない.プレイヤーのチームだけ. */
   farm?: number[];
 }
@@ -486,6 +488,10 @@ export interface Career {
   lastMenus: string[];
   /** 今月の方針(古いセーブにはない) */
   plan?: MonthPlan | null;
+  /** チームの戦術(なければバランス) */
+  tactic?: 'balance' | 'power' | 'speed' | 'contact' | 'defense';
+  /** 戦術の浸透度(0〜100) */
+  tacticFam?: number;
   pantry: Record<Ingredient, number>;
   meal: Meal | null;
   /** 次のミッションの ID */

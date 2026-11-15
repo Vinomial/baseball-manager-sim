@@ -32,13 +32,14 @@ import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './sc
 import { activePlayers, autoLineup, autoPitchers, fielders, findPlayer, genTeam, isFarm, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import { userCupDef } from '../data/cups';
 import { ensurePlan } from './actions';
+import { addFam, FAM_WEEK, tacticFx } from './tactics';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
   arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
   runAiDraft, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep,
 } from './world';
 
-export const SAVE_VERSION = 27;
+export const SAVE_VERSION = 28;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -162,7 +163,10 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   const u = userTeam(c);
   const dk = DIFFS[c.diff];
   setInjuryScale(dk.injury * trainerInjuryScale(c));
-  u.staffFx = managerFx(c);
+  // 監督の作戦と,チームの戦術による試合の補正
+  const mfx = managerFx(c), tfx = tacticFx(c);
+  u.staffFx = { hit: mfx.hit + tfx.fx.hit, hr: mfx.hr + tfx.fx.hr, k: mfx.k + tfx.fx.k, dp: mfx.dp + tfx.fx.dp, def: mfx.def + tfx.fx.def, cmd: mfx.cmd + tfx.fx.cmd };
+  u.runMult = tfx.run;
   u.med = c.fac.clinic;
   // おまかせ進行:オーダーを組み直す,疲れがたまっていたら自動で休養にする
   if (c.auto.lineup) { autoLineup(u, { mode: c.auto.mode, noise: lineupNoise(c) }); autoPitchers(u, { mode: c.auto.mode, noise: lineupNoise(c) }); }
@@ -216,6 +220,9 @@ export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } =
     const us = userSide(games[0]), them = us === games[0].home ? games[0].away : games[0].home;
     c.last = `${kind === 'open' ? 'オープン戦' : '練習試合'} vs ${them.team.name}: ${us.runs} - ${them.runs}`;
   }
+
+  // 戦術は,公式戦を重ねるほど浸透する
+  addFam(c, ctx.length ? FAM_WEEK : 1);
 
   // 世界のほかの試合と,毎週の整理
   stepLeagues(c, userLeagueGame);

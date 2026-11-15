@@ -13,6 +13,7 @@ import { clamp, rand, ri, shuffle } from '../util/random';
 import { earn, moneyScale, spend, weeklyIncome } from './economy';
 import { addTrust } from './finance';
 import { findPlayer } from './team';
+import { addFam } from './tactics';
 
 export type ActionKey = 'scout' | 'sponsor' | 'talk' | 'special' | 'rest' | 'fan' | 'study';
 
@@ -68,7 +69,7 @@ export const ACTIONS: ActionDef[] = [
     can: () => null,
   },
   {
-    key: 'study', name: '戦術研究', desc: '試合の映像を見ながら連携を確かめる.チーム全体の連携が深まる.',
+    key: 'study', name: '戦術研究', desc: '試合の映像を見ながら,戦術と連携を確かめる.戦術の浸透度が大きく上がり,連携も深まる.',
     cost: () => 'なし',
     can: () => null,
   },
@@ -170,7 +171,8 @@ function runAction(c: Career, k: ActionKey, target: number | null): string {
       const ids = u.lineup.map((e) => e.pid);
       for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) addChem(u, ids[i], ids[j], 3);
       for (let i = 0; i < u.pitchers.length; i++) for (const id of ids.slice(0, 1)) addChem(u, u.pitchers[i], id, 3);
-      return '戦術研究で,チームの連携が深まりました.';
+      addFam(c, 25);
+      return `戦術研究で,戦術の浸透度が${Math.round(c.tacticFam ?? 100)}になり,連携も深まりました.`;
     }
   }
 }

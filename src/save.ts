@@ -279,6 +279,12 @@ export function migrate(raw: unknown): Career | null {
     (c as unknown as Career).plan ??= null;
     c.version = 27;
   }
+  if (c.version === 27) {
+    // v28: チームの戦術を追加(なければバランス)
+    (c as unknown as Career).tactic ??= 'balance';
+    (c as unknown as Career).tacticFam ??= 100;
+    c.version = 28;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

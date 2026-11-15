@@ -45,6 +45,7 @@ import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
 import { ACTION_SLOTS, actionDef, setMonthPlan, type ActionKey } from '../league/actions';
 import { fromFarm, toFarm } from '../league/team';
+import { setTactic, type TacticKey } from '../league/tactics';
 
 let root: HTMLElement;
 
@@ -389,6 +390,7 @@ function onClick(e: MouseEvent): void {
       break;
     case 'open': state.open = state.open === id ? null : id; break;
     case 'cards': state.cards = !state.cards; break;
+    case 'tactic': if (c) { setTactic(c, k as TacticKey); sfx.ok(); save(); } break;
     case 'farm': if (c) { const why = toFarm(userTeam(c), id); if (why) alert(why); else { sfx.ok(); save(); } } break;
     case 'unfarm': if (c) { const why = fromFarm(userTeam(c), id, userRosterMax(c)); if (why) alert(why); else { sfx.ok(); save(); } } break;
     case 'pmenu': state.planDraft.menu = k ? (k as MenuKey) : null; break;

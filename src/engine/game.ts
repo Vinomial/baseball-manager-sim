@@ -178,7 +178,7 @@ function tryTheft(g: Game, off: Side, def: Side): boolean {
   const sp = eff(r, 'speed') + (r.skills.includes('runner') ? 15 : 0);
   // 走る確率: 打線の中で足が速いほど高い(リーグの高さには左右されない).1 塁からのほうが多い.
   const ref = off.lineup.reduce((a, e) => a + e.p.speed, 0) / off.lineup.length;
-  const want = clamp(0.065 + (sp - ref) * 0.006 + (r.skills.includes('runner') ? 0.03 : 0), 0, 0.2) * (from === 0 ? 1 : 0.6);
+  const want = clamp(0.065 + (sp - ref) * 0.006 + (r.skills.includes('runner') ? 0.03 : 0), 0, 0.2) * (from === 0 ? 1 : 0.6) * (off.team.runMult ?? 1);
   if (rand() >= want) return false;
   const pr = clamp(0.64 + (sp - 50) * 0.012 - (eff(def.catcher, 'field') - 50) * 0.006, 0.2, 0.95);
   addPitches(def, 1);

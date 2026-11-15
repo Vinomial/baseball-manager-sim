@@ -392,7 +392,8 @@ export function toFreeAgent(c: Career, t: Team, p: Player): void {
 }
 
 export function genDraftClass(c: Career, level: number, scoutLv = 0): Player[] {
-  const n = LEAGUES[level].teams * DRAFT_ROUNDS + 4;
+  // 階層のすべてのチーム(並んでいるリーグも含めて)が指名できる人数
+  const n = LEAGUES[level].teams * LEAGUES[level].count * DRAFT_ROUNDS + 4;
   const base = LEAGUES[level].base - 8;
   return Array.from({ length: n }, (_, i) => {
     const p = genPlayer(c, i % 3 === 2 ? '投手' : '野手', base, { age: ri(18, 22), potMul: 0.7 });

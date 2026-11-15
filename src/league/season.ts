@@ -31,6 +31,7 @@ import { clamp, pick, ri } from '../util/random';
 import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './schedule';
 import { autoLineup, autoPitchers, fielders, findPlayer, genTeam, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import { userCupDef } from '../data/cups';
+import { ensurePlan } from './actions';
 import {
   advanceDraft, ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
   arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeek, playoffText, pruneFreeAgents, resetLeague,
@@ -158,6 +159,8 @@ function playPractice(c: Career): Game {
 export function playWeek(c: Career, menu: MenuKey, opt: { practice?: boolean } = {}): WeekResult {
   c.news = [];
   c.event = null;
+  // 月のはじめに方針を決めずに進んだときは,練習だけおまかせにする
+  ensurePlan(c);
   const info = weekInfo(c);
   const u = userTeam(c);
   const dk = DIFFS[c.diff];

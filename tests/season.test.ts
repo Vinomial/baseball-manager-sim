@@ -24,6 +24,8 @@ import { driftPot, emptyStats, growAttr, keysOf } from '../src/growth/player';
 import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
 import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
+import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
+import { chooseMenu } from '../src/league/autoplay';
 import { DIFFS, FOREIGN_FIRST, relegPerLeague } from '../src/data/constants';
 import { standings } from '../src/league/schedule';
 import { goalProgress } from '../src/league/goals';
@@ -2274,5 +2276,66 @@ describe('6 階層への移行(v25 → v26)', () => {
       expect(leaguesInTier(m, l), L.name).toHaveLength(L.count);
       for (const lg of leaguesInTier(m, l)) expect(lg.teamIds).toHaveLength(L.teams);
     });
+  });
+});
+
+describe('月の方針と行動枠', () => {
+  beforeEach(() => setRandom(seeded(1212)));
+  afterEach(() => resetRandom());
+
+  it('方針は月に 1 回だけ決められ,行動は枠の数まで,同じ行動は 1 回', () => {
+    const c = newCareer('テスト');
+    expect(needsPlan(c)).toBe(true);
+    expect(setMonthPlan(c, null, ['rest', 'talk', 'fan']).error).not.toBeNull();
+    expect(setMonthPlan(c, null, ['rest', 'rest']).error).not.toBeNull();
+    const r = setMonthPlan(c, 'bat', ['rest', 'talk']);
+    expect(r.error).toBeNull();
+    expect(r.results).toHaveLength(2);
+    expect(needsPlan(c)).toBe(false);
+    expect(setMonthPlan(c, 'pitch', []).error).not.toBeNull();
+    // 今月の練習は方針どおり
+    expect(chooseMenu(c, null, 'mix')).toBe('bat');
+    // 今週だけの休養は方針より優先
+    expect(chooseMenu(c, 'rest', 'mix')).toBe('rest');
+  });
+
+  it('月が変わると,また方針を決める.決めずに進むと,練習はおまかせで行動はしない', () => {
+    const c = newCareer('テスト');
+    setMonthPlan(c, 'bat', []);
+    for (let i = 0; i < 4; i++) playWeek(c, chooseMenu(c, null, 'mix'));
+    expect(needsPlan(c)).toBe(true);
+    const f0 = c.funds;
+    playWeek(c, chooseMenu(c, null, 'mix'));
+    expect(needsPlan(c)).toBe(false);
+    expect(currentPlan(c)!.menu).toBeNull();
+    expect(currentPlan(c)!.actions).toEqual([]);
+    expect(c.funds).toBeGreaterThan(0);
+    void f0;
+  });
+
+  it('特訓は食材を使い,選んだ選手の育成方針の重点を大きく伸ばす', () => {
+    const c = newCareer('テスト');
+    for (const k of Object.keys(c.pantry) as (keyof typeof c.pantry)[]) c.pantry[k] = 0;
+    expect(setMonthPlan(c, null, ['special']).error).toContain('食材');
+    c.pantry.rice = 2; c.pantry.meat = 2;
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    p.plan = 'slugger'; p.age = 21; p.power = 40; p.pot.power = 80; p.meet = 40; p.pot.meet = 80;
+    const r = setMonthPlan(c, null, ['special'], p.id);
+    expect(r.error).toBeNull();
+    expect(c.pantry.rice + c.pantry.meat).toBe(1);
+    expect(p.power + p.meet).toBeGreaterThan(84);
+    expect(r.results[0]).toContain(p.name);
+  });
+
+  it('スカウト遠征は資金を使って注目選手を増やし,スポンサー営業は資金を増やす', () => {
+    const c = newCareer('テスト');
+    const f0 = c.funds, w0 = c.watch.length;
+    setMonthPlan(c, null, ['scout', 'sponsor']);
+    expect(c.watch.length).toBe(w0 + 1);
+    expect(c.funds).not.toBe(f0);
+    // 行動を枠いっぱい使うミッションが達成できる
+    c.missions = [{ id: 99, kind: 'act', title: 'x', target: 1, progress: 0, reward: {} }];
+    updateMissions(c, { menu: 'mix', games: [] });
+    expect(c.missions.some((m) => m.id === 99)).toBe(false);
   });
 });

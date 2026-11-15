@@ -17,12 +17,35 @@ import { faVerdict } from '../src/league/world';
 import { futureValue } from '../src/growth/player';
 import type { Career } from '../src/types';
 
+/** 月の方針(新しいコミットだけにある) */
+const ACTIONS_MOD = await import('../src/league/actions').catch(() => null) as null | {
+  needsPlan: (c: Career) => boolean;
+  actionDef: (k: never) => { can: (c: Career) => string | null };
+  setMonthPlan: (c: Career, menu: null, actions: never[]) => unknown;
+};
+
 /** 施設を強くする順(練習場とスタジアムを先に) */
 const FAC_ORDER = ['ground', 'stadium', 'canteen', 'clinic', 'scout'] as const;
 
 /** 料理の大まかな価値: 伸びの増えた分 × 週数 */
 const mealValue = (r: (typeof RECIPES)[number]): number =>
   Object.values(r.mult).reduce((s, v) => s + Math.max(0, (v ?? 1) - 1), 0) * r.weeks + ((r as { recover?: number }).recover ?? 0) * 0.02;
+
+/** 月のはじめの方針: 練習はおすすめ,行動は特訓(食材があれば)と,チームの状態に合わせたもう 1 つ */
+function botPlan(c: Career): void {
+  // 古いコミットには月の方針がないので,あるときだけ使う
+  const mod = ACTIONS_MOD;
+  if (!mod || !mod.needsPlan(c)) return;
+  const u = userTeam(c);
+  const acts: string[] = [];
+  if (mod.actionDef('special' as never).can(c) === null) acts.push('special');
+  else acts.push('sponsor');
+  const tired = u.players.reduce((s, p) => s + p.fatigue, 0) / u.players.length;
+  if (tired > 35) acts.push('rest');
+  else if (u.players.some((p) => p.morale < 45)) acts.push('talk');
+  else acts.push(acts[0] === 'sponsor' ? 'fan' : 'sponsor');
+  mod.setMonthPlan(c, null, acts as never[]);
+}
 
 /** 1 週ぶん,上手なプレイヤーのように進める */
 export function botWeek(c: Career): void {
@@ -38,6 +61,7 @@ export function botWeek(c: Career): void {
     if (c.fac[k] >= MAX_FAC) continue;
     if (c.funds > upgradeCost(c, k) * 1.4) upgrade(c, k);
   }
+  botPlan(c);
   let menu = recommendedMenu(c) as string;
   if (confirmMessage(c, menu, false)) menu = 'rest';
   playWeek(c, menu as Parameters<typeof playWeek>[1]);

@@ -167,6 +167,19 @@ export interface PlayoffState {
 }
 
 /** 年末の全日本選手権の進行 */
+/** 月ごとの方針(練習と GM の行動) */
+export interface MonthPlan {
+  /** シーズンをまたいだ月の通し番号(season * 12 + 月) */
+  month: number;
+  /** 練習.null ならおまかせ(毎週おすすめを選ぶ) */
+  menu: string | null;
+  actions: string[];
+  /** 特訓の相手 */
+  target: number | null;
+  /** 行動の結果 */
+  results: string[];
+}
+
 /** 年末の選手権の種類(アマチュア,日本,世界) */
 export type CupKind = 'ama' | 'jp' | 'world';
 
@@ -469,6 +482,8 @@ export interface Career {
   sideCups?: { live: CupLive; bracket: CupMatch[] }[];
   /** 直近の練習メニュー(新しいものが後ろ) */
   lastMenus: string[];
+  /** 今月の方針(古いセーブにはない) */
+  plan?: MonthPlan | null;
   pantry: Record<Ingredient, number>;
   meal: Meal | null;
   /** 次のミッションの ID */

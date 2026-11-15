@@ -102,12 +102,19 @@ test('1か月まとめて進められ,ホームは今週の内容にしぼられ
   expect(errs).toEqual([]);
 });
 
-test('練習の決め方を切り替えられる', async ({ page }) => {
+test('月のはじめに,練習と行動を選んで方針を決められる', async ({ page }) => {
+  const errs = watchErrors(page);
   await newGame(page);
-  await page.click('[data-a="train-mode"][data-k="fixed"]');
-  await expect(page.locator('[data-a="train-mode"][data-k="fixed"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.click('[data-a="train-mode"][data-k="manual"]');
-  await expect(page.locator('[data-a="train-mode"][data-k="manual"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('[data-a="pmenu"][data-k="bat"]');
+  await expect(page.locator('[data-a="pmenu"][data-k="bat"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.click('[data-a="pact"][data-k="rest"]');
+  await page.click('[data-a="pact"][data-k="talk"]');
+  // 枠は 2 つなので,3 つ目は選べない
+  await expect(page.locator('[data-a="pact"][data-k="fan"]')).toBeDisabled();
+  await page.click('[data-a="plan-ok"]');
+  await expect(page.locator('main')).toContainText('1月の方針');
+  await expect(page.locator('main')).toContainText('打撃練習');
+  expect(errs).toEqual([]);
 });
 
 test('ドラフトで指名すると,育成方針を決めるシートが出る', async ({ page }) => {

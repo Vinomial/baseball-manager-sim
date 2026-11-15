@@ -43,6 +43,7 @@ import { renderGm } from './views/gm';
 import { renderRecords } from './views/records';
 import { renderTable } from './views/table';
 import { renderTeamTab } from './views/teamtab';
+import { ACTION_SLOTS, actionDef, setMonthPlan, type ActionKey } from '../league/actions';
 
 let root: HTMLElement;
 
@@ -387,6 +388,23 @@ function onClick(e: MouseEvent): void {
       break;
     case 'open': state.open = state.open === id ? null : id; break;
     case 'cards': state.cards = !state.cards; break;
+    case 'pmenu': state.planDraft.menu = k ? (k as MenuKey) : null; break;
+    case 'pact': {
+      const d = state.planDraft, key = k as ActionKey;
+      d.actions = d.actions.includes(key) ? d.actions.filter((x) => x !== key) : d.actions.length < ACTION_SLOTS ? [...d.actions, key] : d.actions;
+      break;
+    }
+    case 'plan-same': if (c?.plan) { state.planDraft = { menu: c.plan.menu as MenuKey | null, actions: c.plan.actions.filter((x) => actionDef(x as ActionKey).can(c) === null) as ActionKey[], target: c.plan.target }; } break;
+    case 'plan-ok': if (c) {
+      const d = state.planDraft;
+      const r = setMonthPlan(c, d.menu, d.actions, d.target);
+      if (r.error) { alert(r.error); break; }
+      c.news = [...r.results, ...c.news];
+      state.planDraft = { menu: d.menu, actions: [], target: d.target };
+      state.menuTouched = false;
+      sfx.ok();
+      save();
+    } break;
     case 'selL': {
       if (!c) break;
       const u = userTeam(c), s = state.sel;
@@ -475,6 +493,7 @@ function onChange(e: Event): void {
     });
     return;
   }
+  if (el.dataset.c === 'ptarget') { state.planDraft.target = Number(el.value); return; }
   if (el.dataset.a !== 'pos' || !state.career) return;
   setPosition(userTeam(state.career), Number(el.dataset.i), el.value as LineupPos);
   save();

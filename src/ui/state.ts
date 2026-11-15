@@ -1,5 +1,6 @@
 import type { GrowthReport, MenuKey } from '../growth/training';
 import type { Career, Game, GameKind } from '../types';
+import type { ActionKey } from '../league/actions';
 
 export type Tab = 'home' | 'game' | 'team' | 'table' | 'gm' | 'rec';
 export type Screen = 'title' | 'new' | 'play';
@@ -66,6 +67,8 @@ export interface AppState {
   faRole: '野手' | '投手';
   /** 選手タブをカードの一覧で見るか */
   cards: boolean;
+  /** 月の方針を決める途中の選択 */
+  planDraft: { menu: MenuKey | null; actions: ActionKey[]; target: number | null };
   /** 試合のあとに結果を自動で開くか(切ると,試合を見ずに次へ進める) */
   autoOpen: AutoOpen;
   /** 試合のない週に練習試合を組むか */
@@ -85,7 +88,7 @@ export function writeAutoOpen(v: AutoOpen): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewSub: null, viewTeam: null, faRole: '野手', cards: false,
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewSub: null, viewTeam: null, faRole: '野手', cards: false, planDraft: { menu: null, actions: [], target: null },
   autoOpen: readAutoOpen(),
   practice: false,
 };

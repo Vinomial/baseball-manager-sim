@@ -400,3 +400,12 @@ details>*,.fold-body,.fold-body *{box-sizing:border-box}
 .path{margin:4px 0 8px;padding-left:1.4em;font-size:13px}
 .path .w{color:var(--good)}.path .l{color:var(--bad)}
 .stadium{display:block;width:100%;height:auto;border:2px solid var(--line);border-radius:4px;margin:0 0 8px;image-rendering:pixelated}
+
+/* 月の方針: 行動 */
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.act{display:flex;flex-direction:column;gap:2px;text-align:left;border:2px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 9px;line-height:1.4}
+.act[aria-pressed="true"]{border-color:var(--btn);background:var(--panel2);box-shadow:inset 3px 0 0 var(--btn)}
+.act:disabled{opacity:.5}
+.act b{font-size:14px}
+.plan-done{border-left:4px solid var(--btn)}
+select[data-c="ptarget"]{margin-left:6px;max-width:100%}

@@ -3,6 +3,7 @@ import { ingName } from '../growth/meals';
 import { earn, moneyScale } from './economy';
 import type { Career, Ingredient, Mission } from '../types';
 import { pick, rand, ri, shuffle } from '../util/random';
+import { ACTION_SLOTS, currentPlan } from './actions';
 
 interface Kind {
   key: string;
@@ -28,7 +29,7 @@ const KINDS: Kind[] = [
   { key: 'hr', make: () => { const n = ri(2, 4); return { title: `チームで${n}本塁打を打つ`, target: n }; }, reward: () => ({ ...some(1), meat: 1 }), cash: 0.025 },
   { key: 'k', make: () => { const n = ri(15, 25); return { title: `投手陣で${n}奪三振`, target: n }; }, reward: () => ({ ...some(1), fish: 1 }), cash: 0.025 },
   { key: 'upset', make: () => ({ title: '勝てないと言われた相手(予想40%未満)に勝つ', target: 1 }), reward: () => some(4), cash: 0.06 },
-  { key: 'train', make: () => ({ title: '練習を3回続けて行う', target: 3 }), reward: () => ({ ...some(1), veg: 1 }), cash: 0.015 },
+  { key: 'act', make: () => ({ title: `今月の行動を${ACTION_SLOTS}つとも使う`, target: 1 }), reward: () => ({ ...some(1), veg: 1 }), cash: 0.015 },
   { key: 'rest', make: () => ({ title: '休養を1回とる', target: 1 }), reward: () => ({ fruit: 1, egg: 1 }), cash: 0.01 },
 ];
 
@@ -81,6 +82,7 @@ export function updateMissions(c: Career, w: WeekCtx): void {
         default: break;
       }
     }
+    if (m.kind === 'act' && (currentPlan(c)?.actions.length ?? 0) >= ACTION_SLOTS) m.progress = 1;
     if (m.kind === 'train') m.progress = consecutive(c.lastMenus, w.menu);
     if (m.kind === 'rest' && w.menu === 'rest') m.progress++;
   }

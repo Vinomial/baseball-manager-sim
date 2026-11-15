@@ -7,7 +7,7 @@ import { convertOptions } from '../league/convert';
 import { fmtYen } from '../league/finance';
 import type { AttrKey, Career, PitchKey, Player } from '../types';
 import { esc } from '../util/format';
-import { cardSVG } from './card';
+import { cardSVG, potHint } from './card';
 import { teamColors } from './emblem';
 import { legendHTML, lineSVG, radarSVG, type Series } from './charts';
 import { moraleLabel, PERS } from '../growth/personality';
@@ -34,7 +34,7 @@ export function detailSheet(c: Career, id: number): string {
   const ks = keysOf(p);
   const labels = ks.map((k) => LABEL[k]);
   // 伸びしろの上限は,正確には見せず 5 きざみにする
-  const cap = (k: AttrKey) => Math.round((p.pot[k] + ((p.id * 7 + k.length * 3) % 9) - 4) / 5) * 5;
+  const cap = (k: AttrKey) => potHint(p, k);
   const radar: Series[] = [
     { name: '現在', color: 'var(--btn)', values: ks.map((k) => p[k]) },
     { name: '上限の目安', color: 'var(--accent)', dash: '5 4', values: ks.map(cap) },
@@ -76,7 +76,7 @@ export function detailSheet(c: Career, id: number): string {
   }
   const histHTML = p.story?.length ? `<h3>ヒストリー</h3><ul class="recap">${[...p.story].reverse().slice(0, 12).map((x) => `<li><span class="muted">第${x.season}季</span> ${esc(x.text)}</li>`).join('')}</ul>` : '';
   return `<div class="sheet-bg" data-a="detail-close"></div><div class="sheet detail" role="dialog" aria-label="選手の詳細">
-  <div class="sheet-h"><b>${avatar(p, 44)} ${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
+  <div class="sheet-h"><b>${avatar(p, 44, teamColors({ name: r.team })[0])} ${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
   <p class="small" style="margin:0">${esc(r.team)} / 成長タイプ: ${p.type} / 伸びしろ: ${roomWord(p)} / 年俸 ${fmtYen(p.salary)}${p.alt?.length ? ` / サブポジ: ${p.alt.map((x) => POS_NAME[x]).join('・')}` : ''}</p>
   <p style="margin:0">${condHTML(p)}</p>
   <p style="margin:4px 0 0">${playerStars(p)}</p>

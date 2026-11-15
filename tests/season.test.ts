@@ -15,7 +15,7 @@ import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
 import { stadiumSVG } from '../src/ui/stadium';
 import { chordTones, freq, midi, notesAt, SONGS, songSteps, STEPS_PER_BAR } from '../src/ui/music';
-import { cardSVG, rarityOf } from '../src/ui/card';
+import { BAR_W, BAR_X, cardSVG, potHint, rarityOf } from '../src/ui/card';
 import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
 import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
 import { pressNote } from '../src/league/world';
@@ -2092,6 +2092,19 @@ describe('見た目(カード・エンブレム・トーナメント表)', () =>
     expect(svg).toContain(p.name);
     expect(svg).toContain('LEGEND');
     expect(svg).toContain('>85<');
+  });
+
+  it('カードの上限の印は,正確な上限ではなく詳細画面と同じ目安を使う', () => {
+    const c = newCareer('テスト');
+    const p = userTeam(c).players.find((x) => x.role === '野手')!;
+    p.meet = 40; p.pot.meet = 73;
+    const hint = potHint(p, 'meet');
+    expect(hint % 5).toBe(0);
+    const svg = cardSVG(p);
+    // ミートの行の印の位置(バーの幅 70 に対する割合)
+    expect(svg).toContain(`x="${BAR_X + (BAR_W * hint) / 100 - 0.5}"`);
+    if (hint !== 73) expect(svg).not.toContain(`x="${BAR_X + (BAR_W * 73) / 100 - 0.5}"`);
+    expect(detailSheet(c, p.id)).toContain(`上限 ${hint}前後`);
   });
 
   it('エンブレムはチーム名からいつも同じ色と文字になる', () => {

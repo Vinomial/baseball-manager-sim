@@ -2,7 +2,7 @@
 import { LABEL, POS_NAME } from '../data/constants';
 import { abilityLabels } from '../growth/abilities';
 import { keysOf, playerValue } from '../growth/player';
-import type { Player } from '../types';
+import type { AttrKey, Player } from '../types';
 import { esc, grade } from '../util/format';
 import { avatarParts } from './avatar';
 
@@ -20,6 +20,9 @@ const RARITY: Record<number, { name: string; frame: string; frame2: string; bg: 
 };
 
 /** レア度.総合値のランク(A 以上 LEGEND,B EPIC,C RARE)で決まる. */
+/** 上限の目安.正確な値は見せず,選手ごとにずらしてから 5 きざみに丸める(詳細画面と同じ). */
+export const potHint = (p: Player, k: AttrKey): number => Math.min(99, Math.round((p.pot[k] + ((p.id * 7 + k.length * 3) % 9) - 4) / 5) * 5);
+
 export const rarityOf = (p: Player): number => {
   const v = playerValue(p);
   return v >= 80 ? 4 : v >= 70 ? 3 : v >= 60 ? 2 : 1;
@@ -32,6 +35,9 @@ export interface CardOpts {
   width?: number;
 }
 
+/** 能力のバーの位置と幅(「スタミナ」の文字にかからないように) */
+export const BAR_X = 52, BAR_W = 62;
+
 /** 1 枚の選手カード */
 export function cardSVG(p: Player, o: CardOpts = {}): string {
   const r = RARITY[rarityOf(p)];
@@ -41,13 +47,12 @@ export function cardSVG(p: Player, o: CardOpts = {}): string {
   const ks = keysOf(p);
   const top = 118, rowH = ks.length > 3 ? 16 : 20;
   const rows = ks.map((k, i) => {
-    const v = Math.round(p[k]), cap = Math.min(99, Math.round(p.pot[k]));
+    const v = Math.round(p[k]), cap = potHint(p, k);
     const g = grade(v), y = top + i * rowH;
-    const bw = 70;
     return `<text x="12" y="${y + 9}" font-size="9" fill="${r.ink}">${LABEL[k]}</text>
-      <rect x="44" y="${y + 2}" width="${bw}" height="8" rx="1" fill="#0001" stroke="${r.ink}22"/>
-      <rect x="44" y="${y + 2}" width="${(bw * v) / 100}" height="8" rx="1" fill="${GRADE_COLOR[g]}"/>
-      <rect x="${44 + (bw * cap) / 100 - 0.5}" y="${y}" width="1.2" height="12" fill="${r.ink}" opacity=".45"/>
+      <rect x="${BAR_X}" y="${y + 2}" width="${BAR_W}" height="8" rx="1" fill="#0001" stroke="${r.ink}22"/>
+      <rect x="${BAR_X}" y="${y + 2}" width="${(BAR_W * v) / 100}" height="8" rx="1" fill="${GRADE_COLOR[g]}"/>
+      <rect x="${BAR_X + (BAR_W * cap) / 100 - 0.5}" y="${y}" width="1.2" height="12" fill="${r.ink}" opacity=".45"/>
       <rect x="120" y="${y}" width="13" height="12" rx="2" fill="${GRADE_COLOR[g]}"/>
       <text x="126.5" y="${y + 9.5}" font-size="9" fill="#fff" text-anchor="middle">${g}</text>
       <text x="149" y="${y + 9.5}" font-size="9" fill="${r.ink}" text-anchor="end">${v}</text>`;

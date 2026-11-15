@@ -13,6 +13,7 @@ import { ingredientPrice, MAX_FAC, sellIngredient, trainFacMult, upgrade, upgrad
 import { effectiveLineup, fit } from '../src/league/team';
 import type { GameEvent, ManagerStyle, Player, Pos, Staff } from '../src/types';
 import { avatar } from '../src/ui/avatar';
+import { stadiumSVG } from '../src/ui/stadium';
 import { chordTones, freq, midi, notesAt, SONGS, songSteps, STEPS_PER_BAR } from '../src/ui/music';
 import { cardSVG, rarityOf } from '../src/ui/card';
 import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
@@ -2107,6 +2108,15 @@ describe('見た目(カード・エンブレム・トーナメント表)', () =>
     expect(svg).toContain('準々決勝');
     expect(svg).toContain('🏆');
     expect(svg).not.toContain('未定');
+  });
+
+  it('本拠地の絵は,施設を強くするほど描くものが増える', () => {
+    const c = newCareer('テスト');
+    const small = stadiumSVG(c, 'テスト');
+    c.fac = { stadium: 5, ground: 3, clinic: 2, canteen: 2, scout: 2 };
+    const big = stadiumSVG(c, 'テスト');
+    expect(big.length).toBeGreaterThan(small.length * 2);
+    expect(big).toContain('スタジアムLv5');
   });
 
   it('プレーオフの表は,準決勝の前でも組み合わせを描き,決勝は未定にする', () => {

@@ -1,5 +1,6 @@
 /** 画面の描画と操作の受け付け. */
 import { LEAGUES, POS_NAME } from '../data/constants';
+import { emblem } from './emblem';
 import { planDef, plansFor, suggestPlan } from '../growth/plans';
 import { avatar } from './avatar';
 import { attrsHTML, playerStars } from './components';
@@ -201,7 +202,7 @@ function renderInner(): void {
   <a class="skip" href="#main">本文へ移動</a>
   <header class="board slim px" data-lg="${c.level}">
     <div class="b-row"><span class="title">ダイヤモンド監督</span><span class="lg">${LEAGUES[c.level].name}<button class="menubtn" data-a="menu-open" aria-label="メニュー" aria-expanded="${state.menuOpen}">☰</button></span></div>
-    <div class="b-row"><span class="tm">${esc(userTeam(c).name)}</span>
+    <div class="b-row"><span class="tm">${emblem(userTeam(c), 20)} ${esc(userTeam(c).name)}</span>
       <span class="stat"><b>${c.season}</b>季 <b>${weekLabel}</b> <b>${rec.w}-${rec.l}-${rec.d}</b> <b>${c.phase === 'season' ? rank : c.off?.rank}</b>位</span></div>
   </header>
   ${saveBanner()}<main id="main" tabindex="-1">${body}</main>

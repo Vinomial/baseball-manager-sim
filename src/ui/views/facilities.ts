@@ -2,6 +2,8 @@ import { FACILITIES, MAX_FAC, upgradeCost, weeklyIncome } from '../../league/eco
 import { fmtYen } from '../../league/finance';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
+import { userTeam } from '../../league/season';
+import { stadiumSVG } from '../stadium';
 
 export function facilitiesSummary(c: Career): string {
   return `資金 ${fmtYen(c.funds)}`;
@@ -9,7 +11,7 @@ export function facilitiesSummary(c: Career): string {
 
 /** 資金と施設.お金を使って,チームを長い目で強くする. */
 export function facilitiesHTML(c: Career): string {
-  return `<div class="chem"><span class="who">資金 ${fmtYen(c.funds)}</span><span class="small muted">1週の収入の目安 ${fmtYen(weeklyIncome(c))}</span></div>
+  return `${stadiumSVG(c, userTeam(c).name)}<div class="chem"><span class="who">資金 ${fmtYen(c.funds)}</span><span class="small muted">1週の収入の目安 ${fmtYen(weeklyIncome(c))}</span></div>
   <p class="small muted" style="margin:4px 0 8px">入場収入と,食材の売却で増えます.施設を強くすると,練習,怪我,料理,ドラフトに長く効きます.</p>
   <div class="plist">${FACILITIES.map((f) => {
     const lv = c.fac[f.key], max = lv >= MAX_FAC, cost = upgradeCost(c, f.key);

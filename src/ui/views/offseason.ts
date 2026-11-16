@@ -87,10 +87,10 @@ function draftHTML(c: Career): string {
   const L = d.lottery;
   const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
   const head = bid
-    ? `<p class="small muted">1巡目は<b>入札</b>です.全球団が同時に 1 人を指名し,重なったら<b>抽選</b>で交渉権が決まります.外れたら,残りの選手でもう一度入札します(外れ1位).「★目玉」は今年の注目株で,競合しやすい選手です.</p>
+    ? `<p class="small muted">1巡目は<b>入札</b>です.全球団が同時に 1 人を指名し,重なったら<b>抽選</b>で交渉権が決まります.外れたら,残りの選手でもう一度入札します(外れ1位).2巡目は,今シーズンの成績が弱いチームから順に指名します(ウェーバー).「★目玉」は今年の注目株で,競合しやすい選手です.</p>
     ${L!.userLost ? '<p class="warnbox bad small" style="margin:4px 0">抽選に外れました.外れ1位を指名してください.</p>' : ''}
     ${L!.log.length ? `<div class="card"><ul class="recap" style="margin:0">${L!.log.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}`
-    : `<p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>`;
+    : `<p class="small muted">${round}巡目の${nth}番目,あなたの指名です(全${DRAFT_ROUNDS}巡).2巡目は,今シーズンの成績が弱いチームから順に指名します.能力は幅でしか分かりません.「おすすめ」は今のチームの弱点と見積もりから出しています.</p>`;
   const starTag = (p: Player) => (d.stars?.includes(p.id) ? '<span class="rarity r4">★目玉</span>' : '');
   const rivals = (p: Player) => { if (!bid) return ''; const n = expectedBids(c, d, p); return n ? `<span class="tag" style="color:var(--bad)">競合予想 ${n}球団</span>` : ''; };
   return `<h2>ドラフト会議${bid ? ' 1巡目入札' : ''}</h2>${head}

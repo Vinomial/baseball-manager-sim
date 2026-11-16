@@ -1,7 +1,7 @@
 import { LEAGUES } from '../../data/constants';
 import { recap } from '../../engine/recap';
 import { MENUS } from '../../growth/training';
-import { weekInfo } from '../../league/calendar';
+import { campOpen, weekInfo } from '../../league/calendar';
 import { fmtYen } from '../../league/finance';
 import { hurtPlayers } from '../../league/health';
 import { standings, userLeague } from '../../league/schedule';
@@ -18,7 +18,8 @@ import { tutorialCard } from '../tutorial';
 import { renderOff } from './offseason';
 import { userSeries } from '../../league/playoffs';
 import { winProbHTML } from './status';
-import { convertTipsHTML, storyHTML, todoHTML } from './todo';
+import { storyHTML, todoHTML } from './todo';
+import { campHTML } from './camp';
 import { renderTraining } from './training';
 import { userCupDef } from '../../data/cups';
 
@@ -61,7 +62,7 @@ export function renderHome(c: Career): string {
   }
   for (const w of warnings(c, state.menu, state.practice)) h += `<div class="warnbox ${w.level}">${w.level === 'info' ? 'ℹ' : '⚠'} ${esc(w.text)}${w.level !== 'info' && w.text.startsWith('疲れ') && state.menu !== 'rest' ? ' <button class="btn ghost" data-a="menu" data-k="rest" style="margin-top:6px">休養にする</button>' : ''}</div>`;
   h += todoHTML(c);
-  if (c.cal < 12) h += convertTipsHTML(c, '春季キャンプのコンバート提案');
+  if (campOpen(c)) h += campHTML(c);
 
   const total = userLeague(c).schedule.length, lg = LEAGUES[c.level];
   h += `<h2>${info.label} <span class="small muted">${esc(info.title)}</span></h2><div class="card">`;

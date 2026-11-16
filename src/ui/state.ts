@@ -66,6 +66,8 @@ export interface AppState {
   viewSub: number | null;
   /** 順位タブで選手一覧を開いているチーム */
   viewTeam: number | null;
+  /** キャンプの方針で選んでいる選手 */
+  campPick: number | null;
   /** 自由契約の表示 */
   faRole: '野手' | '投手';
   /** 選手タブをカードの一覧で見るか */
@@ -93,7 +95,7 @@ export function writeAutoOpen(v: AutoOpen): void {
 }
 
 export const state: AppState = {
-  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewSub: null, viewTeam: null, faRole: '野手', cards: false, planDraft: { menu: null, actions: [], target: null }, moment: null,
+  career: null, last: null, screen: 'title', menuOpen: false, detail: null, planQueue: [], trade: { teamId: null, want: null, give: [] }, warn: null, saveFail: false, saveSize: 0, busy: null, celebrated: 0, term: null, tab: 'home', sub: 'power', folds: {}, menu: 'bat', menuTouched: false, sel: null, open: null, viewLevel: null, viewSub: null, viewTeam: null, campPick: null, faRole: '野手', cards: false, planDraft: { menu: null, actions: [], target: null }, moment: null,
   autoOpen: readAutoOpen(),
   practice: false,
 };

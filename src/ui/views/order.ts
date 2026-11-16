@@ -7,6 +7,7 @@ import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { avatar } from '../avatar';
 import { convertTipsHTML } from './todo';
+import { campOpen } from '../../league/calendar';
 import { attrsHTML, condHTML, playerStars } from '../components';
 import { state } from '../state';
 
@@ -40,7 +41,8 @@ export function renderOrder(c: Career): string {
   }).join('')}</div>
   <div class="row" style="margin-top:10px"><button class="btn ghost" data-a="auto">おまかせで組む</button></div>`;
 
-  h += convertTipsHTML(c, 'コンバートのおすすめ');
+  // コンバートはキャンプのあいだだけ(ホームの「キャンプの方針」で決める)
+  if (campOpen(c)) h += convertTipsHTML(c, 'コンバートのおすすめ');
   const combos = findCombos(u);
   const cat = findByPos(u, '捕'), a = findByPos(u, '二'), b = findByPos(u, '遊');
   const bar = (lbl: string, v: number) => `<div class="chem"><span class="who">${lbl}</span><span class="bar"><i style="width:${v}%"></i></span><span>${chemWord(v)}</span></div>`;

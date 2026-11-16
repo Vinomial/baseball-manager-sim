@@ -4,6 +4,7 @@ import type { Career, Player, Pos } from '../types';
 import { clamp, rand } from '../util/random';
 import { addStory } from './story';
 import { findPlayer } from './team';
+import { CAMP_ONLY, campOpen } from './calendar';
 
 const INF: Pos[] = ['一', '二', '三', '遊'];
 const ALL: Pos[] = ['捕', '一', '二', '三', '遊', '左', '中', '右'];
@@ -51,6 +52,7 @@ export function startConvert(c: Career, pid: number, to: Pos): string | null {
   if (!p) return '選手が見つかりません.';
   if (p.role !== '野手') return '投手はコンバートできません.';
   if (p.conv) return 'すでにコンバート中です.';
+  if (!campOpen(c)) return CAMP_ONLY;
   p.conv = { to, left: convertWeeks(p.pos as Pos, to) };
   return null;
 }

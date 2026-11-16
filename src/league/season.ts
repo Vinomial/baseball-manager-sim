@@ -12,7 +12,7 @@ import { emptyPantry, mealGuard, mealLift, tickMeal } from '../growth/meals';
 import { earn, emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
 import { endLoans, refreshHelpers } from './trade';
-import { addAlbum, addStory, isNotableHeadline, judgeTrainGoals } from './story';
+import { addAlbum, addStory, isNotableHeadline, judgeTrainGoals, trainGoalMult } from './story';
 import { ageStaff, lineupNoise, managerFx, mentalBoost, paySalaries, refreshPool, staffTrainMult, trainerInjuryScale, trainerLoadScale } from './staff';
 import { updateMorale } from '../growth/personality';
 import { tickScout } from './scouting';
@@ -186,7 +186,7 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   }
   // 二軍の選手は,二軍の試合で経験を積む(一軍の半分)
   for (const p of u.players) if (isFarm(u, p)) { gameExperience(p, 0.5); p.fatigue = clamp(p.fatigue + 6, 0, 100); }
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * GROWTH_PACE * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust) + mealLift(c.meal), { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * GROWTH_PACE * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust) + mealLift(c.meal), { mult: (p, k) => staffTrainMult(c, p, k) * trainGoalMult(c, p, k), load: trainerLoadScale(c) });
 
   for (const r of report) {
     if (!r.rankUps || r.pid === undefined) continue;

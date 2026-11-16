@@ -13,6 +13,11 @@ export const CUP_ROUNDS = 6;
 /** 1 週あたりの練習量(1 年でおよそ 10 週ぶん) */
 export const TRAIN_PER_WEEK = 10 / WEEKS_PER_YEAR;
 
+/** キャンプの期間(1〜2月).レギュラー特訓の目標とコンバートは,この間に決める */
+export const CAMP_END = 8;
+export const campOpen = (c: Career): boolean => c.phase === 'season' && c.cal < CAMP_END;
+export const CAMP_ONLY = 'レギュラー特訓とコンバートは,キャンプ(1〜2月)のあいだにホームで決めます.';
+
 export type WeekKind = 'prep' | 'camp' | 'open' | 'league' | 'playoff' | 'cup' | 'end';
 
 export interface WeekInfo {

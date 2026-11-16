@@ -18,7 +18,9 @@ import { chordTones, freq, midi, notesAt, SONGS, songSteps, STEPS_PER_BAR } from
 import { BAR_W, BAR_X, cardSVG, potHint, rarityOf } from '../src/ui/card';
 import { emblem, emblemChar, teamColors } from '../src/ui/emblem';
 import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
-import { pressNote } from '../src/league/world';
+import { draftOrder, pressNote } from '../src/league/world';
+import { scoutReport } from '../src/growth/report';
+import { trainGoalMult } from '../src/league/story';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { driftPot, emptyStats, gameExperience, genPlayer, growAttr, keysOf } from '../src/growth/player';
 import { canCook, cook, effectText, mealEffect, mealGuard, mealLift, mealRest, RECIPES, seasonalIng } from '../src/growth/meals';
@@ -2838,5 +2840,44 @@ describe('ドラフトの入札・大物の争奪・有利なトレード', () =
     resolveEvent(c, 'accept');
     expect(userTeam(c).players.includes(theirs)).toBe(true);
     expect(o.players.includes(mine)).toBe(true);
+  });
+});
+
+describe('キャンプの方針,寸評,ドラフトの順番', () => {
+  beforeEach(() => setRandom(seeded(321)));
+  afterEach(() => resetRandom());
+
+  it('レギュラー特訓とコンバートは,キャンプ(1〜2月)のあいだだけ決められる', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c);
+    const bat = u.players.find((p) => p.role === '野手')!;
+    c.cal = 8;
+    expect(setTrainGoal(c, bat, 'meet', 2)).toContain('キャンプ');
+    expect(startConvert(c, bat.id, bat.pos === '一' ? '三' : '一')).toContain('キャンプ');
+    c.cal = 7;
+    expect(setTrainGoal(c, bat, 'meet', 2)).toBeNull();
+    // 目標の能力だけ,練習の伸びが大きい
+    expect(trainGoalMult(c, bat, 'meet')).toBeGreaterThan(1);
+    expect(trainGoalMult(c, bat, 'power')).toBe(1);
+  });
+
+  it('寸評は何度作っても同じで,強みと年齢が入る', () => {
+    const c = newCareer('テスト');
+    for (const p of userTeam(c).players.slice(0, 6)) {
+      const a = scoutReport(p, 0);
+      expect(scoutReport(p, 0)).toBe(a);
+      expect(a).toContain(`${p.age}歳`);
+      expect(a).toMatch(/このリーグ/);
+    }
+  });
+
+  it('ドラフトの1・2巡目は,今シーズンの成績が弱いチームから', () => {
+    const c = newCareer('テスト');
+    const lg = c.leagues.find((l) => l.teamIds.includes(c.userId))!;
+    const ids = [...lg.teamIds];
+    ids.forEach((id, i) => { lg.stand[id] = { w: i, l: 10 - i, d: 0, rf: 0, ra: 0 }; });
+    const order = draftOrder(c, ids);
+    expect(order.slice(0, ids.length)).toEqual(ids);
+    expect(order.slice(ids.length)).toEqual(ids);
   });
 });

@@ -2,6 +2,7 @@
 import { LABEL } from '../data/constants';
 import type { AttrKey, Career, Player } from '../types';
 import { goalProgress } from './goals';
+import { CAMP_ONLY, campOpen } from './calendar';
 import { downCount, upCount } from './finance';
 import { standings, userLeague } from './schedule';
 
@@ -64,7 +65,14 @@ export const isNotableHeadline = (h: string): boolean => /サヨナラ|逆転|�
 /* ===== 特訓目標(レギュラー特訓) ===== */
 
 export const TRAIN_SLOTS = 3;
-export const TRAIN_STEPS = [5, 8, 12];
+/** 1 年で伸ばす目標の幅.練習で伸びる量(1 年で +1〜4 ほど)に,特訓の上乗せを足して届くくらい */
+export const TRAIN_STEPS = [2, 4, 6];
+/** 特訓目標の能力は,練習でこの倍だけ伸びる */
+export const TRAIN_GOAL_MULT = 1.6;
+
+/** 今年の特訓目標の能力なら,練習の伸びの倍率を返す */
+export const trainGoalMult = (c: Career, p: Player, k: AttrKey): number =>
+  (p.train && p.train.season === c.season && p.train.attr === k ? TRAIN_GOAL_MULT : 1);
 
 export function trainingCount(c: Career): number {
   return c.teams.find((t) => t.user)!.players.filter((p) => p.train && p.train.season === c.season).length;
@@ -72,6 +80,7 @@ export function trainingCount(c: Career): number {
 
 /** 特訓目標を決める.できないときは理由を返す. */
 export function setTrainGoal(c: Career, p: Player, attr: AttrKey, up: number): string | null {
+  if (!campOpen(c)) return CAMP_ONLY;
   if (p.train && p.train.season === c.season) return 'すでに今年の特訓目標があります.';
   if (trainingCount(c) >= TRAIN_SLOTS) return `特訓は同時に${TRAIN_SLOTS}人までです.`;
   if (p.pot[attr] - p[attr] < up * 0.6) return `${LABEL[attr]}は上限に近く,この目標は厳しそうです.`;
@@ -86,7 +95,7 @@ export function judgeTrainGoals(c: Career): string[] {
     const t = p.train;
     if (!t || t.season !== c.season) continue;
     if (p[t.attr] >= t.target) {
-      p.pot[t.attr] = Math.min(99, p.pot[t.attr] + 8);
+      p.pot[t.attr] = Math.min(99, p.pot[t.attr] + 5);
       p.morale = Math.min(100, p.morale + 25);
       out.push(`${p.name}が特訓目標を達成!(${LABEL[t.attr]} ${t.from}→${Math.round(p[t.attr])})`);
       addStory(c, p, `特訓で${LABEL[t.attr]}を${t.from}から${Math.round(p[t.attr])}まで伸ばした.`);

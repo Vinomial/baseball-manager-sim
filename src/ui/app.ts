@@ -552,6 +552,7 @@ function onChange(e: Event): void {
     return;
   }
   if (el.dataset.c === 'ptarget') { state.planDraft.target = Number(el.value); return; }
+  if (el.dataset.c === 'campp') { state.campPick = Number(el.value); render(); return; }
   if (el.dataset.a !== 'pos' || !state.career) return;
   setPosition(userTeam(state.career), Number(el.dataset.i), el.value as LineupPos);
   save();

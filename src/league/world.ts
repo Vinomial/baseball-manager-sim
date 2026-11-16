@@ -439,11 +439,31 @@ export function draftScore(t: Team, p: Player): number {
   return futureValue(p) + Math.max(0, playerValue(p) - worst) * 0.3 + need;
 }
 
-/** 指名順.弱いチームから.2巡目は逆順. */
+/**
+ * 今シーズンの成績の弱い順.下の階層から上がってきたチームが先,同じ階層なら勝率の低い順(同じなら総合力の低い順).
+ * ドラフトの指名順に使う.
+ */
+export function weakestFirst(c: Career, ids: number[]): number[] {
+  const key = (id: number) => {
+    const lg = c.leagues.find((l) => l.teamIds.includes(id));
+    const s = lg?.stand[id];
+    return { level: lg?.level ?? 0, pct: s && s.w + s.l ? s.w / (s.w + s.l) : 0.5, ovr: ovr(teamById(c, id)) };
+  };
+  const ks = new Map(ids.map((id) => [id, key(id)] as const));
+  return [...ids].sort((a, b) => {
+    const x = ks.get(a)!, y = ks.get(b)!;
+    return x.level - y.level || x.pct - y.pct || x.ovr - y.ovr;
+  });
+}
+
+/**
+ * 指名順.1巡目(プレイヤーの階層では入札と抽選)と2巡目は,成績の弱いチームから(ウェーバー).
+ * 3巡目があれば逆順,そのあとは交互.
+ */
 export function draftOrder(c: Career, ids: number[]): number[] {
-  const asc = [...ids].sort((a, b) => ovr(teamById(c, a)) - ovr(teamById(c, b)));
+  const asc = weakestFirst(c, ids);
   const out: number[] = [];
-  for (let r = 0; r < DRAFT_ROUNDS; r++) out.push(...(r % 2 ? [...asc].reverse() : asc));
+  for (let r = 0; r < DRAFT_ROUNDS; r++) out.push(...(r >= 2 && r % 2 === 0 ? [...asc].reverse() : asc));
   return out;
 }
 

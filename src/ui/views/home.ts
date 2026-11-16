@@ -4,7 +4,7 @@ import { MENUS } from '../../growth/training';
 import { campOpen, weekInfo } from '../../league/calendar';
 import { fmtYen } from '../../league/finance';
 import { hurtPlayers } from '../../league/health';
-import { standings, userLeague } from '../../league/schedule';
+import { userLeague, userRank } from '../../league/schedule';
 import { userMatch, userTeam } from '../../league/season';
 import { ovr } from '../../league/team';
 import { warnings } from '../../league/warnings';
@@ -26,7 +26,7 @@ import { userCupDef } from '../../data/cups';
 /** ホームの上のダッシュボード.いまの状況を 4 つの数字で見せる. */
 function dashboardHTML(c: Career): string {
   const u = userTeam(c);
-  const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
+  const rank = userRank(c);
   const rec = userLeague(c).stand[c.userId];
   const hurt = hurtPlayers(u).length;
   const tired = u.players.filter((p) => p.fatigue >= 70 && !(p.inj && p.inj.weeks > 0)).length;
@@ -72,7 +72,7 @@ export function renderHome(c: Career): string {
     <div class="small">${term('ovr')} 相手 ${gradeHTML(ovr(m.opp))} 自チーム ${gradeHTML(ovr(u))}</div></div>${winProbHTML(c, m.opp)}`;
   } else if (info.userGame) {
     const sr = userSeries(c);
-    h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? 'プレーオフに出場します' : `${userCupDef(c).name}に出場します`}</b></p>`;
+    h += `<p style="margin:0"><b>${info.userGame === 'playoff' ? '昇格プレーオフに出場します' : `${userCupDef(c).name}に出場します`}</b></p>`;
     if (sr) {
       if (!sr.opp) h += '<p class="small muted" style="margin:4px 0 0">この回戦は不戦勝(シード)です.</p>';
       else {

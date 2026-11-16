@@ -1,10 +1,10 @@
 /** 起承転結(シーズンの物語),選手のヒストリー,名場面アルバム,特訓目標. */
-import { LABEL } from '../data/constants';
+import { LABEL, LEAGUES, PO_PER_GROUP } from '../data/constants';
 import type { AttrKey, Career, Player } from '../types';
 import { goalProgress } from './goals';
-import { CAMP_ONLY, campOpen } from './calendar';
+import { CAMP_ONLY, campOpen, PLAYOFF_START } from './calendar';
 import { downCount, upCount } from './finance';
-import { standings, userLeague } from './schedule';
+import { groupOf, groupStandings, userLeague } from './schedule';
 
 export type Phase = 'ki' | 'sho' | 'ten' | 'ketsu';
 
@@ -14,7 +14,7 @@ export const PHASES: [Phase, string, string][] = [['ki', '起', '開幕前'], ['
 const CHAPTER: string[] = ['河川敷の挑戦', '仕事と野球の両立', '夢への分かれ道', 'プロの壁', '世界の頂点へ'];
 
 export function phaseOf(c: Career): Phase {
-  return c.cal < 12 ? 'ki' : c.cal < 26 ? 'sho' : c.cal < 40 ? 'ten' : 'ketsu';
+  return c.cal < 12 ? 'ki' : c.cal < 26 ? 'sho' : c.cal < PLAYOFF_START ? 'ten' : 'ketsu';
 }
 
 export const chapterTitle = (c: Career): string => `第${c.season}季「${CHAPTER[c.level] ?? ''}」`;
@@ -23,7 +23,7 @@ export const chapterTitle = (c: Career): string => `第${c.season}季「${CHAPTE
 export function storyBeat(c: Career): string {
   const ph = phaseOf(c);
   const lg = userLeague(c);
-  const tbl = standings(c);
+  const tbl = groupStandings(c, groupOf(c, c.userId));
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
   const n = tbl.length;
   const up = upCount(c.level), down = downCount(c.level);
@@ -31,18 +31,18 @@ export function storyBeat(c: Career): string {
   if (ph === 'ki') return first ? `今季の目標は「${first.text}」.${c.week === 0 ? '準備を整えて,開幕を迎えよう.' : ''}` : '準備を整えて,開幕を迎えよう.';
   if (ph === 'sho') {
     if (rank === 1) return 'チームは首位をひた走る.この調子を保てるか.';
-    if (up && rank <= up) return `昇格圏の${rank}位.気を抜かず,勝ち星を積み上げよう.`;
+    if (up && rank <= up) return `昇格プレーオフ圏の${rank}位.気を抜かず,勝ち星を積み上げよう.`;
     if (down && rank > n - down) return `いまは${rank}位で降格圏.立て直しが急務だ.`;
     return first ? `${rank}位.目標「${first.text}」まで,${goalProgress(c, first)}.` : `${rank}位で序盤戦.`;
   }
   if (ph === 'ten') {
     const left = lg.schedule.length - lg.week;
-    if (up && rank <= up) return `昇格圏の${rank}位で,残り${left}試合.ここが勝負どころだ!`;
+    if (rank <= PO_PER_GROUP) return `昇格プレーオフ圏の${rank}位で,残り${left}試合.ここが勝負どころだ!`;
     if (down && rank > n - down) return `残留争いの${rank}位.残り${left}試合,一戦も落とせない!`;
-    if (rank <= 4) return `プレーオフ圏の${rank}位.残り${left}試合で,順位を上げたい.`;
+    if (rank <= PO_PER_GROUP + 2) return `昇格プレーオフ圏まであと少しの${rank}位.残り${left}試合で,順位を上げたい.`;
     return `${rank}位で終盤戦.残り${left}試合,意地を見せよう.`;
   }
-  if (c.cal < 42) return 'プレーオフの季節.頂点まで,あと少し.';
+  if (c.cal < 42) return c.level < LEAGUES.length - 1 ? '昇格プレーオフの季節.まずは1回戦に勝って,昇格を決めたい.' : 'プレーオフの季節.世界一まで,あと少し.';
   if (c.cal < 48) return '年末の選手権.近い階層のチームが集まる大会で,下剋上を狙おう!';
   return '1年の締めくくり.';
 }

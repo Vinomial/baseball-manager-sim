@@ -1,37 +1,43 @@
-import { LEAGUES } from '../../data/constants';
-import { downCount, upCount } from '../../league/finance';
+import { gamesPerSeason, LEAGUES, PO_PER_GROUP, relegPerLeague } from '../../data/constants';
 import { leaders } from '../../league/leaders';
-import { leaguesInTier, standings, teamById, userLeague } from '../../league/schedule';
+import { groupName, groupOf, groupsInTier, groupStandings, teamById } from '../../league/schedule';
 import { leagueName } from '../../league/world';
+import { tierOdds, tierPO, tierRuleText } from '../../league/promotion';
 import { ovr } from '../../league/team';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
-import { playoffOdds } from '../../league/playoffs';
 import { rankSVG } from '../charts';
 import { gradeHTML } from '../components';
 import { state } from '../state';
 import { rosterHTML } from './players';
 import { emblem } from '../emblem';
-import { cupBracketSVG, playoffBracketSVG } from '../bracket';
+import { cupBracketSVG, tierBracketSVG } from '../bracket';
 import { cupDef, userCupDef } from '../../data/cups';
 
-/** 順位タブ.どのリーグの順位,個人成績,優勝の歴史も見られる. */
+/** 順位タブ.どのリーグの順位,昇格・降格の決まり,昇格プレーオフ,個人成績,優勝の歴史も見られる. */
 export function renderTable(c: Career): string {
   const level = state.viewLevel ?? c.level;
-  const lgs = leaguesInTier(c, level);
-  const mine = userLeague(c);
-  const lg = lgs[Math.min(lgs.length - 1, state.viewSub ?? (level === c.level ? lgs.indexOf(mine) : 0))] ?? lgs[0];
-  const L = LEAGUES[level];
-  const tabs = `<div class="lgtabs" role="group" aria-label="リーグ">${LEAGUES.map((x, i) =>
+  const gs = groupsInTier(c, level);
+  const myG = level === c.level ? groupOf(c, c.userId) : null;
+  const gi = Math.min(gs.length - 1, state.viewSub ?? (myG ? gs.findIndex((g) => g.ids.includes(c.userId)) : 0));
+  const g = gs[Math.max(0, gi)];
+  const lg = g.lg;
+  const tabs = `<div class="lgtabs" role="group" aria-label="階層">${LEAGUES.map((x, i) =>
     `<button data-a="lv" data-i="${i}" aria-pressed="${i === level}">${x.name.replace('リーグ', '')}${i === c.level ? ' ★' : ''}</button>`).join('')}</div>
-    ${lgs.length > 1 ? `<div class="lgtabs sub" role="group" aria-label="地域">${lgs.map((x, i) => `<button data-a="lvs" data-i="${i}" aria-pressed="${x === lg}">${esc(L.subs?.[x.sub ?? i] ?? String(i + 1))}${x === mine ? ' ★' : ''}</button>`).join('')}</div>` : ''}`;
-  const upN = upCount(lg.level), downN = downCount(lg.level);
-  const moveNote = `${upN ? `優勝チームは${LEAGUES[level + 1].name}へ自動昇格.2位は入れ替え戦に回ることがあります.` : ''}${downN ? `下位${downN}チームは自動降格,そのすぐ上は入れ替え戦に回ることがあります.` : ''}${lg.divs ? '各地区の上位2チームが' : '上位4チームが'}プレーオフに進みます.`;
-  const tbl = standings(c, lg);
-  let h = `${tabs}<h2>${esc(leagueName(lg))} 順位表 <span class="small muted">(${lg.week}/${lg.schedule.length}試合)</span></h2><p class="small muted">${moveNote}</p>
+    ${gs.length > 1 ? `<div class="lgtabs sub" role="group" aria-label="リーグ">${gs.map((x, i) => `<button data-a="lvs" data-i="${i}" aria-pressed="${i === gi}">${esc(groupName(x).split(' ').pop() ?? '')}${x.ids.includes(c.userId) ? ' ★' : ''}</button>`).join('')}</div>` : ''}`;
+  const poN = PO_PER_GROUP, downN = relegPerLeague(level);
+  const rule = `<details class="card rule" open><summary><b>📘 ${esc(LEAGUES[level].name)}の決まり</b></summary><ul class="recap">${tierRuleText(c, level).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>`;
+  const tbl = groupStandings(c, g);
+  const games = lg.divs ? gamesPerSeason(level) : lg.schedule.length;
+  let h = `${tabs}${rule}<h2>${esc(groupName(g))} 順位表 <span class="small muted">(全${games}試合${lg.divs ? '・交流戦を含む' : ''})</span></h2>
   <div class="card scroll"><table class="std"><thead><tr><th>順位</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>得失点</th><th>戦力</th></tr></thead><tbody>
-  ${tbl.map((r, i) => `<tr class="${r.t.user ? 'me' : ''}"><td>${i + 1}</td><td>${emblem(r.t, 18)} <button class="linkish" data-a="vteam" data-id="${r.t.id}">${esc(r.t.name)}</button>${lg.divs ? `<span class="tag">${lg.divs[0].includes(r.t.id) ? 'A' : 'B'}</span>` : ''}</td><td>${r.w + r.l + r.d}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${r.w + r.l ? (r.w / (r.w + r.l)).toFixed(3) : '---'}</td><td>${r.rf - r.ra > 0 ? '+' : ''}${r.rf - r.ra}</td><td>${gradeHTML(ovr(r.t))}</td></tr>`).join('')}
-  </tbody></table></div>`;
+  ${tbl.map((r, i) => {
+    const zone = i < poN ? 'po' : downN && i >= tbl.length - downN ? 'down' : '';
+    const mark = zone === 'po' ? '<span class="tag zone-po">PO</span>' : zone === 'down' ? '<span class="tag zone-down">降格</span>' : '';
+    return `<tr class="${r.t.user ? 'me' : ''} ${zone}"><td>${i + 1}</td><td>${emblem(r.t, 18)} <button class="linkish" data-a="vteam" data-id="${r.t.id}">${esc(r.t.name)}</button>${mark}</td><td>${r.w + r.l + r.d}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${r.w + r.l ? (r.w / (r.w + r.l)).toFixed(3) : '---'}</td><td>${r.rf - r.ra > 0 ? '+' : ''}${r.rf - r.ra}</td><td>${gradeHTML(ovr(r.t))}</td></tr>`;
+  }).join('')}
+  </tbody></table></div>
+  <p class="small muted" style="margin:2px 0 8px"><span class="tag zone-po">PO</span> 昇格プレーオフに出られる順位${downN ? ` / <span class="tag zone-down">降格</span> ${esc(LEAGUES[level - 1].name)}へ下がる順位` : ''}</p>`;
 
   if (state.viewTeam !== null && lg.teamIds.includes(state.viewTeam)) {
     const t = teamById(c, state.viewTeam);
@@ -47,17 +53,18 @@ export function renderTable(c: Career): string {
   if (rh.some((r) => r.values.length > 1)) {
     h += `<h2>順位の遷移 <span class="small muted">(${esc(leagueName(lg))})</span></h2><div class="card">${rankSVG(rh, lg.teamIds.length)}<p class="small muted" style="margin:4px 0 0">1節ごとの順位です.太い線があなたのチームです.</p></div>`;
   }
-  const po = lg.po;
-  if (po) {
-    const odds = playoffOdds(c, lg);
+  const tp = tierPO(c, level);
+  if (tp) {
+    const odds = tierOdds(c, tp);
     const pc = (v: number) => `${Math.round(v * 100)}%`;
-    h += `<h2>プレーオフ <span class="small muted">(${esc(leagueName(lg))})</span></h2><div class="card">${playoffBracketSVG(c, lg)}
-    <h3>優勝する確率</h3>${odds.map((o) => `<div class="chem"><span class="who ${o.team.id === c.userId ? 'me' : ''}">${esc(o.team.name)}</span><span class="bar"><i style="width:${o.champion * 100}%"></i></span><span class="small">${pc(o.champion)}</span></div>`).join('')}
+    const promo = level < LEAGUES.length - 1;
+    h += `<h2>昇格プレーオフ <span class="small muted">(${esc(LEAGUES[level].name)})</span></h2><div class="card scroll">${tierBracketSVG(c, tp)}
+    <h3>${promo ? '昇格と優勝の確率' : '優勝する確率'}</h3><table class="results odds"><thead><tr><th>チーム</th>${promo ? '<th class="num">昇格</th>' : ''}<th class="num">優勝</th></tr></thead><tbody>${odds.map((o) => `<tr class="${o.team.id === c.userId ? 'me' : ''}"><td>${esc(o.team.name)}</td>${promo ? `<td class="num">${pc(o.promote)}</td>` : ''}<td class="num">${pc(o.champion)}</td></tr>`).join('')}</tbody></table>
     <p class="small muted" style="margin:4px 0 0">チームの総合力の差から計算した,目安の確率です.</p></div>`;
   }
   const champs = c.champs.filter((x) => x.level === level).slice().reverse().slice(0, 12);
-  h += `<h2>歴代の優勝 <span class="small muted">(${esc(leagueName(lg))})</span></h2><div class="card">${champs.length
-    ? `<table class="results"><tbody>${champs.map((x) => `<tr><td>第${x.season}季</td><td class="${x.teamId === c.userId ? 'w' : ''}">${esc(x.team)}</td><td class="muted small">${x.league && LEAGUES[level].count > 1 ? `${esc(x.league.split(' ').pop())} / ` : ''}準優勝 ${esc(x.runnerUp)}</td></tr>`).join('')}</tbody></table>`
+  h += `<h2>歴代の優勝 <span class="small muted">(${esc(LEAGUES[level].name)})</span></h2><div class="card">${champs.length
+    ? `<table class="results"><tbody>${champs.map((x) => `<tr><td>第${x.season}季</td><td class="${x.teamId === c.userId ? 'w' : ''}">${esc(x.team)}</td><td class="muted small">準優勝 ${esc(x.runnerUp)}</td></tr>`).join('')}</tbody></table>`
     : '<p class="small muted">まだ優勝チームはありません.</p>'}</div>`;
   return h + cupHTML(c);
 }

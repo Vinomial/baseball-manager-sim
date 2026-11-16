@@ -1,3 +1,4 @@
+import { LEAGUES } from '../data/constants';
 import type { Career, LeagueState, Standing, Team } from '../types';
 
 /** 総当たり rounds 回戦の日程(円環方式).各週の [ホーム, ビジター] の組を返す. */
@@ -19,6 +20,27 @@ export function makeSchedule(ids: number[], rounds = 2): [number, number][][] {
     for (const w of once) out.push(k % 2 ? w.map(([x, y]) => [y, x] as [number, number]) : w);
   }
   return out;
+}
+
+/**
+ * 2 つのリーグ(a,b.同じ数)の日程.同じリーグの相手と rounds 回ずつ,もう一方のリーグの各チームと inter 回ずつ(交流戦).
+ * 交流戦は,シーズンの 4 割ほど進んだところでまとめて行う.
+ */
+export function makeDivSchedule(a: number[], b: number[], rounds: number, inter = 1): [number, number][][] {
+  const sa = makeSchedule(a, rounds), sb = makeSchedule(b, rounds);
+  const intra = sa.map((w, i) => [...w, ...(sb[i] ?? [])]);
+  const cross: [number, number][][] = [];
+  for (let k = 0; k < inter; k++) {
+    for (let r = 0; r < b.length; r++) {
+      cross.push(a.map((x, i) => {
+        const y = b[(i + r) % b.length];
+        // 週ごとにホームを入れ替える(どのチームも交流戦のホームとビジターが半分ずつ)
+        return (r + k) % 2 ? [y, x] : [x, y];
+      }));
+    }
+  }
+  const cut = Math.round(intra.length * 0.4);
+  return [...intra.slice(0, cut), ...cross, ...intra.slice(cut)];
 }
 
 export interface StandingRow extends Standing { t: Team; }
@@ -55,3 +77,38 @@ export function standings(c: Career, lg: LeagueState = userLeague(c)): StandingR
 }
 
 export const emptyStanding = (): Standing => ({ w: 0, l: 0, d: 0, rf: 0, ra: 0 });
+
+/**
+ * 階層のなかの「リーグ」.ふつうは LeagueState そのもの.プロとメジャーは,1 つの LeagueState を東西 2 つのリーグ(divs)に分けたもの.
+ * 昇格・降格とプレーオフは,この単位で決まる.
+ */
+export interface Group { lg: LeagueState; sub: number; ids: number[]; }
+
+export function groupsInTier(c: Career, tier: number): Group[] {
+  const out: Group[] = [];
+  for (const lg of leaguesInTier(c, tier)) {
+    if (lg.divs) lg.divs.forEach((d, i) => out.push({ lg, sub: i, ids: d.filter((id) => lg.teamIds.includes(id)) }));
+    else out.push({ lg, sub: lg.sub ?? 0, ids: lg.teamIds });
+  }
+  return out;
+}
+
+/** そのチームがいるリーグ(プロ・メジャーでは東西のどちらか) */
+export function groupOf(c: Career, teamId: number): Group {
+  const lg = leagueOfTeam(c, teamId);
+  return groupsInTier(c, lg.level).find((g) => g.ids.includes(teamId))!;
+}
+
+/** リーグの順位表(プロ・メジャーでは東西それぞれ) */
+export const groupStandings = (c: Career, g: Group): StandingRow[] => standings(c, g.lg).filter((r) => g.ids.includes(r.t.id));
+
+/** リーグの名前(「草野球リーグ 東」「プロリーグ 西」など) */
+export function groupName(g: Group): string {
+  const L = LEAGUES[g.lg.level];
+  return L.subs && (L.count > 1 || L.divs) ? `${L.name} ${L.subs[g.sub] ?? ''}` : L.name;
+}
+
+/** プレイヤーの順位(自分のリーグの中.プロ・メジャーでは東西のどちらかの中) */
+export const userRank = (c: Career): number => groupStandings(c, groupOf(c, c.userId)).findIndex((r) => r.t.id === c.userId) + 1;
+/** プレイヤーと同じリーグのチーム(プロ・メジャーでは東西のどちらか) */
+export const userGroupTeams = (c: Career): Team[] => groupOf(c, c.userId).ids.map((id) => teamById(c, id));

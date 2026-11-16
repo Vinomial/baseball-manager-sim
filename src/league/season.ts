@@ -1,5 +1,5 @@
 /** シーズン進行(週の進行,結果の確定,オフシーズン).世界全体の進行は world.ts. */
-import { GROWTH_PACE, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constants';
+import { GROWTH_PACE, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, PO_PER_GROUP, rosterMax } from '../data/constants';
 import { applyGameResultToStanding } from './result';
 import { newGame, stepToEnd, stepToEndGen, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
@@ -28,7 +28,7 @@ import { rollEvent } from './events';
 import { addTrust, budgetFor, checkFired, payroll, renewContracts, revenueAfter, trustAfterGame, trustCondBias, trustGrowth, winProb } from './finance';
 import { addLegend, computeAwards, pickRival, recordGame } from './awards';
 import { clamp, pick, ri } from '../util/random';
-import { leagueOfTeam, leagueTeams, standings, teamById, userLeague } from './schedule';
+import { groupOf, groupStandings, leagueOfTeam, leagueTeams, teamById, userLeague } from './schedule';
 import { activePlayers, autoLineup, autoPitchers, fielders, findPlayer, genTeam, isFarm, ovr, pitchersOf, repairTeam, teamAttrs } from './team';
 import { userCupDef } from '../data/cups';
 import { ensurePlan } from './actions';
@@ -38,11 +38,12 @@ import { awardPerks, induct, titlePerks, updateFranchise } from './history';
 import { lotteryBid, lotteryOpen, startLottery } from './lottery';
 import {
   ageTeam, aiRelease, aiSignFreeAgents, archiveSeason, buildWorld,
-  arrangeLeagues, computeNextLevels, draftOrder, playSwaps, genDraftClass, playPlayoffWeekGen, playoffText, pruneFreeAgents, resetLeague,
-  runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
+  arrangeLeagues, draftOrder, genDraftClass, pruneFreeAgents, resetLeague,
+  runAiDraft, runAuto, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
+import { computeNextLevels, moveTexts, playTierPlayoffWeekGen, poResultText, startTierPlayoffs, tierChampion } from './promotion';
 
-export const SAVE_VERSION = 32;
+export const SAVE_VERSION = 33;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -199,8 +200,8 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   let games: Game[] = [];
   let kind: GameKind | null = null;
   let userLeagueGame = false;
-  if (c.cal === PLAYOFF_START || c.cal === PLAYOFF_START + 1) {
-    games = yield* playPlayoffWeekGen(c, c.cal === PLAYOFF_START ? 'semi' : 'final');
+  if (info.kind === 'playoff') {
+    games = yield* playTierPlayoffWeekGen(c);
     if (games.length) kind = 'playoff';
   } else if (info.kind === 'cup') {
     games = yield* playCupRoundGen(c);
@@ -262,7 +263,7 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
 
 /** 新しい週に入るとき,プレーオフや選手権の準備をする */
 function enterWeek(c: Career): void {
-  if (c.cal === PLAYOFF_START) { stepLeagues(c, false); startPlayoffs(c); }
+  if (c.cal === PLAYOFF_START) { stepLeagues(c, false); startTierPlayoffs(c); }
   if (c.cal === CUP_START) startCup(c);
 }
 
@@ -305,13 +306,15 @@ function afterOfficialGame(c: Career, g: Game, menu: string, kind: GameKind): Ga
 /** 1 年を締めて,昇格・降格,表彰,加齢,引退,ドラフトの準備を行う. */
 export function finishSeason(c: Career): void {
   stepLeagues(c, false);
-  const tbl = standings(c);
+  // 順位は自分のリーグ(プロ・メジャーでは東西のどちらか)の中で
+  const myGroup = groupOf(c, c.userId);
+  const tbl = groupStandings(c, myGroup);
   const rank = tbl.findIndex((r) => r.t.id === c.userId) + 1;
   const rec = { ...userLeague(c).stand[c.userId] };
 
   // プレーオフと選手権の結果
-  const myChamp = userLeague(c).po?.champion ?? undefined;
-  const playoff = playoffText(c, userLeague(c));
+  const myChamp = tierChampion(c, c.level) ?? undefined;
+  const playoff = poResultText(c);
   const cup = cupSummary(c);
   if (cup.wins > 0) {
     addTrust(c, cup.wins * 1.5 + cup.giantKills * 3 + (cup.champion ? 8 : 0));
@@ -325,8 +328,8 @@ export function finishSeason(c: Career): void {
   c.news.push(...updateFranchise(c), ...awardPerks(c));
   if (c.awards.length > 500) c.awards.splice(0, c.awards.length - 500);
 
-  const swaps = playSwaps(c);
-  const next = computeNextLevels(c, swaps);
+  const next = computeNextLevels(c);
+  const moves = moveTexts(c);
   const from = c.level, to = next[c.userId];
   const move = (to > from ? 1 : to < from ? -1 : 0) as -1 | 0 | 1;
 
@@ -367,10 +370,10 @@ export function finishSeason(c: Career): void {
     }
   }
   // GMの信頼度.順位,昇降格,優勝で変わる
-  const expRank = [...leagueTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
-  addTrust(c, (expRank - rank) * 1.5 + (myChamp === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= 4 ? 2 : 0) - (rank === tbl.length ? 6 : 0));
+  const expRank = myGroup.ids.map((id) => teamById(c, id)).sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
+  addTrust(c, (expRank - rank) * 1.5 + (myChamp === c.userId ? 10 : 0) + (move > 0 ? 8 : move < 0 ? -12 : 0) + (rank <= PO_PER_GROUP ? 2 : 0) - (rank === tbl.length ? 6 : 0));
   checkFired(c, `${c.season}年目の成績不振が続き,球団から解任されました.`);
-  c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= 4, myChamp === c.userId, c.revenue);
+  c.revenue = revenueAfter(rec.w / Math.max(1, rec.w + rec.l), rank <= PO_PER_GROUP, myChamp === c.userId, c.revenue);
   // チームの記録と実績
   const userTitle = myChamp === c.userId;
   if (userTitle) c.rec.titles[from]++;
@@ -389,7 +392,7 @@ export function finishSeason(c: Career): void {
   if (myChamp === c.userId) { fansBoost(c, 'title'); c.news.push(titlePerks(c, 'league')); }
   review.goals = judgeGoals(c, rank, rec.w, myChamp === c.userId, cup.wins, review);
   for (let i = 0; i < review.goals.length; i++) if (review.goals[i].done) addTrust(c, c.goals[i].reward.trust);
-  c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: swaps.map((x) => x.text), draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
+  c.off = { rank, rec, move, from, to, next, retired, playoff, swaps: moves, draft, signed: [], released: [], step: 0, cup: cup.text, review, press: [], contracts };
   c.phase = 'off';
 }
 
@@ -474,6 +477,8 @@ export function newSeason(c: Career): void {
   // 全チームの移動(足りない階層には新しいチームとリーグが加わる)
   arrangeLeagues(c, o.next);
   c.level = o.to;
+  // 去年の昇格プレーオフの表は消す(結果は歴代の優勝に残っている)
+  c.tpo = [];
   // 自由契約の市場と AI の補強
   aiSignFreeAgents(c, o.next);
   for (const t of c.teams) {
@@ -506,7 +511,7 @@ export function newSeason(c: Career): void {
   c.off = null;
   c.results = [];
   u.rotIdx = 0;
-  for (const lg of c.leagues) resetLeague(lg);
+  for (const lg of c.leagues) resetLeague(lg, undefined, (id) => ovr(teamById(c, id)));
   recordHist(c);
   rollEvent(c);
   c.last = notes.length ? `入団テストで ${notes.join(',')} が加入しました.` : null;

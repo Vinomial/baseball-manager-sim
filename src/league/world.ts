@@ -12,7 +12,7 @@ import { mealRest } from '../growth/meals';
 import { applyGameEffects, applyGameResultToStanding } from './result';
 import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { foldHistory } from './leaders';
-import { emptyStanding, leagueOfTeam, leaguesInTier, makeSchedule, standings, teamById, type StandingRow } from './schedule';
+import { emptyStanding, leagueOfTeam, leaguesInTier, makeDivSchedule, makeSchedule, standings, teamById } from './schedule';
 import { fielders, genTeam, ovr, pitchersOf } from './team';
 import { fanAppeal } from './fans';
 
@@ -40,17 +40,38 @@ export function leagueName(lg: LeagueState): string {
   return L.count > 1 && L.subs ? `${L.name} ${L.subs[lg.sub ?? 0]}` : L.name;
 }
 
-export function resetLeague(lg: LeagueState, L: League = LEAGUES[lg.level]): void {
-  lg.schedule = makeSchedule(shuffle(lg.teamIds), L.rounds);
+/**
+ * プロ・メジャーの東西のリーグ分け.残るチームは同じリーグのまま,新しく来たチームは強い順に,
+ * 空きがあって戦力の合計が低い方のリーグへ入れる(東西の強さがそろうように).teamOvr はチームの総合力.
+ */
+export function balanceDivs(ids: number[], prev: number[][] | undefined, teamOvr: (id: number) => number): number[][] {
+  const half = Math.ceil(ids.length / 2);
+  const divs: number[][] = [0, 1].map((i) => (prev?.[i] ?? []).filter((id) => ids.includes(id)));
+  // 前のリーグ分けが崩れていたら(人数が多すぎるなど),はじめから分け直す
+  if (divs.some((d) => d.length > half)) { divs[0] = []; divs[1] = []; }
+  const placed = new Set(divs.flat());
+  const movers = ids.filter((id) => !placed.has(id)).sort((a, b) => teamOvr(b) - teamOvr(a));
+  const sum = (d: number[]) => d.reduce((s, id) => s + teamOvr(id), 0);
+  for (const id of movers) {
+    const open = divs.filter((d) => d.length < half);
+    const to = (open.length ? open : divs).reduce((a, b) => (sum(b) < sum(a) ? b : a));
+    to.push(id);
+  }
+  return divs;
+}
+
+export function resetLeague(lg: LeagueState, L: League = LEAGUES[lg.level], teamOvr: (id: number) => number = () => 0): void {
+  // プロ・メジャーは東西 2 つのリーグに分け,同じリーグの相手との試合と,交流戦を行う
+  if (L.divs && lg.teamIds.length >= 6 && lg.teamIds.length % 2 === 0) {
+    lg.divs = balanceDivs(lg.teamIds, lg.divs, teamOvr);
+    lg.schedule = makeDivSchedule(shuffle(lg.divs[0]), shuffle(lg.divs[1]), L.rounds, L.inter ?? 1);
+  } else {
+    lg.divs = undefined;
+    lg.schedule = makeSchedule(shuffle(lg.teamIds), L.rounds);
+  }
   lg.weeks = scheduleWeeks(lg.schedule.length);
   lg.po = null;
   lg.rankHist = {};
-  // 上位のリーグは 2 つの地区(A・B リーグ)に分ける
-  if (L.divs && lg.teamIds.length >= 6) {
-    const ids = shuffle(lg.teamIds);
-    const half = Math.ceil(ids.length / 2);
-    lg.divs = [ids.slice(0, half), ids.slice(half)];
-  } else lg.divs = undefined;
   lg.stand = {};
   for (const id of lg.teamIds) lg.stand[id] = emptyStanding();
   lg.week = 0;
@@ -75,7 +96,7 @@ export function buildWorld(c: Career, user: Team): void {
       c.leagues.push(lg);
     }
   });
-  for (const lg of c.leagues) resetLeague(lg);
+  for (const lg of c.leagues) resetLeague(lg, undefined, (id) => ovr(teamById(c, id)));
 }
 
 /**
@@ -152,7 +173,7 @@ export function stepLeagues(c: Career, userPlayed: boolean): void {
   }
 }
 
-/* ===== プレーオフ(上位 4 チーム.準決勝は 3 戦先に 2 勝,決勝は 5 戦先に 3 勝) ===== */
+/* ===== 公式戦のシリーズ(昇格プレーオフで使う) ===== */
 
 /** 勝負どころで止まる試合のジェネレーター.答え(MomentChoice)を受け取って続ける. */
 export type MomentGen<T> = Generator<Moment, T, MomentChoice>;
@@ -201,125 +222,8 @@ export function* playSeriesGen(c: Career, hi: Team, lo: Team, wins: number): Mom
 /** playSeriesGen を,勝負どころは監督に任せて進める */
 export const playSeries = (c: Career, hi: Team, lo: Team, wins: number): SeriesResult => runAuto(playSeriesGen(c, hi, lo, wins));
 
-/** プレーオフに進む 4 チーム.地区があれば,各地区の上位 2 チーム(地区優勝が上位シード). */
-export function playoffSeeds(c: Career, lg: LeagueState): number[] {
-  const tbl = standings(c, lg);
-  if (!lg.divs) return tbl.slice(0, 4).map((r) => r.t.id);
-  const inDiv = lg.divs.map((d) => tbl.filter((r) => d.includes(r.t.id)).map((r) => r.t.id));
-  const winners = inDiv.map((d) => d[0]).sort((a, b) => tbl.findIndex((r) => r.t.id === a) - tbl.findIndex((r) => r.t.id === b));
-  const seconds = inDiv.map((d) => d[1]).sort((a, b) => tbl.findIndex((r) => r.t.id === a) - tbl.findIndex((r) => r.t.id === b));
-  return [...winners, ...seconds];
-}
 
-/** 週のはじめにプレーオフの組み合わせを決める */
-export function startPlayoffs(c: Career): void {
-  for (const lg of c.leagues) {
-    lg.po = { seeds: playoffSeeds(c, lg), semiWinners: [], champion: null, runnerUp: null };
-  }
-}
-
-/** その週のプレーオフを,全リーグ分進める.プレイヤーが出る試合(実況付き)を返す. */
-export const playPlayoffWeek = (c: Career, stage: 'semi' | 'final'): Game[] => runAuto(playPlayoffWeekGen(c, stage));
-
-/** playPlayoffWeek の,勝負どころで止まる版 */
-export function* playPlayoffWeekGen(c: Career, stage: 'semi' | 'final'): MomentGen<Game[]> {
-  const out: Game[] = [];
-  for (const lg of c.leagues) {
-    const po = lg.po;
-    if (!po) continue;
-    const T = (id: number) => teamById(c, id);
-    if (stage === 'semi') {
-      const ws: number[] = [];
-      for (const [x, y] of [[0, 3], [1, 2]]) {
-        const r = yield* playSeriesGen(c, T(po.seeds[x]), T(po.seeds[y]), 2);
-        out.push(...r.games);
-        ws.push(r.winner.id);
-      }
-      po.semiWinners = ws;
-    } else {
-      const [x, y] = po.semiWinners;
-      const hiId = po.seeds.indexOf(x) < po.seeds.indexOf(y) ? x : y;
-      const loId = hiId === x ? y : x;
-      const r = yield* playSeriesGen(c, T(hiId), T(loId), 3);
-      out.push(...r.games);
-      po.champion = r.winner.id;
-      po.runnerUp = r.winner.id === hiId ? loId : hiId;
-      c.champs.push({ season: c.season, level: lg.level, league: leagueName(lg), team: T(po.champion).name, teamId: po.champion, runnerUp: T(po.runnerUp).name });
-    }
-  }
-  return out;
-}
-
-export function playoffText(c: Career, lg: LeagueState): string {
-  const po = lg.po, me = c.userId;
-  if (!po) return 'プレーオフには進めませんでした.';
-  if (po.champion === me) return `プレーオフを勝ち抜き,${LEAGUES[lg.level].name}で優勝!`;
-  if (po.runnerUp === me) return 'プレーオフ決勝で敗れ,準優勝でした.';
-  if (po.seeds.includes(me)) return 'プレーオフ準決勝で敗退しました.';
-  return 'プレーオフには進めませんでした.';
-}
-
-/* ===== 昇格・降格 ===== */
-
-/** 入れ替え戦の結果(l は下の階層) */
-export interface Swap { l: number; lower: number; upper: number; winner: number; text: string; }
-
-const pctOf = (r: StandingRow): number => (r.w + r.l ? r.w / (r.w + r.l) : 0);
-
-/** 各リーグの優勝チーム(階層 tier の,自動で上がるチーム) */
-function tierWinners(c: Career, tier: number): StandingRow[] {
-  return leaguesInTier(c, tier).map((lg) => standings(c, lg)[0]).filter(Boolean);
-}
-
-/**
- * 階層 tier の下の方のチームを,落ちる順に並べる.
- * 各リーグの最下位が先(勝率の低い順),次に各リーグの下から 2 番目…と,リーグをまたいで交互に並ぶ.
- */
-function bottomOrder(c: Career, tier: number): StandingRow[] {
-  const rows = leaguesInTier(c, tier).flatMap((lg) => standings(c, lg).slice().reverse().map((r, i) => ({ r, i })));
-  return rows.sort((a, b) => a.i - b.i || pctOf(a.r) - pctOf(b.r)).map((x) => x.r);
-}
-
-/**
- * 入れ替え戦.下の階層の各リーグの 2 位(勝率の高い順)と,上の階層で自動降格のすぐ上にいるチームが,3 戦先に 2 勝で争う.
- * 組の数は,上と下のリーグ数の少ない方.勝った方が来シーズン上の階層にいる.順位が確定してから呼ぶ.
- */
-export function playSwaps(c: Career): Swap[] {
-  const out: Swap[] = [];
-  for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const lows = leaguesInTier(c, l), ups = leaguesInTier(c, l + 1);
-    if (!lows.length || !ups.length) continue;
-    const n = Math.min(lows.length, ups.length);
-    const seconds = lows.map((lg) => standings(c, lg)[1]).filter(Boolean).sort((a, b) => pctOf(b) - pctOf(a)).slice(0, n);
-    const danger = bottomOrder(c, l + 1).slice(lows.length, lows.length + n);
-    for (let i = 0; i < Math.min(seconds.length, danger.length); i++) {
-      const lo = seconds[i].t, up = danger[i].t;
-      const r = playSeries(c, up, lo, 2);
-      const text = `入れ替え戦: ${LEAGUES[l].name}の${lo.name}と${LEAGUES[l + 1].name}の${up.name}は,${r.winner.name}が勝ちました.`;
-      out.push({ l, lower: lo.id, upper: up.id, winner: r.winner.id, text });
-    }
-  }
-  return out;
-}
-
-/**
- * 全チームの来シーズンの階層.境目ごとに,下の階層の各リーグの優勝チームが上がり,同じ数だけ上の階層から下がる.
- * 入れ替え戦に勝った方が上に残る.
- */
-export function computeNextLevels(c: Career, swaps: Swap[] = []): Record<number, number> {
-  const next: Record<number, number> = {};
-  for (const lg of c.leagues) for (const id of lg.teamIds) next[id] = lg.level;
-  for (let l = 0; l < LEAGUES.length - 1; l++) {
-    const up = tierWinners(c, l);
-    if (!leaguesInTier(c, l + 1).length) continue;
-    for (const r of up) next[r.t.id] = l + 1;
-    for (const r of bottomOrder(c, l + 1).slice(0, up.length)) next[r.t.id] = l;
-  }
-  for (const s of swaps) {
-    if (s.winner === s.lower) { next[s.lower] = s.l + 1; next[s.upper] = s.l; }
-  }
-  return next;
-}
+/* ===== 昇格・降格(誰が動くかは promotion.ts) ===== */
 
 /**
  * 来シーズンのリーグ分け.階層ごとにチーム数が足りなければ AI チームを足し,並ぶリーグの数もそろえる.
@@ -350,10 +254,14 @@ export function arrangeLeagues(c: Career, next: Record<number, number>): void {
       lg.teamIds = lg.teamIds.filter((id) => next[id] === tier);
       for (const id of lg.teamIds) placed.add(id);
     }
-    // 動くチームを,空きの多いリーグから入れる
-    const movers = shuffle(c.teams.filter((t) => next[t.id] === tier && !placed.has(t.id)).map((t) => t.id));
+    // 動くチームを,強い順に,空きがあって戦力の平均が低いリーグへ入れる(並ぶリーグの強さがそろうように)
+    const str = (id: number) => ovr(teamById(c, id));
+    const avgOf = (lg: LeagueState) => (lg.teamIds.length ? lg.teamIds.reduce((s, id) => s + str(id), 0) / lg.teamIds.length : 0);
+    const movers = c.teams.filter((t) => next[t.id] === tier && !placed.has(t.id)).map((t) => t.id).sort((a, b) => str(b) - str(a));
     for (const id of movers) {
-      const lg = all.reduce((a, b) => (b.teamIds.length < a.teamIds.length ? b : a));
+      const open = all.filter((lg) => lg.teamIds.length < L.teams);
+      const lg = open.length ? open.reduce((a, b) => (avgOf(b) < avgOf(a) || (avgOf(b) === avgOf(a) && b.teamIds.length < a.teamIds.length) ? b : a))
+        : all.reduce((a, b) => (b.teamIds.length < a.teamIds.length ? b : a));
       lg.teamIds.push(id);
     }
   });
@@ -603,11 +511,7 @@ export const isLegacyShape = (c: Career): boolean =>
 export function addDivisions(c: Career): void {
   const defs = isLegacyShape(c) ? LEGACY_LEAGUES : LEAGUES;
   for (const lg of c.leagues) {
-    if (defs[lg.level]?.divs && !lg.divs && lg.teamIds.length >= 6) {
-      const ids = shuffle(lg.teamIds);
-      const half = Math.ceil(ids.length / 2);
-      lg.divs = [ids.slice(0, half), ids.slice(half)];
-    }
+    if (defs[lg.level]?.divs && !lg.divs && lg.teamIds.length >= 6) lg.divs = balanceDivs(lg.teamIds, undefined, (id) => ovr(teamById(c, id)));
   }
 }
 

@@ -167,7 +167,20 @@ export interface DraftState {
 
 export type GameKind = 'league' | 'playoff' | 'cup' | 'practice' | 'open';
 
-/** プレーオフの進み具合(上位4チーム) */
+/**
+ * 階層ごとの昇格プレーオフ.各リーグの上位 2 チームが出るトーナメント.1 回戦の勝者が上の階層へ上がり,勝ち残ると階層の優勝.
+ * seeds はトーナメント表の並び(隣り合う 2 チームが 1 回戦で当たる).
+ */
+export interface TierPlayoff {
+  level: number;
+  seeds: number[];
+  /** 回戦ごとの勝者(表の上から順) */
+  wins: number[][];
+  champion: number | null;
+  runnerUp: number | null;
+}
+
+/** プレーオフの進み具合(上位4チーム.昔のセーブのみ) */
 export interface PlayoffState {
   /** 順位の高い順の 4 チーム */
   seeds: number[];
@@ -494,6 +507,8 @@ export interface Career {
   cups: CupRow[];
   /** 直近の全日本選手権の対戦表 */
   cupBracket: CupMatch[];
+  /** 今シーズンの昇格プレーオフ(階層ごと) */
+  tpo?: TierPlayoff[];
   /** プレイヤーが出ない選手権(同時に進む) */
   sideCups?: { live: CupLive; bracket: CupMatch[] }[];
   /** 直近の練習メニュー(新しいものが後ろ) */

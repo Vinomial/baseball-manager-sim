@@ -425,3 +425,10 @@ select[data-c="ptarget"]{margin-left:6px;max-width:100%}
 .moment-board{display:flex;justify-content:space-between;gap:6px;background:var(--board);color:var(--board-num);border-radius:4px;padding:6px 10px;font-size:15px}
 .moment .btn{width:100%;margin-top:6px}
 .moment-done{border-left:4px solid var(--sel)}
+
+.tag.zone-po{background:var(--good);color:#fff;border-color:transparent}
+.tag.zone-down{background:var(--bad);color:#fff;border-color:transparent}
+.std tr.po td:first-child{box-shadow:inset 3px 0 var(--good)}
+.std tr.down td:first-child{box-shadow:inset 3px 0 var(--bad)}
+.rule summary{cursor:pointer}
+.rule .recap{margin:6px 0 0}

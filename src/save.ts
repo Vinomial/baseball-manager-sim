@@ -6,7 +6,7 @@ import { emptyPantry } from './growth/meals';
 import { pickRival } from './league/awards';
 import { makeGoals } from './league/goals';
 import { emptyFac, emptyMarket } from './league/economy';
-import { scheduleWeeks, SEASON_START } from './league/calendar';
+import { PLAYOFF_START, scheduleWeeks, SEASON_START } from './league/calendar';
 import { refillMissions } from './league/missions';
 import { addDivisions, addMissingLeagues, aiChem, fillOtherLeagues, isLegacyShape, resetLeague } from './league/world';
 import { LEAGUES, LEGACY_TIER, TEAM_NAMES } from './data/constants';
@@ -310,6 +310,18 @@ export function migrate(raw: unknown): Career | null {
       cc.meal = { name: m.name, weeks: m.weeks, rest: 4, guard: 1, lift: 0, desc: `${m.weeks}週間: 疲れが毎週4多くとれる` };
     }
     c.version = 32;
+  }
+  if (c.version === 32) {
+    // v33: リーグごとのプレーオフと入れ替え戦をやめ,階層ごとの昇格プレーオフにした.リーグ戦は 10 月第 3 週までに終える.
+    // 今シーズンのリーグ戦の残りは,昇格プレーオフの前の週までに詰める.
+    // すでに 11 月(古いプレーオフ)以降なら,今シーズンの昇格プレーオフはなく,各リーグの 1 位が上がる.
+    const cc = c as unknown as Career;
+    for (const lg of cc.leagues) {
+      lg.po = null;
+      if (cc.phase === 'season') lg.weeks = lg.weeks.map((w, i) => (i >= lg.week ? Math.min(w, PLAYOFF_START - 1) : w));
+    }
+    if (cc.phase === 'season' && cc.cal >= PLAYOFF_START) cc.tpo = [];
+    c.version = 33;
   }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;

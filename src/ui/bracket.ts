@@ -1,6 +1,8 @@
 /** トーナメント表(SVG).全日本選手権の準々決勝から決勝,リーグのプレーオフを描く. */
 import { teamById } from '../league/schedule';
-import type { Career, LeagueState } from '../types';
+import type { Career, TierPlayoff } from '../types';
+import { LEAGUES } from '../data/constants';
+import { poEntrants, poRoundName, poRounds } from '../league/calendar';
 import { esc } from '../util/format';
 import { emblemChar, teamColors } from './emblem';
 
@@ -89,12 +91,17 @@ export function cupBracketSVG(c: Career): string {
   return bracketSVG(cols, ROUNDS, c.userId, champ);
 }
 
-/** リーグのプレーオフ(上位 4 チーム) */
-export function playoffBracketSVG(c: Career, lg: LeagueState): string {
-  const po = lg.po;
-  if (!po || po.seeds.length < 4) return '';
+/** 昇格プレーオフ(4 チームか 8 チーム).1 回戦の勝者に「昇格」の印をつける */
+export function tierBracketSVG(c: Career, tp: TierPlayoff): string {
+  const n = tp.seeds.length, R = poRounds(n), promo = tp.level < LEAGUES.length - 1;
   const T = (id: number | null): Side => (id === null ? { id: null, name: '未定' } : { id, name: teamById(c, id).name });
-  const semis: Match[] = [[0, 3], [1, 2]].map(([x, y], i) => ({ a: T(po.seeds[x]), b: T(po.seeds[y]), winner: po.semiWinners[i] ?? null }));
-  const final: Match = { a: T(po.semiWinners[0] ?? null), b: T(po.semiWinners[1] ?? null), winner: po.champion };
-  return bracketSVG([semis, [final]], ['準決勝', '決勝'], c.userId, po.champion !== null ? T(po.champion) : undefined);
+  const cols: Match[][] = [];
+  for (let r = 0; r < R; r++) {
+    const ents = poEntrants(tp, r);
+    const ms: Match[] = [];
+    for (let i = 0; i < ents.length; i += 2) ms.push({ a: T(ents[i]), b: T(ents[i + 1]), winner: tp.wins[r]?.[i / 2] ?? null });
+    cols.push(ms);
+  }
+  const titles = Array.from({ length: R }, (_, r) => (r === 0 && promo ? `${poRoundName(n, r, false)}=昇格決定` : poRoundName(n, r, false)));
+  return bracketSVG(cols, titles, c.userId, tp.champion !== null ? T(tp.champion) : undefined);
 }

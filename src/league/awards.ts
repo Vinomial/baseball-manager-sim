@@ -37,7 +37,7 @@ export function computeAwards(c: Career): AwardRow[] {
     let best: { p: Player; t: Team; v: number } | null = null;
     for (const t of leagueTeams(c, lg)) {
       for (const p of t.players) {
-        const v = seasonScore(p) * (t.id === lg.po?.champion ? 1.15 : 1);
+        const v = seasonScore(p) * (t.id === c.tpo?.find((x) => x.level === lg.level)?.champion ? 1.15 : 1);
         if (!best || v > best.v) best = { p, t, v };
       }
     }

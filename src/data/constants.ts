@@ -6,37 +6,51 @@ export interface League {
   base: number;
   /** 1 つのリーグのチーム数(プレイヤーを含む) */
   teams: number;
-  /** 同じ相手と何回戦うか.1シーズンの試合数 = (teams - 1) * rounds */
+  /** 同じ相手と何回戦うか(divs なら同じリーグの相手と) */
   rounds: number;
-  /** 2 つの地区(A・B リーグ)に分けるか */
+  /** 1 つの組織の中を 2 つのリーグに分けて,交流戦を行うか(プロ・メジャー) */
   divs?: boolean;
+  /** 交流戦で,もう一方のリーグの各チームと何回戦うか */
+  inter?: number;
   /** 登録できる選手の上限 */
   roster: number;
   /** この階層に並ぶリーグの数(地域ごとに分かれる) */
   count: number;
-  /** 並ぶリーグの呼び名(count 個) */
+  /** 並ぶリーグの呼び名(count 個.divs なら 2 つのリーグの呼び名) */
   subs?: string[];
 }
 
 /**
  * 階層.下から草野球,市民,社会人,独立,プロ,メジャー.
- * 下の階層ほど地域ごとにリーグが分かれていて,各リーグの優勝チームが 1 つ上の階層へ上がる.
+ * 下の階層ほど地域ごとにリーグが分かれている.各リーグの上位 2 チームが,階層ごとの昇格プレーオフに出て,
+ * 1 回戦に勝つと 1 つ上の階層へ上がる.プロとメジャーは,1 つの組織を東西 2 つのリーグに分け,交流戦も行う.
  */
 export const LEAGUES: League[] = [
   { name: '草野球リーグ', base: 32, teams: 6, rounds: 2, roster: 22, count: 4, subs: ['東', '西', '南', '北'] },
   { name: '市民リーグ', base: 40, teams: 6, rounds: 3, roster: 23, count: 2, subs: ['東', '西'] },
   { name: '社会人リーグ', base: 48, teams: 8, rounds: 3, roster: 24, count: 2, subs: ['東', '西'] },
   { name: '独立リーグ', base: 58, teams: 8, rounds: 3, roster: 26, count: 2, subs: ['東', '西'] },
-  { name: 'プロリーグ', base: 68, teams: 12, rounds: 2, roster: 28, divs: true, count: 1 },
-  { name: 'メジャーリーグ', base: 78, teams: 12, rounds: 2, roster: 30, divs: true, count: 1 },
+  { name: 'プロリーグ', base: 68, teams: 12, rounds: 3, inter: 1, roster: 28, divs: true, count: 1, subs: ['東', '西'] },
+  { name: 'メジャーリーグ', base: 78, teams: 12, rounds: 3, inter: 1, roster: 30, divs: true, count: 1, subs: ['東', '西'] },
 ];
 
-export const gamesPerSeason = (level: number): number => (LEAGUES[level].teams - 1) * LEAGUES[level].rounds;
+export function gamesPerSeason(level: number): number {
+  const L = LEAGUES[level];
+  return L.divs ? (L.teams / 2 - 1) * L.rounds + (L.teams / 2) * (L.inter ?? 1) : (L.teams - 1) * L.rounds;
+}
 
-/** 階層 tier から 1 つ上へ自動で上がるチーム数(各リーグの優勝チーム).同じ数だけ上から下がる. */
-export const promoCount = (tier: number): number => (tier < LEAGUES.length - 1 ? LEAGUES[tier].count : 0);
-/** 階層 tier の 1 つのリーグから,自動で下がるチーム数 */
-export const relegPerLeague = (tier: number): number => (tier > 0 ? Math.ceil(LEAGUES[tier - 1].count / LEAGUES[tier].count) : 0);
+/** 階層のなかの「リーグ」の数(プロ・メジャーは 1 つの組織を 2 つに分けたもの) */
+export const groupCount = (tier: number): number => (LEAGUES[tier].divs ? 2 : LEAGUES[tier].count);
+
+/**
+ * 階層 tier から 1 つ上へ上がるチーム数.各リーグの上位 2 チームが出る昇格プレーオフの,1 回戦の勝者の数(= リーグの数).
+ * 同じ数だけ,上の階層から下がる.
+ */
+export const promoCount = (tier: number): number => (tier < LEAGUES.length - 1 ? groupCount(tier) : 0);
+/** 階層 tier の 1 つのリーグから,下の階層へ下がるチーム数 */
+export const relegPerLeague = (tier: number): number => (tier > 0 ? promoCount(tier - 1) / groupCount(tier) : 0);
+/** 昇格プレーオフに出る,各リーグの上位のチーム数 */
+export const PO_PER_GROUP = 2;
 
 /** 地名+愛称で,重ならないチーム名を作る */
 const combine = (places: string[], nicks: string[]): string[] => places.map((p, i) => p + nicks[i % nicks.length]);

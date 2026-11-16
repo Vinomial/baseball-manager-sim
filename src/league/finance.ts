@@ -1,10 +1,10 @@
 /** 年俸,予算,GMの信頼度,予想勝率.DOM に依存しない. */
-import { DIFFS, promoCount, relegPerLeague } from '../data/constants';
+import { DIFFS, LEAGUES, PO_PER_GROUP, relegPerLeague } from '../data/constants';
 import { salaryOf } from '../growth/player';
 import type { Career, Team } from '../types';
 import { clamp, seeded } from '../util/random';
 import { ovr } from './team';
-import { userLeague } from './schedule';
+import { groupOf, userLeague } from './schedule';
 
 export const payroll = (t: Team): number => t.players.reduce((s, p) => s + p.salary, 0);
 
@@ -57,20 +57,17 @@ export function winProb(a: Team, b: Team): number {
 export interface Forecast {
   /** 予想の最終勝数 */
   wins: number;
-  /** 予想の順位ごとの確率(添え字 0 が 1 位) */
+  /** 予想の順位ごとの確率(自分のリーグの中の順位.添え字 0 が 1 位) */
   rank: number[];
-  /** 優勝(自動で昇格)の確率 */
-  up: number;
-  /** プレーオフ(上位4)の確率 */
+  /** 昇格プレーオフ(リーグの上位 2)に出る確率 */
   playoff: number;
   /** 下位(降格圏)の確率 */
   down: number;
-  /** 昇格・降格するチーム数 */
-  upN: number;
+  /** 昇格プレーオフに出られる順位と,降格するチーム数 */
+  poN: number;
   downN: number;
-  /** 入れ替え戦(昇格側・降格側)に回る確率 */
-  swapUp: number;
-  swapDown: number;
+  /** 最上位の階層か(プレーオフに勝っても昇格はない) */
+  top: boolean;
 }
 
 /** 残りの試合を何度か作って,最終順位の見込みを出す. */
@@ -79,13 +76,13 @@ export function forecast(c: Career, runs = 250): Forecast {
   // 同じ状況なら,いつも同じ予想になる(画面を開き直すたびに数字が変わらない).ゲームの乱数も使わない.
   const rand = seeded((c.season * 1009 + c.cal * 101 + lg.week * 13 + c.userId * 7 + runs) >>> 0);
   const ids = lg.teamIds;
+  // 順位は自分のリーグ(プロ・メジャーでは東西のどちらか)の中で数える
+  const mine = groupOf(c, c.userId).ids;
   const teams = new Map(c.teams.filter((t) => ids.includes(t.id)).map((t) => [t.id, t]));
   const ov = new Map([...teams].map(([id, t]) => [id, ovr(t)]));
   const p = (a: number, b: number) => clamp(1 / (1 + Math.exp(-(ov.get(a)! - ov.get(b)!) / 4.4)), 0.03, 0.97);
-  const rank = ids.map(() => 0);
-  // 地区があれば,自分の地区で上位 2 チームに入るとプレーオフ.なければ全体の上位 4 チーム.
-  const myDiv = lg.divs?.find((d) => d.includes(c.userId));
-  let wins = 0, po = 0;
+  const rank = mine.map(() => 0);
+  let wins = 0;
   for (let r = 0; r < runs; r++) {
     const w = new Map(ids.map((id) => [id, lg.stand[id].w + 0.5 * lg.stand[id].d]));
     for (let k = lg.week; k < lg.schedule.length; k++) {
@@ -93,17 +90,16 @@ export function forecast(c: Career, runs = 250): Forecast {
         if (rand() < p(h, a)) w.set(h, w.get(h)! + 1); else w.set(a, w.get(a)! + 1);
       }
     }
-    const order = [...ids].sort((x, y) => w.get(y)! - w.get(x)! || rand() - 0.5);
+    const order = [...mine].sort((x, y) => w.get(y)! - w.get(x)! || rand() - 0.5);
     rank[order.indexOf(c.userId)]++;
-    if (myDiv ? order.filter((id) => myDiv.includes(id)).indexOf(c.userId) < 2 : order.indexOf(c.userId) < 4) po++;
     wins += w.get(c.userId)!;
   }
-  const upN = upCount(c.level), downN = downCount(c.level);
+  const downN = relegPerLeague(c.level);
   const pr = rank.map((n) => n / runs);
   const sum = (from: number, to: number) => pr.slice(from, to).reduce((s, v) => s + v, 0);
   return {
-    wins: wins / runs, rank: pr, up: sum(0, upN), playoff: po / runs, down: downN ? sum(ids.length - downN, ids.length) : 0, upN, downN,
-    swapUp: upN ? sum(upN, upN + 1) : 0, swapDown: downN ? sum(ids.length - downN - 1, ids.length - downN) : 0,
+    wins: wins / runs, rank: pr, playoff: sum(0, PO_PER_GROUP), down: downN ? sum(mine.length - downN, mine.length) : 0,
+    poN: PO_PER_GROUP, downN, top: c.level >= LEAGUES.length - 1,
   };
 }
 
@@ -128,7 +124,7 @@ export function checkFired(c: Career, text: string): void {
 }
 
 
-/** そのリーグから自動で昇格するチーム数(優勝チームの 1) */
-export const upCount = (level: number): number => (promoCount(level) ? 1 : 0);
-/** そのリーグから自動で降格するチーム数 */
+/** そのリーグから昇格プレーオフに出るチーム数(上位 2) */
+export const upCount = (level: number): number => (level < LEAGUES.length - 1 ? PO_PER_GROUP : 0);
+/** そのリーグから降格するチーム数 */
 export const downCount = (level: number): number => relegPerLeague(level);

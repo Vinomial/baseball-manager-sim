@@ -3,12 +3,12 @@ import { pick } from '../util/random';
 import type { Career, Goal, GoalResult, Review } from '../types';
 import { forecast } from './finance';
 import { earn, moneyScale } from './economy';
-import { leagueTeams, standings, userLeague } from './schedule';
+import { userGroupTeams, userLeague, userRank } from './schedule';
 import { ovr } from './team';
 
-/** 今のチームの強さの順位(総合力で見た順位,1 が最も強い) */
+/** 今のチームの強さの順位(自分のリーグの中で,総合力で見た順位.1 が最も強い) */
 export function expectedRank(c: Career): number {
-  return [...leagueTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
+  return [...userGroupTeams(c)].sort((a, b) => ovr(b) - ovr(a)).findIndex((t) => t.id === c.userId) + 1;
 }
 
 /** 新しいシーズンの目標を 2 つ決める.強さに応じて,少し背伸びした目標になる. */
@@ -17,7 +17,7 @@ export function makeGoals(c: Career): Goal[] {
   const m = moneyScale(c);
   const big = (t: number, f: number): { trust: number; funds: number } => ({ trust: t, funds: Math.round((m * f) / 10) * 10 });
   const goals: Goal[] = [];
-  if (e <= 2) goals.push({ kind: 'title', target: 1, text: 'リーグ優勝する', reward: big(10, 0.5) });
+  if (e <= 2) goals.push({ kind: 'rank', target: 1, text: 'リーグ1位になる', reward: big(10, 0.5) });
   else {
     const n = Math.max(1, e - 1);
     goals.push({ kind: 'rank', target: n, text: `リーグ${n}位以内に入る`, reward: big(5 + Math.max(0, e - 3), 0.3) });
@@ -27,7 +27,7 @@ export function makeGoals(c: Career): Goal[] {
   const others: Goal[] = [
     { kind: 'wins', target: w, text: `${w}勝以上する`, reward: big(4, 0.25) },
     { kind: 'cup', target: 2, text: '年末の選手権で2勝する', reward: big(5, 0.3) },
-    { kind: 'grow', target: 25, text: '1人の選手の能力を合計+25以上伸ばす', reward: big(4, 0.25) },
+    { kind: 'grow', target: 12, text: '1人の選手の能力を合計+12以上伸ばす', reward: big(4, 0.25) },
   ];
   goals.push(pick(others));
   return goals;
@@ -37,7 +37,7 @@ export function makeGoals(c: Career): Goal[] {
 export function goalProgress(c: Career, g: Goal): string {
   const lg = userLeague(c);
   const st = lg.stand[c.userId];
-  const rank = standings(c).findIndex((r) => r.t.id === c.userId) + 1;
+  const rank = userRank(c);
   switch (g.kind) {
     case 'rank': return `いま${rank}位(目標${g.target}位以内)`;
     case 'title': return `いま${rank}位`;

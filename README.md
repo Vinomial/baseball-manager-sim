@@ -50,6 +50,12 @@ npm run balance    # バランス確認(リーグ別の打撃成績,練習ごと
 npm run build      # 公開用のビルド(dist/ に出力)
 ```
 
+## 公開(Vercel)
+
+Vercel に GitHub のリポジトリをつなぐと,設定は `vercel.json` から読まれます.main への push で本番が,それ以外のブランチへの push で試し用の URL(プレビュー)が作られます.
+
+セーブはブラウザの中(サイトごと)に保存されるので,公開先の URL が変わると引き継がれません.古い URL でメニューの「バックアップを保存」をして,新しい URL の「バックアップを読み込む」で移してください.
+
 ## ディレクトリ構成
 
 ```
@@ -60,7 +66,7 @@ src/
 ├─ engine/game.ts    試合シミュレーション(打席,走塁,継投)
 ├─ growth/           選手生成,成長,加齢,練習メニュー,連携
 ├─ league/           チーム編成,日程,順位,シーズン進行,ドラフト
-├─ save.ts           セーブとロード(localStorage)
+├─ save.ts           セーブとロード(IndexedDB,使えなければ localStorage)
 ├─ ui/               画面の描画と操作
 └─ main.ts           エントリーポイント
 tests/               テスト(Vitest)

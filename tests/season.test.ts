@@ -39,7 +39,7 @@ import { careerStats, foldHistory, opsOf, seasonCount } from '../src/league/lead
 import { advise } from '../src/league/advice';
 import { convertAdvice } from '../src/league/convert';
 import { playoffOdds, seriesWinProb, userSeries } from '../src/league/playoffs';
-import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeValue } from '../src/league/trade';
+import { doTrade, endLoans, extendHelper, hireHelper, tradeOpen, tradeOthers, tradeRatio, tradeValue } from '../src/league/trade';
 import { departures, extendContract, leavingRisk } from '../src/league/contracts';
 import { renewContracts } from '../src/league/finance';
 import { chapterTitle, judgeTrainGoals, phaseOf, setTrainGoal, storyBeat } from '../src/league/story';
@@ -2328,7 +2328,7 @@ describe('月の方針と行動枠', () => {
     const r = setMonthPlan(c, null, ['special'], p.id);
     expect(r.error).toBeNull();
     expect(c.pantry.rice + c.pantry.meat).toBe(1);
-    expect(p.power + p.meet).toBeGreaterThan(84);
+    expect(p.power + p.meet).toBeGreaterThan(81.5);
     expect(r.results[0]).toContain(p.name);
   });
 
@@ -2368,9 +2368,10 @@ describe('出場で伸びる育成と二軍', () => {
     const bench = fielders(u).find((p) => !u.lineup.some((e) => e.pid === p.id))!;
     for (const p of [starter, bench]) { p.age = 21; for (const k of keysOf(p)) { p[k] = 45; p.pot[k] = 90; } }
     c.auto.lineup = false;
-    while (c.cal < 30) playWeek(c, 'rest');
+    // リーグ戦を最後まで(どちらも怪我をしないように,毎週の疲れはとっておく)
+    while (c.cal < PLAYOFF_START) { playWeek(c, 'rest'); for (const p of [starter, bench]) { p.fatigue = 0; p.inj = null; } }
     const s = (p: Player) => keysOf(p).reduce((a, k) => a + p[k], 0);
-    expect(s(starter)).toBeGreaterThan(s(bench) + 2);
+    expect(s(starter)).toBeGreaterThan(s(bench) + 1);
   });
 
   it('二軍の選手は一軍の人数に数えず,試合に出ず,一軍の最低人数は守られる', () => {
@@ -2687,7 +2688,7 @@ describe('ドラフトの入札・大物の争奪・有利なトレード', () =
     const teams = d.order.length / DRAFT_ROUNDS;
     // 目玉に入札する(外れたら,次の候補でもう一度)
     for (let i = 0; i < 10 && lotteryOpen(d); i++) {
-      const target = d.pool.findIndex((p) => d.stars!.includes(p.id) && !Object.values(d.lottery!.won).includes(p.id));
+      const target = d.pool.findIndex((p) => d.stars!.includes(p.id));
       pickDraft(c, target >= 0 ? target : 0);
     }
     expect(lotteryOpen(d)).toBe(false);
@@ -2697,6 +2698,21 @@ describe('ドラフトの入札・大物の争奪・有利なトレード', () =
     expect(first.filter((x) => x.user)).toHaveLength(1);
     // 目玉は,たいてい競合する
     expect(d.lottery!.log.some((x) => x.includes('競合'))).toBe(true);
+  });
+
+  it('交渉権が決まった選手は候補から外れ,どの番号で入札しても重ならない', () => {
+    const c = newCareer('テスト');
+    playSeason(c, 'mix');
+    const d = c.off!.draft;
+    const star = d.pool.findIndex((p) => d.stars!.includes(p.id));
+    pickDraft(c, star);
+    const won = Object.values(d.lottery!.won).filter((x) => x >= 0);
+    for (const id of won) expect(d.pool.some((p) => p.id === id)).toBe(false);
+    // 外れても,先頭の候補に入札し続ければ必ず終わる
+    for (let i = 0; i < 20 && lotteryOpen(d); i++) pickDraft(c, 0);
+    expect(lotteryOpen(d)).toBe(false);
+    const first = d.picks.filter((x) => x.round === 1);
+    expect(new Set(first.map((x) => x.pid)).size).toBe(first.length);
   });
 
   it('1位を見送ると,プレイヤーは 1 巡目の指名なしで 2 巡目へ進む', () => {
@@ -2733,14 +2749,29 @@ describe('ドラフトの入札・大物の争奪・有利なトレード', () =
   });
 
   it('有利なトレードの申し出は,こちらの控えと,相手の主力の交換になる', () => {
-    const c = newCareer('テスト');
+    // 条件に合う選手がいるチームになるまで,何チームか作る
+    let c = newCareer('テスト');
     let found: GameEvent | null = null;
-    for (let i = 0; i < 400 && !found; i++) { rollEvent(c); if (c.event?.title.includes('有利な申し出')) found = c.event; }
+    for (let k = 0; k < 8 && !found; k++) {
+      if (k) c = newCareer('テスト');
+      for (let i = 0; i < 300 && !found; i++) { c.tradeOffer = undefined; rollEvent(c); if (c.event?.title.includes('有利な申し出')) found = c.event; }
+    }
     expect(found).not.toBeNull();
     const mine = findPlayer(userTeam(c), found!.pid!)!;
     const o = c.teams.find((t) => t.id === found!.teamId)!;
     const theirs = findPlayer(o, found!.pid2!)!;
-    expect(playerValue(theirs)).toBeGreaterThan(playerValue(mine) + 7);
+    // こちらに有利だが,有利すぎない(出す価値は,もらう価値の 75〜95%)
+    expect(playerValue(theirs)).toBeGreaterThan(playerValue(mine));
+    const r = tradeRatio([mine], theirs);
+    expect(r).toBeGreaterThanOrEqual(0.75);
+    expect(r).toBeLessThanOrEqual(0.95);
+    // 同じシーズンには,もうトレードの申し出は来ない
+    expect(c.tradeOffer).toBe(c.season);
+    let again = false;
+    const keep = c.event;
+    for (let i = 0; i < 200; i++) { rollEvent(c); if (c.event?.kind === 'trade') again = true; }
+    expect(again).toBe(false);
+    c.event = keep;
     resolveEvent(c, 'accept');
     expect(userTeam(c).players.includes(theirs)).toBe(true);
     expect(o.players.includes(mine)).toBe(true);

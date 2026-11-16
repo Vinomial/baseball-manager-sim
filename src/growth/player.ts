@@ -1,4 +1,4 @@
-import { BAT_KEYS, FOREIGN_FIRST, FOREIGN_LAST, GIVEN_NAMES, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
+import { BAT_KEYS, FOREIGN_FIRST, FOREIGN_LAST, GIVEN_NAMES, GROWTH_PACE, PEAK, PIT_KEYS, POS, SURNAMES, TYPES } from '../data/constants';
 import type { AttrKey, Player, Pos, Role, Stats } from '../types';
 import { genAbilities } from './abilities';
 import { PERS_KEYS } from './personality';
@@ -81,7 +81,7 @@ export function growAttr(p: Player, k: AttrKey, mult: number): void {
 }
 
 /** 試合 1 つで,出場した選手が経験から得る伸び(全能力に).練習の 1 週ぶんより少し小さい. */
-export const EXP_GAIN = 0.07;
+export const EXP_GAIN = 0.07 * GROWTH_PACE;
 
 /**
  * 試合に出た経験で伸びる.出番が多いほど(share は 0〜1),若いほどよく伸びる.

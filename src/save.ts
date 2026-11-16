@@ -297,6 +297,10 @@ export function migrate(raw: unknown): Career | null {
     (c as unknown as Career).franchise ??= { best: {}, hall: [], hired: [] };
     c.version = 30;
   }
+  if (c.version === 30) {
+    // v31: トレードの申し出は 1 シーズンに 1 回まで(その記録を足す.なくても動く)
+    c.version = 31;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

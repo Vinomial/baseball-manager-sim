@@ -20,27 +20,23 @@ const truePot = (p: Player): number => keysOf(p).reduce((s, k) => s + p.pot[k], 
 export function startLottery(c: Career, d: DraftState): void {
   d.stars = [...d.pool].sort((a, b) => truePot(b) - truePot(a)).slice(0, 3).map((p) => p.id);
   const teams = d.order.slice(0, d.order.length / DRAFT_ROUNDS);
-  d.lottery = { teams, won: {}, log: [], wave: 1, done: false, userLost: false };
+  d.lottery = { teams, won: {}, log: [], wave: 1, done: false, userLost: false, reserved: [] };
   void c;
 }
 
 export const lotteryOpen = (d: DraftState): boolean => !!d.lottery && !d.lottery.done;
 
-const taken = (d: DraftState): Set<number> => new Set(Object.values(d.lottery?.won ?? {}));
-
-/** AI チームが入札する選手.目玉選手には人気が集まる. */
+/** AI チームが入札する選手.目玉選手には人気が集まる.交渉権が決まった選手は,もう候補にいない. */
 function aiBid(d: DraftState, t: Team): Player | null {
-  const used = taken(d);
-  const cands = d.pool.filter((p) => !used.has(p.id));
+  const cands = d.pool;
   if (!cands.length) return null;
   return cands.map((p) => ({ p, v: draftScore(t, p) + (d.stars?.includes(p.id) ? STAR_PULL : 0) + randn() * 5 })).sort((a, b) => b.v - a.v)[0].p;
 }
 
 /** 競合の予想: その選手を 1 位にしそうな AI チームの数(ぶれを入れずに見る) */
 export function expectedBids(c: Career, d: DraftState, p: Player): number {
-  if (!d.lottery) return 0;
-  const used = taken(d);
-  const cands = d.pool.filter((x) => !used.has(x.id));
+  if (!d.lottery || !d.pool.length) return 0;
+  const cands = d.pool;
   let n = 0;
   for (const id of d.lottery.teams) {
     if (id === c.userId || d.lottery.won[id] !== undefined) continue;
@@ -71,6 +67,9 @@ function wave(c: Career, d: DraftState, choice: Player | null | undefined): void
     const p = d.pool.find((x) => x.id === pid)!;
     const winner = teams.length > 1 ? pick(teams) : teams[0];
     L.won[winner] = pid;
+    // 交渉権が決まった選手は,候補から外しておく(外れ 1 位の入札で選べないように)
+    d.pool = d.pool.filter((x) => x !== p);
+    (L.reserved ??= []).push(p);
     if (teams.length > 1) {
       L.log.push(`${L.wave === 1 ? '' : '外れ1位 '}${p.name}に${teams.length}球団が競合 → 抽選で${teamById(c, winner).name}が交渉権を獲得${teams.includes(c.userId) ? (winner === c.userId ? '!' : '(あなたは外れ)') : ''}`);
       if (teams.includes(c.userId) && winner !== c.userId) L.userLost = true;
@@ -87,7 +86,7 @@ function closeLottery(c: Career, d: DraftState): void {
     const pid = L.won[id];
     const t = teamById(c, id);
     if (pid === undefined || pid < 0) { d.idx++; continue; }
-    const p = d.pool.find((x) => x.id === pid);
+    const p = (L.reserved ?? []).find((x) => x.id === pid) ?? d.pool.find((x) => x.id === pid);
     if (!p) { d.idx++; continue; }
     if (t.user) {
       c.off?.press?.push(pressNote(p));
@@ -105,6 +104,8 @@ function closeLottery(c: Career, d: DraftState): void {
 export function lotteryBid(c: Career, d: DraftState, p: Player | null): void {
   const L = d.lottery;
   if (!L || L.done || L.won[c.userId] !== undefined) return;
+  // 候補にいない選手(ほかの球団が交渉権を取った選手など)には入札できない
+  if (p && !d.pool.includes(p)) return;
   wave(c, d, p);
   if (L.won[c.userId] === undefined && L.userLost) return;
   for (let i = 0; i < 20 && L.teams.some((id) => L.won[id] === undefined); i++) wave(c, d, undefined);

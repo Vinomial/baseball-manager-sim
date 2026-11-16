@@ -85,7 +85,7 @@ function draftHTML(c: Career): string {
   const adv = advise(u, d.pool, (p) => tacticBonus(c, p));
   const bid = lotteryOpen(d);
   const L = d.lottery;
-  const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).filter(({ p }) => !bid || !Object.values(L!.won).includes(p.id)).sort((x, y) => y.a.score - x.a.score);
+  const list = [...d.pool].map((p, i) => ({ p, i, a: adv.get(p.id)! })).sort((x, y) => y.a.score - x.a.score);
   const head = bid
     ? `<p class="small muted">1巡目は<b>入札</b>です.全球団が同時に 1 人を指名し,重なったら<b>抽選</b>で交渉権が決まります.外れたら,残りの選手でもう一度入札します(外れ1位).「★目玉」は今年の注目株で,競合しやすい選手です.</p>
     ${L!.userLost ? '<p class="warnbox bad small" style="margin:4px 0">抽選に外れました.外れ1位を指名してください.</p>' : ''}

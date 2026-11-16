@@ -160,7 +160,7 @@ export interface DraftState {
   /** 目玉選手(ID) */
   stars?: number[];
   /** 1 巡目の入札と抽選(プレイヤーの階層だけ) */
-  lottery?: { teams: number[]; won: Record<number, number>; log: string[]; wave: number; done: boolean; userLost: boolean };
+  lottery?: { teams: number[]; won: Record<number, number>; log: string[]; wave: number; done: boolean; userLost: boolean; /** 交渉権が決まって,候補から外した選手 */ reserved?: Player[] };
 }
 
 export type GameKind = 'league' | 'playoff' | 'cup' | 'practice' | 'open';
@@ -500,6 +500,8 @@ export interface Career {
   tacticFam?: number;
   /** ファンの数(人) */
   fans?: number;
+  /** トレードの申し出が来たシーズン(1 シーズンに 1 回まで) */
+  tradeOffer?: number;
   /** 球団の歴史(シーズン記録,球団殿堂,呼んだ OB) */
   franchise?: { best: Record<string, { v: number; name: string; season: number; text: string }>; hall: { name: string; pos: string; season: number; years: number; line: string; level: number }[]; hired: string[] };
   pantry: Record<Ingredient, number>;

@@ -79,6 +79,12 @@ export const PEAK: Record<GrowthType, [number, number]> = { 早熟: [16, 22], �
 /** 調子の表示 [名前, 記号] */
 export const COND: [string, string][] = [['絶不調', '↓'], ['不調', '↘'], ['普通', '→'], ['好調', '↗'], ['絶好調', '↑']];
 
+/**
+ * プレイヤーのチームの成長の速さ(練習・試合の経験・二軍の経験に掛かる).
+ * 上手なプレイヤーで,草野球からメジャー優勝まで 20 シーズン前後になるように合わせる(npm run pace で測る).
+ */
+export const GROWTH_PACE = 0.33;
+
 /** リーグごとの登録上限 */
 export const rosterMax = (level: number): number => LEAGUES[level].roster;
 /** ドラフトの指名ラウンド数 */

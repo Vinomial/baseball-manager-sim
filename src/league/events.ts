@@ -11,7 +11,8 @@ import { clamp, pick, rand, ri, shuffle } from '../util/random';
 import { leagueTeams } from './schedule';
 import { autoLineup, autoPitchers, fielders, findByPos, findPlayer, pitchersOf } from './team';
 import { earn, moneyScale, spend, weeklyIncome } from './economy';
-import { addTrust, fmtYen } from './finance';
+import { addTrust, budgetFor, fmtYen, payroll } from './finance';
+import { tradeRatio } from './trade';
 
 /** 1 週ごとに出来事が起きる確率 */
 export const EVENT_RATE = 0.3;
@@ -275,36 +276,45 @@ const makers: Maker[] = [
       ],
     };
   },
-  // 年俸を減らしたい球団からの,こちらに有利なトレードの申し出
+  // 年俸を減らしたい球団からの,こちらに有利なトレードの申し出(1 シーズンに 1 回まで)
   (c, t) => {
+    if (c.tradeOffer === c.season) return null;
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
     const bench = t.players.filter((p) => !core.has(p.id) && !t.farm?.includes(p.id));
     if (!bench.length) return null;
-    const p = bench.reduce((a, b) => (futureValue(b) < futureValue(a) ? b : a));
     const worst = (role: string) => Math.min(...t.players.filter((x) => x.role === role && core.has(x.id)).map(playerValue));
     const others = leagueTeams(c).filter((x) => !x.user);
-    const cand = shuffle(others).flatMap((o) => o.players.filter((q) => q.age >= 27 && q.age <= 32 && playerValue(q) >= worst(q.role) + 4 && playerValue(q) >= playerValue(p) + 8).map((q) => ({ o, q })));
+    // 主力より少し上の選手を,控えと交換.出す価値は,もらう価値の 75〜95%(トレード画面の基準より甘い)
+    const cand = others.flatMap((o) => o.players.filter((q) => q.age >= 27 && q.age <= 32).flatMap((q) => bench
+      .filter((p) => p.role === q.role && playerValue(q) >= worst(q.role) + 2 && playerValue(q) <= worst(q.role) + 8 && playerValue(q) > playerValue(p))
+      .filter((p) => { const r = tradeRatio([p], q); return r >= 0.75 && r <= 0.95; })
+      .filter((p) => tradeFits(c, p, q))
+      .map((p) => ({ o, q, p }))));
     if (!cand.length) return null;
-    const { o, q } = cand[0];
+    const { o, q, p } = pick(cand);
+    c.tradeOffer = c.season;
     return {
       kind: 'trade', pid: p.id, pid2: q.id, teamId: o.id, title: `${o.name}から有利な申し出`,
-      body: `${o.name}が年俸を減らしたいと,主力の${q.name}(${q.age}歳,今の力${Math.round(playerValue(q))})を,控えの${p.name}(今の力${Math.round(playerValue(p))})との交換で出したいと言っています.`,
+      body: `${o.name}が年俸を減らしたいと,${q.name}(${q.age}歳,今の力${Math.round(playerValue(q))},年俸${fmtYen(q.salary)})を,控えの${p.name}(今の力${Math.round(playerValue(p))})との交換で出したいと言っています.`,
       choices: [
-        { key: 'accept', label: '応じる', hint: `${q.name}を得て,${p.name}を出す.こちらに有利な取引です.` },
+        { key: 'accept', label: '応じる', hint: `${q.name}を得て,${p.name}を出す.こちらに有利だが,年俸は増える.` },
         { key: 'refuse', label: '断る', hint: '今のまま.' },
       ],
     };
   },
   // 他球団からのトレード打診
   (c, t) => {
+    if (c.tradeOffer === c.season) return null;
     const core = new Set<number>([...t.lineup.map((e) => e.pid), ...t.pitchers.slice(0, 5)]);
     const mine = t.players.filter((p) => !core.has(p.id) && p.age <= 25 && futureValue(p) > playerValue(p) + 6);
     if (!mine.length) return null;
     const p = pick(mine);
     const others = leagueTeams(c).filter((x) => !x.user);
-    const cand = shuffle(others).flatMap((o) => o.players.filter((q) => q.role === p.role && q.age >= 28 && playerValue(q) >= playerValue(p) + 5).map((q) => ({ o, q })));
+    // 今は少し強いが先の短い選手(5〜12 上).予算に収まるときだけ
+    const cand = others.flatMap((o) => o.players.filter((q) => q.role === p.role && q.age >= 28 && playerValue(q) >= playerValue(p) + 5 && playerValue(q) <= playerValue(p) + 12 && tradeFits(c, p, q)).map((q) => ({ o, q })));
     if (!cand.length) return null;
-    const { o, q } = cand.reduce((a, b) => (playerValue(b.q) > playerValue(a.q) ? b : a));
+    const { o, q } = pick(cand);
+    c.tradeOffer = c.season;
     return {
       kind: 'trade', pid: p.id, pid2: q.id, teamId: o.id, title: `${o.name}からトレードの打診`,
       body: `${o.name}が,若手の${p.name}(${p.age}歳,将来性あり)と,${q.age}歳の${q.name}(今の力は${Math.round(playerValue(q))})との交換を提案してきました.`,
@@ -315,6 +325,12 @@ const makers: Maker[] = [
     };
   },
 ];
+
+/** 交換したあとの年俸が,予算に収まるか */
+function tradeFits(c: Career, give: Player, get: Player): boolean {
+  const u = userT(c);
+  return payroll(u) - give.salary + get.salary <= budgetFor(c);
+}
 
 /** 週のはじめに,確率で出来事を起こす. */
 export function rollEvent(c: Career): void {
@@ -535,6 +551,7 @@ export function resolveEvent(c: Career, key: string): string {
       const o = c.teams.find((x) => x.id === e.teamId);
       const r = o && findPlayer(o, e.pid2);
       if (!o || !r) { text = '相手の事情で話は流れました.'; break; }
+      if (!tradeFits(c, p, r)) { text = '年俸の予算に収まらないため,話は流れました.'; break; }
       t.players = t.players.filter((x) => x !== p);
       t.pitchers = t.pitchers.filter((id) => id !== p.id);
       o.players = o.players.filter((x) => x !== r);

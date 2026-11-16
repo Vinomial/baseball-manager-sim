@@ -1,5 +1,5 @@
 /** シーズン進行(週の進行,結果の確定,オフシーズン).世界全体の進行は world.ts. */
-import { LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constants';
+import { GROWTH_PACE, LEAGUES, MIN_FIELDERS, MIN_PITCHERS, rosterMax } from '../data/constants';
 import { applyGameResultToStanding } from './result';
 import { newGame, stepToEnd, stepToEndGen, userSide } from '../engine/game';
 import { addChem } from '../growth/chemistry';
@@ -42,7 +42,7 @@ import {
   runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
 
-export const SAVE_VERSION = 30;
+export const SAVE_VERSION = 31;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -75,7 +75,7 @@ export function newCareer(name: string, diff: Difficulty = 'normal', prev?: Care
   c.fans = Math.round(market(0) * 0.5);
   const u = genTeam(c, name, LEAGUES[0].base - 3, 5, true);
   // プレイヤーのチームは伸びしろを多めにする
-  for (const p of u.players) for (const k of keysOf(p)) p.pot[k] = clamp(p.pot[k] + ri(5, 15), p[k], 99);
+  for (const p of u.players) for (const k of keysOf(p)) p.pot[k] = clamp(p.pot[k] + ri(0, 6), p[k], 99);
   c.userId = u.id;
   buildWorld(c, u);
   pickRival(c);
@@ -185,7 +185,7 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   }
   // 二軍の選手は,二軍の試合で経験を積む(一軍の半分)
   for (const p of u.players) if (isFarm(u, p)) { gameExperience(p, 0.5); p.fatigue = clamp(p.fatigue + 6, 0, 100); }
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal, { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * GROWTH_PACE * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal, { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
 
   for (const r of report) {
     if (!r.rankUps || r.pid === undefined) continue;

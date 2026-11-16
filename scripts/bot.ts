@@ -79,7 +79,7 @@ export function botWeek(c: Career): void {
 /** オフ: おすすめどおりにドラフト,自由契約,放出を行い,空いているスタッフを雇って,次のシーズンへ */
 export function botOffseason(c: Career): void {
   const u = userTeam(c);
-  while (!c.off!.draft.done) {
+  for (let n = 0; n < 200 && !c.off!.draft.done; n++) {
     const d = c.off!.draft;
     const adv = advise(u, d.pool, TACTICS_MOD ? (p) => TACTICS_MOD.tacticBonus(c, p) : undefined);
     const i = d.pool.findIndex((p) => adv.get(p.id)?.star);

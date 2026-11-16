@@ -32,6 +32,8 @@ export interface ActionDef {
 export const ACTION_SLOTS = 2;
 /** 特訓に使う食材の数 */
 export const SPECIAL_INGREDIENTS = 3;
+/** 特訓の 1 回の伸び(growAttr の倍率,これを 4 回) */
+export const SPECIAL_GAIN = 0.3;
 
 const userT = (c: Career) => c.teams.find((t) => t.user)!;
 const pantryTotal = (c: Career): number => Object.values(c.pantry).reduce((a, b) => a + b, 0);
@@ -127,7 +129,8 @@ function runAction(c: Career, k: ActionKey, target: number | null): string {
       useIngredients(c, SPECIAL_INGREDIENTS);
       const ks = specialKeys(p);
       const before = ks.map((x) => p[x]);
-      for (const x of ks) for (let i = 0; i < 4; i++) growAttr(p, x, 1.2);
+      // 重点の練習 2 週ぶんくらい(1 回あたり +2 前後)
+      for (const x of ks) for (let i = 0; i < 4; i++) growAttr(p, x, SPECIAL_GAIN);
       p.fatigue = clamp(p.fatigue + 22, 0, 100);
       p.morale = clamp(p.morale + 6, 0, 100);
       let wake = '';

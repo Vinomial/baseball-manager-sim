@@ -8,7 +8,7 @@ import { doTraining, type GrowthReport, type MenuKey } from '../growth/training'
 import type { Career, DraftState, Difficulty, Game, GameKind, Review, Team, TeamRecords } from '../types';
 import { boxScore, recap } from '../engine/recap';
 import { checkFA, checkGame, checkSeason, PRO_TITLES_FOR_HALL } from './achievements';
-import { emptyPantry, tickMeal } from '../growth/meals';
+import { emptyPantry, mealGuard, mealLift, tickMeal } from '../growth/meals';
 import { earn, emptyFac, emptyMarket, gateIncome, stepMarket, trainFacMult, weeklyIncome } from './economy';
 import { tickConvert } from './convert';
 import { endLoans, refreshHelpers } from './trade';
@@ -42,7 +42,7 @@ import {
   runAiDraft, runAuto, startPlayoffs, stepLeagues, toFreeAgent, trimRoster, userDraftPick, weeklyUpkeep, type MomentGen,
 } from './world';
 
-export const SAVE_VERSION = 31;
+export const SAVE_VERSION = 32;
 
 export { teamById };
 /** プレイヤーのチームの登録上限.オフの間は来シーズンのリーグで決まる. */
@@ -148,7 +148,7 @@ function playPractice(c: Career): Game {
     const real = findPlayer(u, p.id);
     if (real) {
       real.fatigue = clamp(real.fatigue + (us.pcBy[p.id] ?? 0) * 0.6, 0, 100);
-      if (maybeInjure(real, 0.003)) c.news.push(`${real.name}が練習試合で${real.inj!.name}をしました(${real.inj!.weeks}週間).`);
+      if (maybeInjure(real, 0.003, 0, mealGuard(c.meal))) c.news.push(`${real.name}が練習試合で${real.inj!.name}をしました(${real.inj!.weeks}週間).`);
     }
   }
   // 練習試合の経験(公式戦の 6 割)
@@ -176,6 +176,7 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   u.staffFx = { hit: mfx.hit + tfx.fx.hit, hr: mfx.hr + tfx.fx.hr, k: mfx.k + tfx.fx.k, dp: mfx.dp + tfx.fx.dp, def: mfx.def + tfx.fx.def, cmd: mfx.cmd + tfx.fx.cmd };
   u.runMult = tfx.run;
   u.med = c.fac.clinic;
+  u.guard = mealGuard(c.meal);
   // おまかせ進行:オーダーを組み直す,疲れがたまっていたら自動で休養にする
   if (c.auto.lineup) { autoLineup(u, { mode: c.auto.mode, noise: lineupNoise(c) }); autoPitchers(u, { mode: c.auto.mode, noise: lineupNoise(c) }); }
   if (c.auto.rest && menu !== 'rest' && confirmMessage(c, menu, !!opt.practice)) {
@@ -185,7 +186,7 @@ export function* weekGen(c: Career, menu: MenuKey, opt: { practice?: boolean } =
   }
   // 二軍の選手は,二軍の試合で経験を積む(一軍の半分)
   for (const p of u.players) if (isFarm(u, p)) { gameExperience(p, 0.5); p.fatigue = clamp(p.fatigue + 6, 0, 100); }
-  const report = doTraining(u, menu, TRAIN_PER_WEEK * GROWTH_PACE * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust), c.meal, { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
+  const report = doTraining(u, menu, TRAIN_PER_WEEK * GROWTH_PACE * trustGrowth(c.trust) * info.trainMult * trainFacMult(c) * dk.growth, trustCondBias(c.trust) + mealLift(c.meal), { mult: (p, k) => staffTrainMult(c, p, k), load: trainerLoadScale(c) });
 
   for (const r of report) {
     if (!r.rankUps || r.pid === undefined) continue;

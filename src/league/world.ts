@@ -8,6 +8,7 @@ import { agePlayer, condDrift, driftPot, futureValue, genPlayer, growAttr, keysO
 import type { AttrKey, Career, DraftState, Game, LeagueState, Player, Team } from '../types';
 import { clamp, pick, randn, ri, shuffle } from '../util/random';
 import { heal, isHurt, maybeInjure } from './health';
+import { mealRest } from '../growth/meals';
 import { applyGameEffects, applyGameResultToStanding } from './result';
 import { scheduleWeeks, WEEKS_PER_YEAR } from './calendar';
 import { foldHistory } from './leaders';
@@ -127,9 +128,10 @@ export function weeklyUpkeep(c: Career, menuRisk = 1): void {
       for (const p of t.players) {
         // AI チームも練習で疲れる
         if (!t.user) p.fatigue = Math.min(100, p.fatigue + 11);
-        p.fatigue = Math.max(0, p.fatigue - 18);
+        // 料理(米)で,自分のチームは疲れがよけいにとれる
+        p.fatigue = Math.max(0, p.fatigue - 18 - (t.user ? mealRest(c.meal) : 0));
         if (heal(p, med) && t.user) c.news.push(`${p.name}の怪我が治りました.`);
-        else if (!isHurt(p) && maybeInjure(p, 0.0025 * (t.user ? menuRisk : 1), med) && t.user) {
+        else if (!isHurt(p) && maybeInjure(p, 0.0025 * (t.user ? menuRisk : 1), med, t.guard ?? 1) && t.user) {
           c.news.push(`${p.name}が${p.inj!.name}で${p.inj!.weeks}週間の離脱です.`);
           if (p.inj!.major) (p.story ??= []).push({ season: c.season, text: `${p.inj!.name}の大怪我で長期離脱した.` });
         }

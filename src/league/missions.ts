@@ -1,4 +1,4 @@
-/** ミッション.達成すると食材がもらえて,料理で練習の伸びを大きくできる. */
+/** ミッション.達成すると食材がもらえて,料理で体を整えたり,特訓で能力を上げたりできる. */
 import { ingName } from '../growth/meals';
 import { earn, moneyScale } from './economy';
 import type { Career, Ingredient, Mission } from '../types';

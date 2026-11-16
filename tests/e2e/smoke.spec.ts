@@ -160,3 +160,18 @@ test('localStorage にある古いセーブは IndexedDB に移り,読み込み�
   await expect(page.locator('main')).toContainText('2週');
   expect(errs).toEqual([]);
 });
+
+test('リーグタブから,相手チームと選手の名前を変えられる', async ({ page }) => {
+  const errs = watchErrors(page);
+  await newGame(page);
+  await page.click('[data-a="tab"][data-k="table"]');
+  await page.locator('tr:not(.me) [data-a="vteam"]').first().click();
+  page.once('dialog', (d) => d.accept('ゴールデンズ'));
+  await page.click('[data-a="rename-t"]');
+  await expect(page.locator('main')).toContainText('ゴールデンズ の選手');
+  await page.locator('main [data-a="detail"]').first().click();
+  page.once('dialog', (d) => d.accept('名無しの権兵衛'));
+  await page.click('[data-a="rename-p"]');
+  await expect(page.locator('.sheet.detail')).toContainText('名無しの権兵衛');
+  expect(errs).toEqual([]);
+});

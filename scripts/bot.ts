@@ -5,7 +5,8 @@
  */
 import { recommendedMenu } from '../src/league/autoplay';
 import { advise } from '../src/league/advice';
-import { canCook, cook, RECIPES } from '../src/growth/meals';
+import { cook } from '../src/growth/meals';
+import { adviseMeals } from '../src/growth/mealAdvice';
 import { MAX_FAC, upgrade, upgradeCost } from '../src/league/economy';
 import { resolveEvent } from '../src/league/events';
 import { budgetFor, payroll } from '../src/league/finance';
@@ -36,10 +37,6 @@ const ACTIONS_MOD = await import('../src/league/actions').catch(() => null) as n
 /** 施設を強くする順(練習場とスタジアムを先に) */
 const FAC_ORDER = ['ground', 'stadium', 'canteen', 'clinic', 'scout'] as const;
 
-/** 料理の大まかな価値: 伸びの増えた分 × 週数 */
-const mealValue = (r: (typeof RECIPES)[number]): number =>
-  Object.values(r.mult).reduce((s, v) => s + Math.max(0, (v ?? 1) - 1), 0) * r.weeks + ((r as { recover?: number }).recover ?? 0) * 0.02;
-
 /** 月のはじめの方針: 練習はおすすめ,行動は特訓(食材があれば)と,チームの状態に合わせたもう 1 つ */
 function botPlan(c: Career): void {
   // 古いコミットには月の方針がないので,あるときだけ使う
@@ -62,8 +59,9 @@ export function botWeek(c: Career): void {
   c.auto.mode = 'form';
   if (c.event) resolveEvent(c, c.event.choices[0].key);
   if (!c.meal) {
-    const best = RECIPES.filter((r) => canCook(c, r)).sort((a, b) => mealValue(b) - mealValue(a))[0];
-    if (best) cook(c, best.key);
+    // おすすめの一番上(どのコミットにもある関数なので,古いコードと比べるときも同じ選び方になる)
+    const best = adviseMeals(c)[0];
+    if (best) cook(c, best.recipe.key);
   }
   // 運転資金を少し残して,施設を強くする
   for (const k of FAC_ORDER) {

@@ -1,5 +1,4 @@
-import type { AttrKey, Meal, Player, Team } from '../types';
-import { mealMult } from './meals';
+import type { AttrKey, Player, Team } from '../types';
 import { addChem } from './chemistry';
 import { clamp } from '../util/random';
 import { isHurt } from '../league/health';
@@ -60,7 +59,7 @@ export interface GrowthReport {
 /** コーチなどによる追加の補正 */
 export interface TrainExtra { mult?: (p: Player, k: AttrKey) => number; load?: number; }
 
-export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal: Meal | null = null, extra: TrainExtra = {}): GrowthReport[] {
+export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, extra: TrainExtra = {}): GrowthReport[] {
   const m = MENUS[menu];
   const rep: GrowthReport[] = [];
   for (const p of t.players) {
@@ -69,7 +68,7 @@ export function doTraining(t: Team, menu: MenuKey, scale = 1, condBias = 0, meal
     const gradeBefore = Object.fromEntries(keys.map((k) => [k, grade(p[k])])) as Record<AttrKey, string>;
     const hurt = isHurt(p) ? 0.3 : 1;
     const mor = moraleGrowth(p);
-    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * mealMult(meal, k) * hurt * mor * planMult(p, k) * (extra.mult?.(p, k) ?? 1));
+    for (const k of keys) growAttr(p, k, (m.focus[k] ?? m.base ?? BASE_GAIN) * scale * hurt * mor * planMult(p, k) * (extra.mult?.(p, k) ?? 1));
     condDrift(p, (m.rest ? 1 : 0) + condBias + moraleCondBias(p));
     // 練習の負担.休養は疲れをとる
     const load = LOAD[menu];

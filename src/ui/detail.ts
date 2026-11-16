@@ -77,6 +77,7 @@ export function detailSheet(c: Career, id: number): string {
   const histHTML = p.story?.length ? `<h3>ヒストリー</h3><ul class="recap">${[...p.story].reverse().slice(0, 12).map((x) => `<li><span class="muted">第${x.season}季</span> ${esc(x.text)}</li>`).join('')}</ul>` : '';
   return `<div class="sheet-bg" data-a="detail-close"></div><div class="sheet detail" role="dialog" aria-label="選手の詳細">
   <div class="sheet-h"><b>${avatar(p, 44, teamColors({ name: r.team })[0])} ${esc(p.name)} <span class="tag">${POS_NAME[p.pos]}</span><span class="tag">${p.age}歳</span></b><button class="btn ghost" data-a="detail-close" aria-label="閉じる">✕</button></div>
+  <p class="small" style="margin:0"><button class="mini" data-a="rename-p" data-id="${p.id}">✎ 名前を変える</button></p>
   <p class="small" style="margin:0">${esc(r.team)} / 成長タイプ: ${p.type} / 伸びしろ: ${roomWord(p)} / 年俸 ${fmtYen(p.salary)}${p.alt?.length ? ` / サブポジ: ${p.alt.map((x) => POS_NAME[x]).join('・')}` : ''}</p>
   <p style="margin:0">${condHTML(p)}</p>
   <p style="margin:4px 0 0">${playerStars(p)}</p>

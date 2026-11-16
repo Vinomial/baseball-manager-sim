@@ -35,9 +35,9 @@ export function renderTable(c: Career): string {
 
   if (state.viewTeam !== null && lg.teamIds.includes(state.viewTeam)) {
     const t = teamById(c, state.viewTeam);
-    h += `<h2>${esc(t.name)} の選手 <button class="btn ghost" data-a="vteam" data-id="-1">閉じる</button></h2>${rosterHTML(c, t, false)}`;
+    h += `<h2>${esc(t.name)} の選手 <button class="btn ghost" data-a="rename-t" data-id="${t.id}">✎ チーム名を変える</button> <button class="btn ghost" data-a="vteam" data-id="-1">閉じる</button></h2>${rosterHTML(c, t, false)}`;
   } else {
-    h += `<p class="small muted">チーム名をタップすると,選手と通算成績が見られます.</p>`;
+    h += `<p class="small muted">チーム名をタップすると,選手と通算成績が見られます.チーム名や選手の名前も,そこから変えられます.</p>`;
   }
 
   h += `<h2>個人成績 <span class="small muted">(${esc(leagueName(lg))})</span></h2><div class="boards">${leaders(c, lg).map((b) =>

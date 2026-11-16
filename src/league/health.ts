@@ -33,9 +33,9 @@ export const fatigueRisk = (p: Player): number => 1 + clamp((p.fatigue - 45) / 3
  * @param base 基本の確率
  * @param med 医務室のレベル
  */
-export function maybeInjure(p: Player, base: number, med = 0): boolean {
+export function maybeInjure(p: Player, base: number, med = 0, guard = 1): boolean {
   if (isHurt(p)) return false;
-  if (rand() >= base * injuryScale * fatigueRisk(p) * (1 - med * 0.1)) return false;
+  if (rand() >= base * injuryScale * guard * fatigueRisk(p) * (1 - med * 0.1)) return false;
   p.inj = newInjury(med);
   if (p.inj.major) {
     // 大怪我は,能力が少し落ちる

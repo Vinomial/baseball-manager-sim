@@ -12,7 +12,7 @@ import { needsPlan, plannedMenu } from './actions';
 export function recommendedMenu(c: Career): MenuKey {
   const u = c.teams.find((t) => t.user)!;
   const left = WEEKS_PER_YEAR - c.cal;
-  return adviseTraining(u, leagueAvgAttrs(c), left, TRAIN_PER_WEEK * trustGrowth(c.trust) * weekInfo(c).trainMult, c.meal).best;
+  return adviseTraining(u, leagueAvgAttrs(c), left, TRAIN_PER_WEEK * trustGrowth(c.trust) * weekInfo(c).trainMult).best;
 }
 
 /**

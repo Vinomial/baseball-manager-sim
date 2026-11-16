@@ -301,6 +301,16 @@ export function migrate(raw: unknown): Career | null {
     // v31: トレードの申し出は 1 シーズンに 1 回まで(その記録を足す.なくても動く)
     c.version = 31;
   }
+  if (c.version === 31) {
+    // v32: 料理は練習の伸びの倍率をやめ,体を整える(疲れ・怪我・調子)ものになった.
+    // 効いている途中の料理は,残りの週だけ「疲れがよけいにとれる」料理として続ける.
+    const cc = c as unknown as Career;
+    const m = cc.meal as (Career['meal'] & { mult?: unknown }) | null;
+    if (m && m.mult !== undefined) {
+      cc.meal = { name: m.name, weeks: m.weeks, rest: 4, guard: 1, lift: 0, desc: `${m.weeks}週間: 疲れが毎週4多くとれる` };
+    }
+    c.version = 32;
+  }
   if (c.version === SAVE_VERSION && (c as unknown as Career).rival === null) pickRival(c as unknown as Career);
   return c.version === SAVE_VERSION ? (c as unknown as Career) : null;
 }

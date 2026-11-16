@@ -21,7 +21,8 @@ import { cupBracketSVG, playoffBracketSVG } from '../src/ui/bracket';
 import { pressNote } from '../src/league/world';
 import { PLAYOFF_START, SEASON_START, WEEKS_PER_YEAR, weekInfo } from '../src/league/calendar';
 import { driftPot, emptyStats, gameExperience, genPlayer, growAttr, keysOf } from '../src/growth/player';
-import { canCook, cook, mealMult, RECIPES, seasonalIng } from '../src/growth/meals';
+import { canCook, cook, effectText, mealEffect, mealGuard, mealLift, mealRest, RECIPES, seasonalIng } from '../src/growth/meals';
+import { renamePlayer, renameTeam } from '../src/league/rename';
 import { adviseMeals } from '../src/growth/mealAdvice';
 import { updateMissions } from '../src/league/missions';
 import { currentPlan, needsPlan, setMonthPlan } from '../src/league/actions';
@@ -640,37 +641,96 @@ describe('ミッションと料理', () => {
     expect(got).toBe(true);
   });
 
-  it('料理を作ると食材が減り,しばらく練習の伸びが大きくなる', () => {
+  it('料理を作ると食材が減り,しばらく体が整う(能力は上がらない)', () => {
     const c = newCareer('テスト');
     c.pantry = { rice: 1, meat: 1, fish: 0, veg: 0, fruit: 0, egg: 1 };
     expect(cook(c, 'bento')).toBeNull();
+    const u = userTeam(c);
+    const attrs = JSON.stringify(teamAttrs(u));
+    for (const p of u.players) p.morale = 50;
     const m = cook(c, 'katsu');
     expect(m).not.toBeNull();
     expect(c.pantry).toEqual({ rice: 0, meat: 0, fish: 0, veg: 0, fruit: 0, egg: 0 });
     expect(c.meal!.weeks).toBe(4);
-    expect(mealMult(c.meal, 'meet')).toBeGreaterThan(1.5);
-    expect(mealMult(null, 'meet')).toBe(1);
-
-    let plain = 0, fed = 0;
-    for (let i = 0; i < 20; i++) {
-      const a = newCareer('テスト'), b = newCareer('テスト');
-      const ta = userTeam(a), tb = userTeam(b);
-      const ma = teamAttrs(ta).meet, mb = teamAttrs(tb).meet;
-      doTraining(ta, 'bat', 1, 0, null);
-      doTraining(tb, 'bat', 1, 0, { name: 'x', weeks: 2, mult: { all: 2 }, desc: '' });
-      plain += teamAttrs(ta).meet - ma;
-      fed += teamAttrs(tb).meet - mb;
-    }
-    expect(fed).toBeGreaterThan(plain * 1.3);
+    // 米で疲れがとれやすく,肉で怪我をしにくく,卵でやる気が上がる
+    expect(mealRest(c.meal)).toBeGreaterThan(0);
+    expect(mealGuard(c.meal)).toBeLessThan(1);
+    expect(mealLift(c.meal)).toBe(0);
+    expect(u.players.every((p) => p.morale > 50)).toBe(true);
+    expect(JSON.stringify(teamAttrs(u))).toBe(attrs);
+    expect(m!.desc).toContain('4週間');
+    expect(m!.desc).toContain('怪我');
+    expect(mealRest(null)).toBe(0);
+    expect(mealGuard(null)).toBe(1);
   });
 
-  it('料理の効き目は試合ごとに減って,なくなる', () => {
+  it('すぐ効くだけの料理は,いま効いている料理を消さない', () => {
     const c = newCareer('テスト');
-    c.meal = { name: 'テスト', weeks: 2, mult: { all: 1.5 }, desc: '' };
+    c.pantry = { rice: 1, meat: 0, fish: 0, veg: 2, fruit: 0, egg: 0 };
+    for (const p of userTeam(c).players) p.fatigue = 60;
+    cook(c, 'onigiri');
+    const r = cook(c, 'soup');
+    expect(r!.desc).toContain('疲れ-');
+    expect(c.meal!.name).toContain('おにぎり');
+    expect(userTeam(c).players.every((p) => p.fatigue < 60)).toBe(true);
+  });
+
+  it('料理の米で,毎週の疲れがよけいにとれる', () => {
+    const run = (fed: boolean) => {
+      setRandom(seeded(5));
+      const c = newCareer('テスト');
+      if (fed) c.meal = { name: 'x', weeks: 3, desc: '', rest: 8, guard: 1, lift: 0 };
+      for (const p of userTeam(c).players) p.fatigue = 60;
+      weeklyUpkeep(c);
+      return userTeam(c).players.reduce((a, p) => a + p.fatigue, 0);
+    };
+    expect(run(true)).toBeLessThan(run(false));
+  });
+
+  it('料理の肉で,怪我が起きにくい', () => {
+    let a = 0, b = 0;
+    for (let i = 0; i < 4000; i++) {
+      const p1 = { fatigue: 60, skills: [], pitches: {}, meet: 50, power: 50, speed: 50, field: 50, velo: 0, ctrl: 0, stam: 0, role: '野手', cond: 2 } as unknown as Player;
+      const p2 = { ...p1 } as Player;
+      if (maybeInjure(p1, 0.05, 0, 1)) a++;
+      if (maybeInjure(p2, 0.05, 0, 0.5)) b++;
+    }
+    expect(b).toBeLessThan(a * 0.7);
+  });
+
+  it('料理の効き目は週ごとに減って,なくなる', () => {
+    const c = newCareer('テスト');
+    c.meal = { name: 'テスト', weeks: 2, desc: '', rest: 4, guard: 1, lift: 0 };
     playWeek(c, 'mix');
     expect(c.meal!.weeks).toBe(1);
     playWeek(c, 'mix');
     expect(c.meal).toBeNull();
+  });
+
+  it('v31 の効いている途中の料理は,体を整える料理として続く', () => {
+    const c = newCareer('テスト');
+    const old = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
+    old.version = 31;
+    old.meal = { name: 'カツ丼', weeks: 3, mult: { meet: 1.7 }, desc: '' };
+    const m = migrate(old)!;
+    expect(m.meal).toMatchObject({ name: 'カツ丼', weeks: 3, rest: 4, guard: 1, lift: 0 });
+    expect((m.meal as unknown as { mult?: unknown }).mult).toBeUndefined();
+  });
+
+  it('選手とチームの名前を変えられる.空や長すぎる名前,同じチーム名はだめ', () => {
+    const c = newCareer('テスト');
+    const u = userTeam(c), o = c.teams.find((t) => !t.user)!;
+    const p = o.players[0];
+    expect(renamePlayer(c, p.id, '  山田 太郎 ')).toBeNull();
+    expect(p.name).toBe('山田 太郎');
+    expect(renamePlayer(c, p.id, '   ')).toContain('入れて');
+    expect(renamePlayer(c, p.id, 'あ'.repeat(13))).toContain('12文字');
+    expect(renamePlayer(c, -5, 'だれ')).toContain('見つかりません');
+    expect(renameTeam(c, o.id, u.name)).toContain('同じ名前');
+    expect(renameTeam(c, o.id, '新しいチーム')).toBeNull();
+    expect(o.name).toBe('新しいチーム');
+    expect(renameTeam(c, u.id, 'わがチーム')).toBeNull();
+    expect(u.name).toBe('わがチーム');
   });
 
   it('v9 のデータにミッションと食材を足す', () => {
@@ -920,7 +980,7 @@ describe('資金と施設', () => {
       cook(c, 'onigiri');
       return c.meal!;
     };
-    expect(mk(5).mult.all!).toBeGreaterThan(mk(0).mult.all!);
+    expect(mk(5).rest).toBeGreaterThan(mk(0).rest);
     expect(mk(3).weeks).toBeGreaterThan(mk(0).weeks);
   });
 
@@ -2060,7 +2120,10 @@ describe('料理と成長上限とミッション', () => {
     expect(seasonalIng(c.cal)).toBe('veg');
     expect(inSeason.name).toContain('旬');
     expect(plain.name).not.toContain('旬');
-    expect(inSeason.mult.stam).toBeGreaterThan(1 + (RECIPES.find((r) => r.key === 'soup')!.mult.stam! - 1));
+    const soup = RECIPES.find((r) => r.key === 'soup')!;
+    expect(inSeason.desc).toBe(effectText(mealEffect(c, soup)));
+    c.cal = 0; // 冬: 野菜は旬でない
+    expect(mealEffect({ ...c, cal: 16 }, soup).recover).toBeGreaterThan(mealEffect(c, soup).recover);
   });
 
   it('おすすめ料理は作れるものだけで,材料が足りなければ出さない', () => {

@@ -23,7 +23,8 @@ import { doTrade, extendHelper, hireHelper } from '../league/trade';
 import { setTrainGoal } from '../league/story';
 import { fireStaff, hireStaff } from '../league/staff';
 import { dispatchScout } from '../league/scouting';
-import { detailSheet } from './detail';
+import { detailSheet, findAnyPlayer } from './detail';
+import { NAME_MAX, renamePlayer, renameTeam } from '../league/rename';
 import { esc } from '../util/format';
 import { state, writeAutoOpen, type Screen, type Tab, type TeamSub } from './state';
 import { renderGame } from './views/game';
@@ -342,6 +343,16 @@ function onClick(e: MouseEvent): void {
     }
     case 'detail': state.detail = id; break;
     case 'detail-close': state.detail = null; break;
+    case 'rename-p': if (c) {
+      const r = findAnyPlayer(c, id);
+      const name = r ? prompt(`${r.p.name}の新しい名前(${NAME_MAX}文字まで)`, r.p.name) : null;
+      if (name !== null) { const err = renamePlayer(c, id, name); if (err) alert(err); else save(); }
+    } break;
+    case 'rename-t': if (c) {
+      const t = c.teams.find((x) => x.id === id);
+      const name = t ? prompt(`${t.name}の新しいチーム名(${NAME_MAX}文字まで).これまでの記録は,そのときの名前のまま残ります.`, t.name) : null;
+      if (name !== null) { const err = renameTeam(c, id, name); if (err) alert(err); else save(); }
+    } break;
     case 'convert': if (c) { const err = startConvert(c, id, k as Pos); if (err) alert(err); else save(); } break;
     case 'convert-cancel': if (c) { const p = findPlayer(userTeam(c), id); if (p) { cancelConvert(p); save(); } } break;
     case 'menu-open': state.menuOpen = true; break;

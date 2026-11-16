@@ -15,7 +15,7 @@ import { state } from '../state';
 /** 今月の方針.月のはじめに練習と行動を決める.決めたあとは,その月の内容と結果を見せる. */
 export function renderTraining(c: Career): string {
   const left = WEEKS_PER_YEAR - c.cal;
-  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, TRAIN_PER_WEEK * trustGrowth(c.trust) * weekInfo(c).trainMult, c.meal);
+  const adv = adviseTraining(userTeam(c), leagueAvgAttrs(c), left, TRAIN_PER_WEEK * trustGrowth(c.trust) * weekInfo(c).trainMult);
   const plan = currentPlan(c);
   const month = Math.floor(c.cal / 4) + 1;
   const weakest = ALL_KEYS.reduce((a, b) => (adv.gap[b] < adv.gap[a] ? b : a));

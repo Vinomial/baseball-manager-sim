@@ -115,6 +115,8 @@ export interface Team {
   bonds: [number, number][];
   /** 医務室のレベル(怪我の起きにくさ・治りの早さ).プレイヤーのチームだけ. */
   med?: number;
+  /** 怪我の起きやすさの倍率(料理で下がる.自分のチームだけ) */
+  guard?: number;
   /** 監督の作戦による試合の補正.プレイヤーのチームだけ. */
   staffFx?: { hit: number; hr: number; k: number; dp: number; def: number; cmd: number };
   /** 盗塁を試みる多さの倍率(戦術による).プレイヤーのチームだけ. */
@@ -329,11 +331,15 @@ export interface Mission {
 /** 食べた料理の効き目 */
 export interface Meal {
   name: string;
-  /** 効き目が残る試合数 */
+  /** 効き目が残る週数 */
   weeks: number;
-  /** 能力ごとの練習の伸びの倍率(all は指定のない能力) */
-  mult: Partial<Record<AttrKey | 'all', number>>;
   desc: string;
+  /** 毎週,疲れが余分にとれる量 */
+  rest: number;
+  /** 怪我の起きやすさの倍率(1 より小さいほど起きにくい) */
+  guard: number;
+  /** 毎週の調子の上がりやすさ */
+  lift: number;
 }
 
 export interface CupMatch {

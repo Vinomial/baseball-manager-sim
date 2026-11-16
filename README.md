@@ -52,7 +52,9 @@ npm run build      # 公開用のビルド(dist/ に出力)
 
 ## 公開(Vercel)
 
-Vercel に GitHub のリポジトリをつなぐと,設定は `vercel.json` から読まれます.main への push で本番が,それ以外のブランチへの push で試し用の URL(プレビュー)が作られます.
+遊べる場所: https://diamond-kantoku.vercel.app/
+
+Vercel のプロジェクト `diamond-kantoku` が GitHub のリポジトリにつながっていて,設定は `vercel.json` から読まれます.main への push で本番が,それ以外のブランチへの push で試し用の URL(プレビュー)が作られます.
 
 セーブはブラウザの中(サイトごと)に保存されるので,公開先の URL が変わると引き継がれません.古い URL でメニューの「バックアップを保存」をして,新しい URL の「バックアップを読み込む」で移してください.
 
@@ -76,7 +78,6 @@ scripts/balance.ts   バランス確認スクリプト
 `engine/`,`growth/`,`league/` は DOM に依存しない純粋なロジックです.
 乱数は必ず `util/random.ts` を経由させ,テストでは `setRandom(seeded(n))` で結果を固定します.
 
-## 公開(GitHub Pages)
+## 以前の公開先(GitHub Pages)
 
-`main` ブランチに push すると `.github/workflows/deploy.yml` が自動でビルドして公開します.
-初回だけ,GitHub のリポジトリ設定の Pages で,Source を「GitHub Actions」にしてください.
+以前は GitHub Pages(https://vinomial.github.io/baseball-manager-sim/)で公開していました.いまそこには,`moved/index.html` の引っ越しの案内だけを置いています(`.github/workflows/deploy.yml`).案内のページから,古い URL に残ったセーブを書き出せます.

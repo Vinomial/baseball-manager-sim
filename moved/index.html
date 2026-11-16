@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ダイヤモンド監督は引っ越しました</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚾</text></svg>">
+<link rel="canonical" href="https://diamond-kantoku.vercel.app/">
+<style>
+  :root { --bg: #f4f1e8; --card: #fffdf7; --ink: #1d2a1f; --sub: #5b6b5d; --accent: #1f6f3f; --line: #d8d2c0; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #101712; --card: #182219; --ink: #e8efe6; --sub: #9fb0a2; --accent: #5fc286; --line: #2c3a2e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; line-height: 1.7; }
+  main { max-width: 480px; margin: 0 auto; padding: 40px 16px; }
+  h1 { font-size: 1.4rem; margin: 0 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .card h2 { font-size: 1rem; margin: 0 0 8px; }
+  .btn { display: block; width: 100%; text-align: center; padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 700; text-decoration: none; cursor: pointer; border: 2px solid var(--accent); }
+  .go { background: var(--accent); color: var(--bg); }
+  .out { background: transparent; color: var(--accent); }
+  ol { padding-left: 1.3em; margin: 8px 0; }
+  .small { font-size: .85rem; color: var(--sub); }
+  #msg { min-height: 1.5em; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>⚾ ダイヤモンド監督は引っ越しました</h1>
+  <p>新しい場所で遊べます.これからの更新は,新しい場所にだけ届きます.</p>
+  <a class="btn go" href="https://diamond-kantoku.vercel.app/">新しい場所で遊ぶ</a>
+
+  <div class="card">
+    <h2>セーブを持っていくには</h2>
+    <p class="small">セーブは場所ごとに保存されるので,新しい場所には自動で移りません.</p>
+    <ol>
+      <li>この下のボタンで,この場所に残っているセーブを書き出します.</li>
+      <li>新しい場所を開き,「バックアップを読み込む」で書き出したファイルを選びます.</li>
+    </ol>
+    <button class="btn out" id="export" type="button">⬇ この場所のセーブを書き出す</button>
+    <p id="msg" class="small"></p>
+  </div>
+</main>
+<script>
+  // ゲームと同じ保存先(IndexedDB,なければ localStorage)からセーブを読み出す
+  var KEY = 'baseball-manager-sim/save';
+  function fromIdb() {
+    return new Promise(function (resolve) {
+      try {
+        if (!window.indexedDB) return resolve(null);
+        var req = indexedDB.open('baseball-manager-sim', 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
+        req.onerror = function () { resolve(null); };
+        req.onsuccess = function () {
+          try {
+            var get = req.result.transaction('kv', 'readonly').objectStore('kv').get(KEY);
+            get.onsuccess = function () { resolve(typeof get.result === 'string' ? get.result : null); };
+            get.onerror = function () { resolve(null); };
+          } catch (e) { resolve(null); }
+        };
+      } catch (e) { resolve(null); }
+    });
+  }
+  function fromLs() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  document.getElementById('export').addEventListener('click', function () {
+    var msg = document.getElementById('msg');
+    // ゲームは localStorage にあるほうを新しいものとして扱うので,それに合わせる
+    fromIdb().then(function (idb) {
+      var raw = fromLs() || idb;
+      if (!raw) { msg.textContent = 'この場所にはセーブがありませんでした.'; return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
+      a.download = 'diamond-kantoku-save-backup.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      msg.textContent = '書き出しました.新しい場所の「バックアップを読み込む」で選んでください.';
+    });
+  });
+</script>
+</body>
+</html>

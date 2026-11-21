@@ -1,0 +1,28 @@
+rules_version = '2';
+// ダイヤモンド監督のアクセス規則.Firebase の管理画面(Firestore → ルール)にこのまま貼り付けて公開する.
+// - saves/{uid} は本人(その uid でログインしている人)だけが読み書き・削除できる.
+// - 中身は src/sync/engine.ts の RemoteDoc { data, rev, updatedAt, ver, label } だけ.
+//   data(縮めたセーブ)は 100 万文字まで.rev は新しく作るとき 1,そのあとは 1 ずつ増やす.
+// - それ以外の場所は誰も読み書きできない(何も書かなければ拒否になる).
+// 変えたら npm run test:rules で確かめてから公開する.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /saves/{uid} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function validDoc() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['data', 'rev', 'updatedAt', 'ver', 'label'])
+          && d.data is string && d.data.size() <= 1000000
+          && d.rev is int
+          && d.updatedAt is int
+          && d.ver is int
+          && d.label is string && d.label.size() <= 200;
+      }
+      allow get, delete: if isOwner();
+      allow create: if isOwner() && validDoc() && request.resource.data.rev == 1;
+      allow update: if isOwner() && validDoc() && request.resource.data.rev == resource.data.rev + 1;
+    }
+  }
+}

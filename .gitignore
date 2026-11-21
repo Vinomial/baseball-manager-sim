@@ -8,3 +8,7 @@ coverage/
 !.vscode/tasks.json
 test-results/
 playwright-report/
+
+# Firebase のエミュレーター
+firestore-debug.log
+firebase-debug.log

@@ -15,7 +15,9 @@ import {
   newCareer, newSeason, pickDraft, playWeek, releasePlayer, signFreeAgent, userRosterMax, userTeam, weekGen, type WeekResult,
 } from '../league/season';
 import { autoLineup, autoPitchers, findPlayer, getPlayer, setPosition, substitute, swapLineup, swapPitchers } from '../league/team';
-import { clearSave, initStorage, migrate, rawSave, saveCareer, sizeWarn } from '../save';
+import { clearSave, initStorage, migrate, pruneCareer, rawSave, saveCareer, sizeWarn } from '../save';
+import { sync } from '../sync/client';
+import { conflictSheet, syncLastText, syncMsgHTML, syncSheet } from './views/sync';
 import type { AttrKey, Career, Difficulty, FacKey, PlanKey, Player, StaffRole, Ingredient, LineupPos, Pos } from '../types';
 import { cancelConvert, startConvert } from '../league/convert';
 import { extendContract, negotiate } from '../league/contracts';
@@ -87,6 +89,7 @@ function menuSheet(c: Career): string {
   <button class="btn ghost" data-a="gokitchen">🍙 台所とミッション</button>
   <button class="btn ghost" data-a="export">⬇ バックアップを保存</button>
   <label class="btn ghost filebtn">⬆ バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label>
+  ${sync.enabled() ? `<button class="btn ghost" data-a="sync-open">☁ 端末間の同期${sync.state().email !== null ? '(ログイン中)' : ''}</button>` : ''}
   <p class="small muted" style="margin:4px 0 0">難易度</p>
   <div class="seg" role="group" aria-label="難易度">${(Object.keys(DIFFS) as Difficulty[]).map((d) => `<button class="btn ghost" data-a="diff" data-k="${d}" aria-pressed="${c.diff === d}">${DIFFS[d].name}</button>`).join('')}</div>
   <p class="small muted" style="margin:0">${DIFFS[c.diff].desc}</p>
@@ -196,7 +199,66 @@ function toast(msg: string): void {
 }
 
 function render(): void {
-  try { renderInner(); } catch (e) { showCrash(e); }
+  try { renderInner(); renderSync(); } catch (e) { showCrash(e); }
+}
+
+/** 同期のシート.タイトル画面でもプレイ中でも出す */
+function renderSync(): void {
+  if (sync.state().conflict) root.insertAdjacentHTML('beforeend', conflictSheet());
+  else if (state.syncOpen) root.insertAdjacentHTML('beforeend', syncSheet());
+}
+
+/** サーバーに置くときの,どこまで進んだかの説明 */
+function syncLabel(c: Career): string {
+  const when = c.phase === 'season' ? weekInfo(c).label : 'オフ';
+  return `${userTeam(c).name}(${LEAGUES[c.level].name})第${c.season}シーズン ${when}`;
+}
+
+/** 同期とのつなぎ */
+const syncHooks = {
+  local(small: boolean) {
+    const c = state.career;
+    if (!c) return null;
+    let text = rawSave() ?? JSON.stringify(c);
+    if (small) { const copy = JSON.parse(text) as Career; pruneCareer(copy); text = JSON.stringify(copy); }
+    return { text, label: syncLabel(c) };
+  },
+  apply(text: string): boolean {
+    let c: Career | null = null;
+    try { c = migrate(JSON.parse(text)); } catch { c = null; }
+    if (!c) return false;
+    state.career = c; state.last = null; state.detail = null; state.planQueue = []; state.open = null;
+    if (state.screen === 'new') state.screen = 'title';
+    // 置き換えただけなので,手元で進めたことにはしない(sync.dirty を呼ばない)
+    const r = saveCareer(c);
+    state.saveFail = !r.ok; state.saveSize = r.size;
+    render();
+    toast('ほかの端末の進みを読み込みました');
+    return true;
+  },
+  canApply: (): boolean => !state.busy && !state.moment,
+};
+
+/** 同期の状態が変わったとき.入力の途中なら,ひとことだけ差し替える */
+let syncWho: string | null = null;
+function onSyncChange(): void {
+  const s = sync.state();
+  const msg = document.getElementById('sync-msg');
+  if (msg && state.syncOpen && !s.conflict && s.email === syncWho && !root.querySelector('[aria-label="どちらのセーブを残しますか"]')) {
+    msg.innerHTML = syncMsgHTML();
+    const last = document.getElementById('sync-last');
+    if (last) last.textContent = syncLastText();
+    root.querySelectorAll<HTMLButtonElement>('[data-a="sync-now"]').forEach((b) => { b.disabled = s.busy; });
+    return;
+  }
+  syncWho = s.email;
+  render();
+}
+
+function syncCred(): [string, string] {
+  const e = (document.getElementById('sync-email') as HTMLInputElement | null)?.value.trim() ?? '';
+  const p = (document.getElementById('sync-pw') as HTMLInputElement | null)?.value ?? '';
+  return [e, p];
 }
 
 function renderInner(): void {
@@ -316,6 +378,7 @@ const save = () => {
   const r = saveCareer(state.career);
   state.saveFail = !r.ok;
   state.saveSize = r.size;
+  sync.dirty();
 };
 const top = () => window.scrollTo(0, 0);
 
@@ -356,6 +419,20 @@ function onClick(e: MouseEvent): void {
     case 'convert': if (c) { const err = startConvert(c, id, k as Pos); if (err) alert(err); else save(); } break;
     case 'convert-cancel': if (c) { const p = findPlayer(userTeam(c), id); if (p) { cancelConvert(p); save(); } } break;
     case 'menu-open': state.menuOpen = true; break;
+    case 'sync-open': state.syncOpen = true; state.menuOpen = false; break;
+    case 'sync-close': state.syncOpen = false; break;
+    case 'sync-in': { const [e, p] = syncCred(); void sync.signIn(e, p); return; }
+    case 'sync-up': { const [e, p] = syncCred(); if (confirm(`${e} で新しく登録します.よろしいですか?`)) void sync.signUp(e, p); return; }
+    case 'sync-google': void sync.google(); return;
+    case 'sync-reset': { const [e] = syncCred(); if (!e) { alert('メールアドレスを入れてから押してください.'); return; } void sync.reset(e); return; }
+    case 'sync-out': if (confirm('ログアウトします.この端末のセーブはそのまま残ります.よろしいですか?')) void sync.signOut(); return;
+    case 'sync-now': void sync.now(); return;
+    case 'sync-keep': {
+      const msg = k === 'local' ? 'この端末のセーブを残し,サーバーのセーブを置き換えます.よろしいですか?' : 'サーバーのセーブを読み込み,この端末のセーブを置き換えます.よろしいですか?';
+      if (confirm(msg)) void sync.keep(k as 'local' | 'remote');
+      return;
+    }
+    case 'sync-later': sync.later(); return;
     case 'menu-close': state.menuOpen = false; break;
     case 'savenow': save(); state.menuOpen = false; toast('セーブしました'); break;
     case 'gokitchen':
@@ -565,7 +642,12 @@ export function mount(el: HTMLElement): void {
   state.career = null;
   state.screen = 'title';
   // セーブの読み込みは非同期(IndexedDB).読み込めたらタイトルを描き直す
-  void initStorage().then((c) => { if (c && !state.career) { state.career = c; render(); } }).catch(() => undefined);
+  // 同期は,手元のセーブを読み込んでから始める(どちらが新しいかを比べるため)
+  sync.on(onSyncChange);
+  void initStorage().then((c) => { if (c && !state.career) { state.career = c; render(); } }).catch(() => undefined)
+    .finally(() => sync.start(syncHooks));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sync.flush(); });
+  window.addEventListener('online', () => sync.flush());
   document.addEventListener('click', (e) => { try { onClick(e); } catch (err) { showCrash(err); } });
   window.addEventListener('error', (e) => { if (e.error) showCrash(e.error); });
   window.addEventListener('unhandledrejection', (e) => { if (e.reason instanceof Error) showCrash(e.reason); });
@@ -583,7 +665,7 @@ export function mount(el: HTMLElement): void {
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.detail !== null || state.term || state.warn)) { state.menuOpen = false; state.detail = null; state.term = null; state.warn = null; render(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (state.menuOpen || state.syncOpen || state.detail !== null || state.term || state.warn)) { state.menuOpen = false; state.syncOpen = false; state.detail = null; state.term = null; state.warn = null; render(); } });
   // 折りたたみの開閉を覚えておく(再描画しても開いたままにするため)
   document.addEventListener('toggle', (e) => {
     const d = e.target as HTMLElement;

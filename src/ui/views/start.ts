@@ -3,6 +3,7 @@ import { userTeam } from '../../league/season';
 import type { Career } from '../../types';
 import { esc } from '../../util/format';
 import { userLeague } from '../../league/schedule';
+import { sync } from '../../sync/client';
 
 /** 新しいチームを作る画面.canCancel のときは,タイトルに戻れる. */
 export function renderStart(canCancel = false): string {
@@ -32,6 +33,7 @@ export function renderTitle(c: Career | null): string {
     <button class="btn" data-a="screen" data-k="play" style="width:100%">▶ つづきから</button></div>`;
   }
   h += `<div class="card"><div class="row"><button class="btn ghost" data-a="screen" data-k="new">${c ? '新しく始める' : 'はじめる'}</button>
-  <label class="btn ghost filebtn">バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label></div></div></div>`;
+  <label class="btn ghost filebtn">バックアップを読み込む<input id="imp" type="file" accept="application/json,.json" hidden></label>
+  ${sync.enabled() ? `<button class="btn ghost" data-a="sync-open">☁ 端末間の同期${sync.state().email !== null ? '(ログイン中)' : ''}</button>` : ''}</div></div></div>`;
   return h;
 }

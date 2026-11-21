@@ -63,6 +63,31 @@ Vercel のプロジェクト `diamond-kantoku` が GitHub のリポジトリに�
 
 セーブはブラウザの中(サイトごと)に保存されるので,公開先の URL が変わると引き継がれません.古い URL でメニューの「バックアップを保存」をして,新しい URL の「バックアップを読み込む」で移してください.
 
+## 端末間の同期(Firebase)
+
+メニューまたはタイトルの「☁ 端末間の同期」でログインすると,スマホと PC で同じセーブを続きから遊べます(ログインは任意).
+
+- ログインは Firebase Authentication(メールアドレス,Google).セーブは gzip で縮めて Firestore の `saves/{uid}` に 1 つの文書として置きます.
+- 文書には保存の番号 `rev` があり,片方の端末だけが進んでいればそちらにそろえます.両方で別々に進めたときは,どちらを残すかを聞きます(試合の進みは足し合わせられないため).
+- `src/sync/config.ts` の `PROD_CONFIG` が `null` のあいだは,同期のボタンを出しません.
+
+### Firebase のプロジェクトを用意する
+
+1. [Firebase コンソール](https://console.firebase.google.com/)でプロジェクトを作る(Google アナリティクスは不要).
+2. 「Authentication」→「始める」で,ログイン方法の「メール / パスワード」と「Google」を有効にする.
+3. 「Authentication」→「設定」→「承認済みドメイン」に `diamond-kantoku.vercel.app` を追加する.
+4. 「Firestore Database」→「データベースを作成」(本番環境モード,場所は `asia-northeast1` など).
+5. 「Firestore Database」→「ルール」に `firestore.rules` の中身を貼り付けて公開する.
+6. 「プロジェクトの設定」→「マイアプリ」でウェブアプリを追加し,表示された `firebaseConfig` を `src/sync/config.ts` の `PROD_CONFIG` に写す(公開してよい値です).
+
+### 同期のテスト(Java が必要.本番には通信しない)
+
+```bash
+npm run test:rules   # アクセス規則と,同期の書き込みをエミュレーターで確かめる
+npm run e2e:sync     # 2 台の端末の同期をブラウザで確かめる
+npm run emulators    # エミュレーターを立ち上げる.開発サーバーを ?emulator 付きで開くと,そこにつながる
+```
+
 ## ディレクトリ構成
 
 ```
@@ -74,6 +99,7 @@ src/
 ├─ growth/           選手生成,成長,加齢,練習メニュー,連携
 ├─ league/           チーム編成,日程,順位,シーズン進行,ドラフト
 ├─ save.ts           セーブとロード(IndexedDB,使えなければ localStorage)
+├─ sync/             端末間の同期(Firebase)
 ├─ ui/               画面の描画と操作
 └─ main.ts           エントリーポイント
 tests/               テスト(Vitest)

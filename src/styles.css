@@ -432,3 +432,5 @@ select[data-c="ptarget"]{margin-left:6px;max-width:100%}
 .std tr.down td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .rule summary{cursor:pointer}
 .rule .recap{margin:6px 0 0}
+.syncform{display:grid;gap:8px;margin:0}
+.syncform input{width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
